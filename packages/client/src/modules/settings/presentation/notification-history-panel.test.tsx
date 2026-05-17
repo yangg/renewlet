@@ -237,4 +237,50 @@ describe("NotificationHistoryPanel", () => {
     expect(screen.getAllByText("0 项").length).toBeGreaterThan(0);
     expect(screen.getByText("累计尝试渠道")).toBeInTheDocument();
   });
+
+  it("labels upcoming repeat reminder items", async () => {
+    const user = userEvent.setup();
+    const data = createSkippedHistoryResponse();
+    data.upcoming = [{
+      scheduledLocalDate: assertDateOnly("2026-05-16"),
+      scheduledLocalTime: assertLocalTime("09:00"),
+      timeZone: "UTC",
+      scheduledInstantUtc: "2026-05-16T09:00:00Z",
+      items: [{
+        type: "renewal",
+        subscriptionId: "sub-repeat",
+        name: "Critical SaaS",
+        price: 99,
+        currency: "USD",
+        status: "active",
+        targetDate: assertDateOnly("2026-05-17"),
+        reminderDays: 3,
+        daysUntil: 1,
+        repeatReminder: {
+          interval: "1h",
+          window: "72h",
+        },
+      }],
+    }];
+
+    render(
+      <TooltipProvider delayDuration={0}>
+        <NotificationHistoryPanel
+          data={data}
+          isLoading={false}
+          isFetching={false}
+          error={null}
+          status="all"
+          setStatus={vi.fn()}
+          loadMore={vi.fn()}
+          refetch={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "查看调度与历史" }));
+
+    expect(screen.getByText("Critical SaaS")).toBeInTheDocument();
+    expect(screen.getByText("2026-05-17 · 重复提醒 1小时")).toBeInTheDocument();
+  });
 });

@@ -162,6 +162,24 @@ func normalizeSubscriptionRecord(record *core.Record) error {
 		return errors.New("REMINDER_DAYS_OUT_OF_RANGE")
 	}
 
+	repeatInterval := strings.TrimSpace(record.GetString("repeatReminderInterval"))
+	if repeatInterval == "" {
+		repeatInterval = defaultRepeatReminderInterval
+	}
+	if !isValidRepeatReminderInterval(repeatInterval) {
+		return errors.New("REPEAT_REMINDER_INTERVAL_INVALID")
+	}
+	record.Set("repeatReminderInterval", repeatInterval)
+
+	repeatWindow := strings.TrimSpace(record.GetString("repeatReminderWindow"))
+	if repeatWindow == "" {
+		repeatWindow = defaultRepeatReminderWindow
+	}
+	if !isValidRepeatReminderWindow(repeatWindow) {
+		return errors.New("REPEAT_REMINDER_WINDOW_INVALID")
+	}
+	record.Set("repeatReminderWindow", repeatWindow)
+
 	return nil
 }
 

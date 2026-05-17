@@ -12,10 +12,14 @@
 import { z } from "zod";
 import {
   BILLING_CYCLES,
+  REPEAT_REMINDER_INTERVALS,
+  REPEAT_REMINDER_WINDOWS,
   SUBSCRIPTION_STATUSES,
   type BillingCycle,
   type Category,
   type PaymentMethod,
+  type RepeatReminderInterval,
+  type RepeatReminderWindow,
   type SubscriptionStatus,
 } from "@/types/subscription";
 import { isValidDateOnly } from "@/lib/time/date-only";
@@ -104,6 +108,9 @@ export const subscriptionCreateBodySchema = z.object({
   notes: z.string().max(5000).nullable().optional().describe("备注（可为空）。"),
   tags: tagsSchema,
   reminderDays: z.number().int().nonnegative().max(3650).describe("提前多少天提醒（>=0）。"),
+  repeatReminderEnabled: z.boolean().describe("是否启用重复提醒。"),
+  repeatReminderInterval: z.enum(REPEAT_REMINDER_INTERVALS).describe("重复提醒间隔。"),
+  repeatReminderWindow: z.enum(REPEAT_REMINDER_WINDOWS).describe("重复提醒窗口。"),
 }).strict();
 
 /** 更新订阅请求体（PocketBase subscriptions collection）。 */
@@ -132,6 +139,9 @@ export const apiSubscriptionSchema = z.object({
   notes: z.string().optional().describe("备注（可选）。"),
   tags: z.array(z.string()).optional().describe("标签数组（可选）。"),
   reminderDays: z.number().int().nonnegative().describe("提前多少天提醒。"),
+  repeatReminderEnabled: z.boolean().describe("是否启用重复提醒。"),
+  repeatReminderInterval: z.enum(REPEAT_REMINDER_INTERVALS).describe("重复提醒间隔。"),
+  repeatReminderWindow: z.enum(REPEAT_REMINDER_WINDOWS).describe("重复提醒窗口。"),
   createdAt: z.string().optional().describe("创建时间（ISO 字符串，可选）。"),
   updatedAt: z.string().optional().describe("更新时间（ISO 字符串，可选）。"),
 }).strict();
@@ -162,4 +172,6 @@ export type ApiSubscription = z.infer<typeof apiSubscriptionSchema> & {
   category: Category;
   status: SubscriptionStatus;
   paymentMethod?: PaymentMethod;
+  repeatReminderInterval: RepeatReminderInterval;
+  repeatReminderWindow: RepeatReminderWindow;
 };

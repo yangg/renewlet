@@ -128,6 +128,20 @@ func TestNormalizeSubscriptionRecordDefaultsAndValidatesContract(t *testing.T) {
 	if len(tags) != 2 || tags[0] != "streaming" || tags[1] != "media" {
 		t.Fatalf("unexpected tags %#v", tags)
 	}
+	if record.GetString("repeatReminderInterval") != defaultRepeatReminderInterval || record.GetString("repeatReminderWindow") != defaultRepeatReminderWindow {
+		t.Fatalf("expected repeat reminder defaults, got interval=%q window=%q", record.GetString("repeatReminderInterval"), record.GetString("repeatReminderWindow"))
+	}
+
+	record.Set("repeatReminderInterval", "2h")
+	if err := normalizeSubscriptionRecord(record); err == nil {
+		t.Fatal("expected invalid repeat reminder interval to fail")
+	}
+	record.Set("repeatReminderInterval", "1h")
+	record.Set("repeatReminderWindow", "forever")
+	if err := normalizeSubscriptionRecord(record); err == nil {
+		t.Fatal("expected invalid repeat reminder window to fail")
+	}
+	record.Set("repeatReminderWindow", "72h")
 
 	record.Set("billingCycle", "custom")
 	record.Set("customDays", 0)

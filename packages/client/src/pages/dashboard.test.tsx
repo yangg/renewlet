@@ -102,6 +102,9 @@ function subscription(overrides: Partial<FixedCycleSubscription> = {}): FixedCyc
     notes: undefined,
     tags: [],
     reminderDays: 3,
+    repeatReminderEnabled: false,
+    repeatReminderInterval: "1h",
+    repeatReminderWindow: "72h",
     ...overrides,
   };
 }

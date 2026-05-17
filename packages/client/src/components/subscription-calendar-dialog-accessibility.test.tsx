@@ -54,6 +54,9 @@ function subscription(overrides: SubscriptionOverrides = {}): Subscription {
     notes: undefined,
     reminderDays: 3,
     tags: [],
+    repeatReminderEnabled: false,
+    repeatReminderInterval: "1h",
+    repeatReminderWindow: "72h",
   };
 
   if (overrides.billingCycle === "custom") {

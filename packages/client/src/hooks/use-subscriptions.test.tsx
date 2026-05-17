@@ -4,7 +4,12 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { assertDateOnly } from "@/lib/time/date-only";
 import type { ApiSubscription } from "@/lib/api/schemas/subscriptions";
-import type { FixedCycleSubscription, Subscription } from "@/types/subscription";
+import type {
+  FixedCycleSubscription,
+  RepeatReminderInterval,
+  RepeatReminderWindow,
+  Subscription,
+} from "@/types/subscription";
 import { useCreateSubscription, useUpdateSubscription } from "./use-subscriptions";
 
 type FixedSubscriptionDraft = Omit<FixedCycleSubscription, "id">;
@@ -27,6 +32,9 @@ type SubscriptionWritePayload = {
   notes: string | null;
   tags: string[];
   reminderDays: number;
+  repeatReminderEnabled: boolean;
+  repeatReminderInterval: RepeatReminderInterval;
+  repeatReminderWindow: RepeatReminderWindow;
 };
 
 type CreateSubscriptionPayload = SubscriptionWritePayload & { user: string };
@@ -87,6 +95,9 @@ function apiSubscriptionFromPayload(id: string, payload: SubscriptionWritePayloa
     ...(payload.notes !== null ? { notes: payload.notes } : {}),
     tags: payload.tags,
     reminderDays: payload.reminderDays,
+    repeatReminderEnabled: payload.repeatReminderEnabled,
+    repeatReminderInterval: payload.repeatReminderInterval,
+    repeatReminderWindow: payload.repeatReminderWindow,
   };
 }
 
@@ -109,6 +120,9 @@ function subscriptionDraft(overrides: Partial<FixedSubscriptionDraft> = {}): Fix
     notes: undefined,
     tags: [],
     reminderDays: 3,
+    repeatReminderEnabled: false,
+    repeatReminderInterval: "1h",
+    repeatReminderWindow: "72h",
     ...overrides,
   };
 }
@@ -142,6 +156,9 @@ describe("use-subscriptions mutations", () => {
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({
       name: "Aws",
       tags: [],
+      repeatReminderEnabled: false,
+      repeatReminderInterval: "1h",
+      repeatReminderWindow: "72h",
       user: "user-1",
     }));
   });
@@ -158,6 +175,9 @@ describe("use-subscriptions mutations", () => {
     expect(mocks.update).toHaveBeenCalledWith("sub-1", expect.objectContaining({
       name: "Aws",
       tags: [],
+      repeatReminderEnabled: false,
+      repeatReminderInterval: "1h",
+      repeatReminderWindow: "72h",
     }));
   });
 });

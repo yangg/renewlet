@@ -87,6 +87,14 @@ export const NOTIFICATION_CHANNELS = ['telegram', 'notifyx', 'webhook', 'wechat'
 /** 通知渠道（用于配置页选择 + 后续通知任务）。 */
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
+export const REPEAT_REMINDER_INTERVALS = ['1h', '3h', '6h', '12h', '24h'] as const;
+/** 重复提醒间隔（按小时计，用于重要订阅的后续提醒）。 */
+export type RepeatReminderInterval = (typeof REPEAT_REMINDER_INTERVALS)[number];
+
+export const REPEAT_REMINDER_WINDOWS = ['24h', '48h', '72h', 'full'] as const;
+/** 重复提醒窗口；full 表示从首次提醒后一直重复到目标日期通知时间。 */
+export type RepeatReminderWindow = (typeof REPEAT_REMINDER_WINDOWS)[number];
+
 export const WEBHOOK_HEADERS_PLACEHOLDER = '{"Authorization": "Bearer your-token", "Content-Type": "application/json"}';
 export const WEBHOOK_PAYLOAD_PLACEHOLDER = '{"title": "{title}", "content": "{content}", "timestamp": "{timestamp}"}';
 
@@ -123,6 +131,12 @@ interface SubscriptionBase {
   tags: string[];
   /** 提前多少天提醒（整数，>=0）。 */
   reminderDays: number;
+  /** 是否为该订阅启用重复提醒。 */
+  repeatReminderEnabled: boolean;
+  /** 重复提醒间隔。 */
+  repeatReminderInterval: RepeatReminderInterval;
+  /** 重复提醒窗口。 */
+  repeatReminderWindow: RepeatReminderWindow;
 }
 
 export interface CustomCycleSubscription extends SubscriptionBase {
@@ -344,6 +358,16 @@ export interface ReminderDaysOption {
   labels: LocalizedLabels;
 }
 
+export interface RepeatReminderIntervalOption {
+  value: RepeatReminderInterval;
+  labels: LocalizedLabels;
+}
+
+export interface RepeatReminderWindowOption {
+  value: RepeatReminderWindow;
+  labels: LocalizedLabels;
+}
+
 /** 两个远端汇率来源共同支持的 146 种货币（用于默认列表与下拉选项）。 */
 export const CURRENCY_OPTIONS = SUPPORTED_EXCHANGE_RATE_CURRENCIES.map((value) => ({
   value,
@@ -379,6 +403,21 @@ export const REMINDER_DAYS_OPTIONS = [
   { value: 14, labels: labels('提前 14 天', '14 days before') },
   { value: 30, labels: labels('提前 30 天', '30 days before') },
 ] as const satisfies readonly ReminderDaysOption[];
+
+export const REPEAT_REMINDER_INTERVAL_OPTIONS = [
+  { value: '1h', labels: labels('每 1 小时', 'Every 1 hour') },
+  { value: '3h', labels: labels('每 3 小时', 'Every 3 hours') },
+  { value: '6h', labels: labels('每 6 小时', 'Every 6 hours') },
+  { value: '12h', labels: labels('每 12 小时', 'Every 12 hours') },
+  { value: '24h', labels: labels('每 24 小时', 'Every 24 hours') },
+] as const satisfies readonly RepeatReminderIntervalOption[];
+
+export const REPEAT_REMINDER_WINDOW_OPTIONS = [
+  { value: '24h', labels: labels('到期前 24 小时内', 'Within 24 hours before renewal') },
+  { value: '48h', labels: labels('到期前 48 小时内', 'Within 48 hours before renewal') },
+  { value: '72h', labels: labels('到期前 72 小时内', 'Within 72 hours before renewal') },
+  { value: 'full', labels: labels('从首次提醒后开始', 'After first reminder') },
+] as const satisfies readonly RepeatReminderWindowOption[];
 
 export const DEFAULT_SETTINGS: AppSettings = {
   adminUsername: 'admin',

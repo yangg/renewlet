@@ -16,7 +16,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { assertDateOnly } from "@/lib/time/date-only";
 import { getCurrentUserId, pb, type RecordModel } from "@/lib/pocketbase";
 import { apiSubscriptionSchema, type ApiSubscription } from "@/lib/api/schemas/subscriptions";
-import type { Subscription, SubscriptionDraft } from "@/types/subscription";
+import {
+  REPEAT_REMINDER_INTERVALS,
+  REPEAT_REMINDER_WINDOWS,
+  type RepeatReminderInterval,
+  type RepeatReminderWindow,
+  type Subscription,
+  type SubscriptionDraft,
+} from "@/types/subscription";
 import { getApiLocale } from "@/i18n/api-locale";
 import { translate } from "@/i18n/messages";
 
@@ -26,6 +33,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function optionalNonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
+}
+
+function normalizeRepeatReminderInterval(value: unknown): RepeatReminderInterval {
+  return typeof value === "string" && REPEAT_REMINDER_INTERVALS.includes(value as RepeatReminderInterval)
+    ? value as RepeatReminderInterval
+    : "1h";
+}
+
+function normalizeRepeatReminderWindow(value: unknown): RepeatReminderWindow {
+  return typeof value === "string" && REPEAT_REMINDER_WINDOWS.includes(value as RepeatReminderWindow)
+    ? value as RepeatReminderWindow
+    : "72h";
 }
 
 function normalizeSubscriptionRecord(row: unknown): unknown {
@@ -42,6 +61,9 @@ function normalizeSubscriptionRecord(row: unknown): unknown {
     nextBillingDate: row["nextBillingDate"],
     autoCalculateNextBillingDate: row["autoCalculateNextBillingDate"],
     reminderDays: row["reminderDays"],
+    repeatReminderEnabled: row["repeatReminderEnabled"] === true,
+    repeatReminderInterval: normalizeRepeatReminderInterval(row["repeatReminderInterval"]),
+    repeatReminderWindow: normalizeRepeatReminderWindow(row["repeatReminderWindow"]),
   };
   // PocketBase 会把系统字段命名为 created/updated，而前端 schema 使用 createdAt/updatedAt。
   // 在唯一边界做映射，可以让组件和 domain 函数完全不感知 SDK 的字段差异。
@@ -80,6 +102,9 @@ function fromApiSubscription(row: ApiSubscription | RecordModel): Subscription {
     notes: parsedRow.notes,
     tags: parsedRow.tags ?? [],
     reminderDays: parsedRow.reminderDays,
+    repeatReminderEnabled: parsedRow.repeatReminderEnabled,
+    repeatReminderInterval: parsedRow.repeatReminderInterval,
+    repeatReminderWindow: parsedRow.repeatReminderWindow,
   };
   if (parsedRow.billingCycle === "custom") {
     // 判别联合要求 custom 周期一定有 customDays。历史数据缺失时给出最小安全值，
@@ -125,6 +150,9 @@ function toWritePayload(sub: SubscriptionDraft | Subscription) {
     notes: sub.notes ?? null,
     tags: sub.tags ?? [],
     reminderDays: sub.reminderDays,
+    repeatReminderEnabled: sub.repeatReminderEnabled,
+    repeatReminderInterval: sub.repeatReminderInterval,
+    repeatReminderWindow: sub.repeatReminderWindow,
   };
 }
 

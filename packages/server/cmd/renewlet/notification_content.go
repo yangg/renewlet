@@ -25,19 +25,26 @@ func listNotificationSubscriptions(app core.App, userID string) ([]notificationS
 	}
 	subscriptions := make([]notificationSubscription, 0, len(rows))
 	for _, row := range rows {
-		subscriptions = append(subscriptions, notificationSubscription{
-			ID:              row.Id,
-			Name:            row.GetString("name"),
-			LogoURL:         row.GetString("logo"),
-			Price:           row.GetFloat("price"),
-			Currency:        row.GetString("currency"),
-			Status:          row.GetString("status"),
-			NextBillingDate: row.GetString("nextBillingDate"),
-			TrialEndDate:    row.GetString("trialEndDate"),
-			ReminderDays:    row.GetInt("reminderDays"),
-		})
+		subscriptions = append(subscriptions, notificationSubscriptionFromRecord(row))
 	}
 	return subscriptions, nil
+}
+
+func notificationSubscriptionFromRecord(row *core.Record) notificationSubscription {
+	return notificationSubscription{
+		ID:                     row.Id,
+		Name:                   row.GetString("name"),
+		LogoURL:                row.GetString("logo"),
+		Price:                  row.GetFloat("price"),
+		Currency:               row.GetString("currency"),
+		Status:                 row.GetString("status"),
+		NextBillingDate:        row.GetString("nextBillingDate"),
+		TrialEndDate:           row.GetString("trialEndDate"),
+		ReminderDays:           row.GetInt("reminderDays"),
+		RepeatReminderEnabled:  row.GetBool("repeatReminderEnabled"),
+		RepeatReminderInterval: normalizeRepeatReminderInterval(row.GetString("repeatReminderInterval")),
+		RepeatReminderWindow:   normalizeRepeatReminderWindow(row.GetString("repeatReminderWindow")),
+	}
 }
 
 // buildTestNotification 构造测试通知内容。
@@ -65,6 +72,20 @@ func buildDueNotificationForLocalDate(localDate string, now time.Time, settings 
 	return buildNotificationContent(now, settings, items)
 }
 
+func buildDueNotificationForSchedule(schedule localScheduleOccurrence, now time.Time, settings appSettings, subscriptions []notificationSubscription, includeExpired bool) notificationMessage {
+	items := collectNotificationItemsForSchedule(schedule, settings, subscriptions, includeExpired)
+	return buildNotificationContent(now, settings, items)
+}
+
+func collectNotificationItemsForSchedule(schedule localScheduleOccurrence, settings appSettings, subscriptions []notificationSubscription, includeExpired bool) []notificationContentItem {
+	items := []notificationContentItem{}
+	if schedule.ScheduledLocalTime == settings.NotificationTimeLocal {
+		items = append(items, collectNotificationItems(schedule.ScheduledLocalDate, settings, subscriptions, includeExpired)...)
+	}
+	items = append(items, collectRepeatNotificationItems(schedule, settings, subscriptions)...)
+	return items
+}
+
 // collectNotificationItems 收集指定本地日期应该提醒的项目。
 // 为什么用 date-only 差值：订阅扣费日是业务日期，不应受 UTC instant 或 DST 切换影响。
 func collectNotificationItems(localDate string, settings appSettings, subscriptions []notificationSubscription, includeExpired bool) []notificationContentItem {
@@ -74,54 +95,92 @@ func collectNotificationItems(localDate string, settings appSettings, subscripti
 			daysUntilNext := daysBetweenDateOnly(localDate, sub.NextBillingDate)
 			if daysUntilNext < 0 {
 				if settings.ShowExpired && includeExpired {
-					items = append(items, notificationContentItem{
-						Type:           "expired",
-						SubscriptionID: sub.ID,
-						Name:           sub.Name,
-						LogoURL:        sub.LogoURL,
-						Price:          sub.Price,
-						Currency:       sub.Currency,
-						Status:         normalizeSubscriptionStatus(sub.Status),
-						TargetDate:     sub.NextBillingDate,
-						ReminderDays:   sub.ReminderDays,
-						DaysUntil:      daysUntilNext,
-					})
+					items = append(items, newNotificationContentItem("expired", sub, sub.NextBillingDate, daysUntilNext, nil))
 				}
 			} else if daysUntilNext == sub.ReminderDays {
-				items = append(items, notificationContentItem{
-					Type:           "renewal",
-					SubscriptionID: sub.ID,
-					Name:           sub.Name,
-					LogoURL:        sub.LogoURL,
-					Price:          sub.Price,
-					Currency:       sub.Currency,
-					Status:         normalizeSubscriptionStatus(sub.Status),
-					TargetDate:     sub.NextBillingDate,
-					ReminderDays:   sub.ReminderDays,
-					DaysUntil:      daysUntilNext,
-				})
+				items = append(items, newNotificationContentItem("renewal", sub, sub.NextBillingDate, daysUntilNext, nil))
 			}
 		}
 
 		if sub.Status == "trial" && isValidDateOnly(sub.TrialEndDate) {
 			daysUntilTrialEnd := daysBetweenDateOnly(localDate, sub.TrialEndDate)
 			if daysUntilTrialEnd == sub.ReminderDays {
-				items = append(items, notificationContentItem{
-					Type:           "trial",
-					SubscriptionID: sub.ID,
-					Name:           sub.Name,
-					LogoURL:        sub.LogoURL,
-					Price:          sub.Price,
-					Currency:       sub.Currency,
-					Status:         "trial",
-					TargetDate:     sub.TrialEndDate,
-					ReminderDays:   sub.ReminderDays,
-					DaysUntil:      daysUntilTrialEnd,
-				})
+				items = append(items, newNotificationContentItem("trial", sub, sub.TrialEndDate, daysUntilTrialEnd, nil))
 			}
 		}
 	}
 	return items
+}
+
+func collectRepeatNotificationItems(schedule localScheduleOccurrence, settings appSettings, subscriptions []notificationSubscription) []notificationContentItem {
+	scheduledInstant, err := time.Parse(time.RFC3339, schedule.ScheduledInstantUTC)
+	if err != nil {
+		return []notificationContentItem{}
+	}
+	items := []notificationContentItem{}
+	for _, sub := range subscriptions {
+		if !sub.RepeatReminderEnabled {
+			continue
+		}
+		repeat := &repeatReminderSnapshot{
+			Interval: normalizeRepeatReminderInterval(sub.RepeatReminderInterval),
+			Window:   normalizeRepeatReminderWindow(sub.RepeatReminderWindow),
+		}
+		if isValidDateOnly(sub.NextBillingDate) && repeatReminderOccurrenceMatches(scheduledInstant, settings, sub.ReminderDays, sub.NextBillingDate, repeat) {
+			items = append(items, newNotificationContentItem("renewal", sub, sub.NextBillingDate, daysBetweenDateOnly(schedule.ScheduledLocalDate, sub.NextBillingDate), repeat))
+		}
+		if sub.Status == "trial" && isValidDateOnly(sub.TrialEndDate) && repeatReminderOccurrenceMatches(scheduledInstant, settings, sub.ReminderDays, sub.TrialEndDate, repeat) {
+			items = append(items, newNotificationContentItem("trial", sub, sub.TrialEndDate, daysBetweenDateOnly(schedule.ScheduledLocalDate, sub.TrialEndDate), repeat))
+		}
+	}
+	return items
+}
+
+func newNotificationContentItem(itemType string, sub notificationSubscription, targetDate string, daysUntil int, repeat *repeatReminderSnapshot) notificationContentItem {
+	status := normalizeSubscriptionStatus(sub.Status)
+	if itemType == "trial" {
+		status = "trial"
+	}
+	return notificationContentItem{
+		Type:           itemType,
+		SubscriptionID: sub.ID,
+		Name:           sub.Name,
+		LogoURL:        sub.LogoURL,
+		Price:          sub.Price,
+		Currency:       sub.Currency,
+		Status:         status,
+		TargetDate:     targetDate,
+		ReminderDays:   sub.ReminderDays,
+		DaysUntil:      daysUntil,
+		RepeatReminder: repeat,
+	}
+}
+
+func repeatReminderOccurrenceMatches(scheduledInstant time.Time, settings appSettings, reminderDays int, targetDate string, repeat *repeatReminderSnapshot) bool {
+	targetInstant, err := getScheduleInstant(targetDate, settings.NotificationTimeLocal, settings.Timezone)
+	if err != nil {
+		return false
+	}
+	firstInstant, err := getScheduleInstant(addDateOnly(targetDate, -reminderDays), settings.NotificationTimeLocal, settings.Timezone)
+	if err != nil {
+		return false
+	}
+	if !scheduledInstant.After(firstInstant) || scheduledInstant.After(targetInstant) {
+		return false
+	}
+	windowStart := firstInstant
+	if duration, full := repeatReminderWindowDuration(repeat.Window); !full {
+		candidate := targetInstant.Add(-duration)
+		if candidate.After(windowStart) {
+			windowStart = candidate
+		}
+	}
+	if scheduledInstant.Before(windowStart) {
+		return false
+	}
+	elapsed := scheduledInstant.Sub(firstInstant)
+	interval := repeatReminderIntervalDuration(repeat.Interval)
+	return interval > 0 && elapsed%interval == 0
 }
 
 // buildNotificationContent 将提醒项分组为可读消息。
@@ -173,10 +232,25 @@ func formatNotificationItemLine(item notificationContentItem, locale appLocale) 
 	} else if item.Type == "expired" {
 		extra = tr(locale, "已过期", "expired")
 	}
+	if item.RepeatReminder != nil {
+		extra += tr(locale, "；", "; ") + formatRepeatReminderText(item.RepeatReminder.Interval, locale)
+	}
 	if locale == localeEnUS {
 		return fmt.Sprintf("- %s: %s, %s %s (%s)", item.Name, item.TargetDate, formatAmount(item.Price), item.Currency, extra)
 	}
 	return fmt.Sprintf("- %s：%s，%s %s（%s）", item.Name, item.TargetDate, formatAmount(item.Price), item.Currency, extra)
+}
+
+func formatRepeatReminderText(interval string, locale appLocale) string {
+	hours := repeatReminderIntervalHours(interval)
+	if locale == localeEnUS {
+		unit := "hours"
+		if hours == 1 {
+			unit = "hour"
+		}
+		return fmt.Sprintf("repeat reminder, every %d %s", hours, unit)
+	}
+	return fmt.Sprintf("重复提醒，每 %d 小时", hours)
 }
 
 func formatAmount(amount float64) string {

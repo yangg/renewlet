@@ -39,6 +39,33 @@ vi.mock("@/components/logo-picker", () => ({
   LogoPicker: () => null,
 }));
 
+function makeSubscription(overrides: Partial<Subscription> = {}): Subscription {
+  return {
+    id: "sub-1",
+    name: "Critical SaaS",
+    logo: undefined,
+    price: 99,
+    currency: "USD",
+    billingCycle: "monthly",
+    customDays: undefined,
+    category: "productivity",
+    status: "active",
+    paymentMethod: "alipay",
+    startDate: assertDateOnly("2026-05-14"),
+    nextBillingDate: assertDateOnly("2026-06-13"),
+    autoCalculateNextBillingDate: false,
+    trialEndDate: undefined,
+    website: undefined,
+    notes: undefined,
+    reminderDays: 3,
+    tags: [],
+    repeatReminderEnabled: true,
+    repeatReminderInterval: "1h",
+    repeatReminderWindow: "72h",
+    ...overrides,
+  } as Subscription;
+}
+
 describe("SubscriptionDialog", () => {
   it("shows field errors on empty create submit instead of relying on native validation", async () => {
     const user = userEvent.setup();
@@ -117,6 +144,9 @@ describe("SubscriptionDialog", () => {
       notes: undefined,
       reminderDays: 3,
       tags: [],
+      repeatReminderEnabled: true,
+      repeatReminderInterval: "1h",
+      repeatReminderWindow: "72h",
     };
 
     render(
@@ -136,5 +166,79 @@ describe("SubscriptionDialog", () => {
     expect(await screen.findByRole("button", { name: "2026年" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "四月" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /2026年4月16日.*selected/ })).toBeInTheDocument();
+  });
+
+  it("shows repeat reminder controls when enabled for an edited subscription", () => {
+    const subscription: Subscription = {
+      id: "sub-1",
+      name: "Critical SaaS",
+      logo: undefined,
+      price: 99,
+      currency: "USD",
+      billingCycle: "monthly",
+      customDays: undefined,
+      category: "productivity",
+      status: "active",
+      paymentMethod: "alipay",
+      startDate: assertDateOnly("2026-05-14"),
+      nextBillingDate: assertDateOnly("2026-05-17"),
+      autoCalculateNextBillingDate: false,
+      trialEndDate: undefined,
+      website: undefined,
+      notes: undefined,
+      reminderDays: 3,
+      tags: [],
+      repeatReminderEnabled: true,
+      repeatReminderInterval: "3h",
+      repeatReminderWindow: "full",
+    };
+
+    render(
+      <TooltipProvider delayDuration={0}>
+        <SubscriptionDialog
+          mode="edit"
+          open
+          onOpenChange={vi.fn()}
+          onSubmit={vi.fn()}
+          subscription={subscription}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByLabelText("重复提醒")).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "间隔" })).toHaveTextContent("每 3 小时");
+    expect(screen.getByRole("combobox", { name: "重复范围" })).toHaveTextContent("从首次提醒后开始");
+  });
+
+  it("explains repeat reminders from the first reminder when the range covers the lead time", () => {
+    render(
+      <TooltipProvider delayDuration={0}>
+        <SubscriptionDialog
+          mode="edit"
+          open
+          onOpenChange={vi.fn()}
+          onSubmit={vi.fn()}
+          subscription={makeSubscription({ reminderDays: 1 })}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("首次提醒后，每 1 小时重复一次，直到到期日通知时间。")).toBeInTheDocument();
+  });
+
+  it("explains that repeats only run in the final range when the lead time is longer", () => {
+    render(
+      <TooltipProvider delayDuration={0}>
+        <SubscriptionDialog
+          mode="edit"
+          open
+          onOpenChange={vi.fn()}
+          onSubmit={vi.fn()}
+          subscription={makeSubscription({ reminderDays: 30 })}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("首次提醒照常发送，重复提醒只在到期前最后 72 小时内发送。")).toBeInTheDocument();
   });
 });

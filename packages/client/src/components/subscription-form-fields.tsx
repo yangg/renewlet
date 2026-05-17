@@ -25,10 +25,24 @@ import { dateOnlyToLocalDate, dateToDateOnly } from "@/lib/time/date-only";
 import { LogoPicker, type UploadStatus as LogoUploadStatus } from "@/components/logo-picker";
 import { AuthorizedImage } from "@/components/authorized-image";
 import type { CustomConfig } from "@/types/config";
-import type { BillingCycle, Category, PaymentMethod, SubscriptionStatus } from "@/types/subscription";
-import { CURRENCY_OPTIONS, CYCLE_LABELS, REMINDER_DAYS_OPTIONS } from "@/types/subscription";
+import type {
+  BillingCycle,
+  Category,
+  PaymentMethod,
+  RepeatReminderInterval,
+  RepeatReminderWindow,
+  SubscriptionStatus,
+} from "@/types/subscription";
+import {
+  CURRENCY_OPTIONS,
+  CYCLE_LABELS,
+  REMINDER_DAYS_OPTIONS,
+  REPEAT_REMINDER_INTERVAL_OPTIONS,
+  REPEAT_REMINDER_WINDOW_OPTIONS,
+} from "@/types/subscription";
 import type { SubscriptionFormReminderType, SubscriptionFormState } from "@/types/subscription-form";
 import { createCurrencySelectOptions } from "@/lib/searchable-options";
+import { toReminderDays } from "@/lib/subscription-form";
 import { useI18n } from "@/i18n/I18nProvider";
 import { localizedLabel } from "@/i18n/locales";
 
@@ -120,6 +134,19 @@ export const SubscriptionFormFields = memo(function SubscriptionFormFields({
     config.paymentMethods.find((method) => method.value === formData.paymentMethod)?.labels;
   const selectedStartDate = formData.startDate ? dateOnlyToLocalDate(formData.startDate) : undefined;
   const selectedNextBillingDate = formData.nextBillingDate ? dateOnlyToLocalDate(formData.nextBillingDate) : undefined;
+  const repeatReminderIntervalLabel =
+    REPEAT_REMINDER_INTERVAL_OPTIONS.find((option) => option.value === formData.repeatReminderInterval)?.labels;
+  const repeatReminderIntervalText = repeatReminderIntervalLabel
+    ? label(repeatReminderIntervalLabel)
+    : formData.repeatReminderInterval;
+  const repeatReminderSentenceInterval =
+    locale === "en-US" ? repeatReminderIntervalText.replace(/^Every/, "every") : repeatReminderIntervalText;
+  const repeatReminderWindowHours =
+    formData.repeatReminderWindow === "full" ? null : Number.parseInt(formData.repeatReminderWindow, 10);
+  const repeatReminderPreview =
+    repeatReminderWindowHours === null || toReminderDays(formData) * 24 <= repeatReminderWindowHours
+      ? t("subscription.repeatReminderPreview.afterFirst", { interval: repeatReminderSentenceInterval })
+      : t("subscription.repeatReminderPreview.finalWindow", { hours: repeatReminderWindowHours });
 
   return (
     <>
@@ -410,7 +437,19 @@ export const SubscriptionFormFields = memo(function SubscriptionFormFields({
       </div>
 
       <div className="grid gap-3">
-        <Label>{t("subscription.field.reminder")}</Label>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Label>{t("subscription.field.reminder")}</Label>
+          <div className="flex items-center gap-2">
+            <Label htmlFor={id("repeatReminderEnabled")} className="text-sm text-muted-foreground cursor-pointer">
+              {t("subscription.repeatReminder")}
+            </Label>
+            <Switch
+              id={id("repeatReminderEnabled")}
+              checked={formData.repeatReminderEnabled}
+              onCheckedChange={(checked) => update("repeatReminderEnabled", checked)}
+            />
+          </div>
+        </div>
         <div className="flex flex-col gap-3 sm:flex-row">
           <Select
             value={formData.reminderType === "custom" ? "custom" : formData.reminderDays}
@@ -462,6 +501,48 @@ export const SubscriptionFormFields = memo(function SubscriptionFormFields({
           )}
         </div>
         <FieldError id={id("reminder-error")} message={errors.reminderDays} />
+
+        {formData.repeatReminderEnabled && (
+          <div className="grid gap-3 rounded-lg border border-border bg-secondary/30 p-3 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor={id("repeatReminderInterval")}>{t("subscription.repeatReminderInterval")}</Label>
+              <Select
+                value={formData.repeatReminderInterval}
+                onValueChange={(value) => update("repeatReminderInterval", value as RepeatReminderInterval)}
+              >
+                <SelectTrigger id={id("repeatReminderInterval")} className="border-border bg-secondary">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {REPEAT_REMINDER_INTERVAL_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {label(option.labels)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor={id("repeatReminderWindow")}>{t("subscription.repeatReminderWindow")}</Label>
+              <Select
+                value={formData.repeatReminderWindow}
+                onValueChange={(value) => update("repeatReminderWindow", value as RepeatReminderWindow)}
+              >
+                <SelectTrigger id={id("repeatReminderWindow")} className="border-border bg-secondary">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {REPEAT_REMINDER_WINDOW_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {label(option.labels)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground sm:col-span-2">{repeatReminderPreview}</p>
+          </div>
+        )}
       </div>
 
       {showWebsiteAndNotes && (

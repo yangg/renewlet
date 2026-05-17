@@ -18,6 +18,7 @@
   "updateNextBillingDate": "请更新下次扣费日期",
   "dayBefore": "提前 %d 天提醒",
   "daysBefore": "提前 %d 天提醒",
+  "repeatEvery": "重复提醒，每 %d 小时",
   "preheaderItems": "你有 %d 项订阅提醒需要查看。",
   "ctaViewSubscriptions": "查看订阅",
   "ctaOpenSettings": "打开通知设置"

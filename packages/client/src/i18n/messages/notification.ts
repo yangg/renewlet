@@ -93,6 +93,7 @@ export const zhCN = {
   "notification.content.beforeDays": ({ days }) => `提前 ${days} 天提醒`,
   "notification.content.trialBeforeDays": ({ days }) => `试用结束，提前 ${days} 天提醒`,
   "notification.content.expiredStatus": "已过期",
+  "notification.content.repeatEvery": ({ interval }) => `重复提醒，每 ${String(interval).replace("h", " 小时")}`,
   "notification.status.pending": "等待中",
   "notification.status.sending": "发送中",
   "notification.status.sent": "成功",
@@ -103,6 +104,7 @@ export const zhCN = {
   "notification.items": ({ count }) => `${count} 项`,
   "notification.dailyIncluded": "每日包含",
   "notification.targetReminder": ({ date, days }) => `${date} · 提前 ${days} 天`,
+  "notification.targetRepeatReminder": ({ date, interval }) => `${date} · 重复提醒 ${String(interval).replace("h", "小时")}`,
   "notification.attempts": ({ count }) => `调度尝试 ${count} 次`,
   "notification.createdAt": "创建时间",
   "notification.updatedAt": "更新时间",
@@ -213,6 +215,10 @@ export const enUS = {
   "notification.content.beforeDays": ({ days }) => `${days} days before`,
   "notification.content.trialBeforeDays": ({ days }) => `trial ends, ${days} days before`,
   "notification.content.expiredStatus": "expired",
+  "notification.content.repeatEvery": ({ interval }) => {
+    const hours = Number.parseInt(String(interval), 10);
+    return `repeat reminder, every ${hours} ${hours === 1 ? "hour" : "hours"}`;
+  },
   "notification.status.pending": "Pending",
   "notification.status.sending": "Sending",
   "notification.status.sent": "Sent",
@@ -223,6 +229,7 @@ export const enUS = {
   "notification.items": ({ count }) => `${count} items`,
   "notification.dailyIncluded": "Included daily",
   "notification.targetReminder": ({ date, days }) => `${date} · ${days} days before`,
+  "notification.targetRepeatReminder": ({ date, interval }) => `${date} · repeat every ${interval}`,
   "notification.attempts": ({ count }) => `${count} schedule attempts`,
   "notification.createdAt": "Created at",
   "notification.updatedAt": "Updated at",

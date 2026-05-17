@@ -19,7 +19,12 @@
  * Caveat: `sent` 是手动运行响应的判别字段，新增返回形态时必须先扩展 union，再改调用方分支。
  */
 import { z } from "zod";
-import { NOTIFICATION_CHANNELS, SUBSCRIPTION_STATUSES } from "@/types/subscription";
+import {
+  NOTIFICATION_CHANNELS,
+  REPEAT_REMINDER_INTERVALS,
+  REPEAT_REMINDER_WINDOWS,
+  SUBSCRIPTION_STATUSES,
+} from "@/types/subscription";
 import { settingsUpdateBodySchema } from "@/lib/api/schemas/settings";
 import { okResponseSchema } from "@/lib/api/schemas/common";
 import { isValidDateOnly, type DateOnly } from "@/lib/time/date-only";
@@ -80,6 +85,10 @@ export const notificationContentItemResponseSchema = z.object({
   targetDate: dateOnlyResponseSchema,
   reminderDays: z.number().int().nonnegative(),
   daysUntil: z.number().int(),
+  repeatReminder: z.object({
+    interval: z.enum(REPEAT_REMINDER_INTERVALS),
+    window: z.enum(REPEAT_REMINDER_WINDOWS),
+  }).strict().optional(),
 }).strict();
 
 export const upcomingNotificationBatchResponseSchema = localScheduleOccurrenceResponseSchema.extend({

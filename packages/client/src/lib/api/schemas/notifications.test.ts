@@ -96,4 +96,40 @@ describe("notification API schemas", () => {
 
     expect(notificationHistoryResponseSchema.safeParse(legacyNullResponse).success).toBe(false);
   });
+
+  it("accepts repeat reminder snapshots on notification items", () => {
+    const response = {
+      ...normalizedSkippedHistoryResponse,
+      history: {
+        ...normalizedSkippedHistoryResponse.history,
+        jobs: [{
+          ...skippedJob,
+          result: {
+            ...skippedJob.result,
+            message: {
+              ...skippedJob.result.message,
+              hasPayload: true,
+              items: [{
+                type: "renewal",
+                subscriptionId: "sub-1",
+                name: "Critical SaaS",
+                price: 99,
+                currency: "USD",
+                status: "active",
+                targetDate: "2026-05-17",
+                reminderDays: 3,
+                daysUntil: 2,
+                repeatReminder: {
+                  interval: "1h",
+                  window: "72h",
+                },
+              }],
+            },
+          },
+        }],
+      },
+    };
+
+    expect(notificationHistoryResponseSchema.safeParse(response).success).toBe(true);
+  });
 });

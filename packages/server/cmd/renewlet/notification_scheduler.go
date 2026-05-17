@@ -15,6 +15,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -143,6 +144,17 @@ func getLocalScheduleDecision(now time.Time, timezone string, localTime string, 
 	return decision
 }
 
+func getNotificationScheduleDecision(now time.Time, settings appSettings, subscriptions []notificationSubscription, windowMinutes int, force bool) localScheduleDecision {
+	regular := getLocalScheduleDecision(now, settings.Timezone, settings.NotificationTimeLocal, windowMinutes, force)
+	if regular.Due || force {
+		return regular
+	}
+	if repeat := getRepeatScheduleDecision(now, settings, subscriptions, windowMinutes); repeat.Due {
+		return repeat
+	}
+	return regular
+}
+
 // buildScheduleDecision 将一个本地日期/时间转换为 UTC instant 并判断是否在窗口内。
 func buildScheduleDecision(now time.Time, localDate string, localTime string, timezone string, windowMinutes int) localScheduleDecision {
 	instant, err := getScheduleInstant(localDate, localTime, timezone)
@@ -197,29 +209,42 @@ func getNextLocalScheduleOccurrence(now time.Time, timezone string, localTime st
 // PERF: 当前按未来 N 天逐日扫描订阅；订阅量明显增长后可改为按 nextBillingDate/trialEndDate 建索引查询。
 func buildNotificationOverview(now time.Time, settings appSettings, subscriptions []notificationSubscription, days int) notificationOverview {
 	days = maxInt(days, 1)
-	nextCheck := getNextLocalScheduleOccurrence(now, settings.Timezone, settings.NotificationTimeLocal)
+	dailyNextCheck := getNextLocalScheduleOccurrence(now, settings.Timezone, settings.NotificationTimeLocal)
+	nextCheck := dailyNextCheck
+	if repeatNext, ok := getNextRepeatScheduleOccurrence(now, settings, subscriptions); ok {
+		if repeatInstant, err := time.Parse(time.RFC3339, repeatNext.ScheduledInstantUTC); err == nil {
+			if dailyInstant, err := time.Parse(time.RFC3339, dailyNextCheck.ScheduledInstantUTC); err != nil || repeatInstant.Before(dailyInstant) {
+				nextCheck = repeatNext
+			}
+		}
+	}
 	blockers := []string{}
 	if len(settings.EnabledChannels) == 0 {
 		blockers = append(blockers, "no_enabled_channels")
 	}
-	upcoming := []upcomingNotificationBatch{}
+	batchesByKey := map[string]*upcomingNotificationBatch{}
 	for offset := 0; offset < days; offset++ {
-		localDate := addDateOnly(nextCheck.ScheduledLocalDate, offset)
-		items := collectNotificationItems(localDate, settings, subscriptions, offset == 0)
-		if len(items) == 0 {
-			continue
-		}
+		localDate := addDateOnly(dailyNextCheck.ScheduledLocalDate, offset)
 		instant, _ := getScheduleInstant(localDate, settings.NotificationTimeLocal, settings.Timezone)
-		upcoming = append(upcoming, upcomingNotificationBatch{
-			localScheduleOccurrence: localScheduleOccurrence{
-				ScheduledLocalDate:  localDate,
-				ScheduledLocalTime:  settings.NotificationTimeLocal,
-				TimeZone:            settings.Timezone,
-				ScheduledInstantUTC: instant.Format(time.RFC3339),
-			},
-			Items: items,
-		})
+		occurrence := localScheduleOccurrence{
+			ScheduledLocalDate:  localDate,
+			ScheduledLocalTime:  settings.NotificationTimeLocal,
+			TimeZone:            settings.Timezone,
+			ScheduledInstantUTC: instant.Format(time.RFC3339),
+		}
+		items := collectNotificationItemsForSchedule(occurrence, settings, subscriptions, offset == 0)
+		appendUpcomingBatch(batchesByKey, occurrence, items)
 	}
+	for _, batch := range collectUpcomingRepeatBatches(now, settings, subscriptions, days) {
+		appendUpcomingBatch(batchesByKey, batch.localScheduleOccurrence, batch.Items)
+	}
+	upcoming := make([]upcomingNotificationBatch, 0, len(batchesByKey))
+	for _, batch := range batchesByKey {
+		upcoming = append(upcoming, *batch)
+	}
+	sort.Slice(upcoming, func(i, j int) bool {
+		return upcoming[i].ScheduledInstantUTC < upcoming[j].ScheduledInstantUTC
+	})
 	if len(upcoming) == 0 {
 		blockers = append(blockers, "no_upcoming_items")
 	}
@@ -260,17 +285,7 @@ func runNotificationCron(app core.App, options notificationCronOptions) (notific
 		if userID == "" {
 			continue
 		}
-		subsByUser[userID] = append(subsByUser[userID], notificationSubscription{
-			ID:              row.Id,
-			Name:            row.GetString("name"),
-			LogoURL:         row.GetString("logo"),
-			Price:           row.GetFloat("price"),
-			Currency:        row.GetString("currency"),
-			Status:          row.GetString("status"),
-			NextBillingDate: row.GetString("nextBillingDate"),
-			TrialEndDate:    row.GetString("trialEndDate"),
-			ReminderDays:    row.GetInt("reminderDays"),
-		})
+		subsByUser[userID] = append(subsByUser[userID], notificationSubscriptionFromRecord(row))
 	}
 
 	results := []notificationCronUserResult{}
@@ -280,7 +295,8 @@ func runNotificationCron(app core.App, options notificationCronOptions) (notific
 			continue
 		}
 		settings := settingsFromRecord(row)
-		schedule := getLocalScheduleDecision(options.Now, settings.Timezone, settings.NotificationTimeLocal, options.WindowMinutes, options.Force)
+		subscriptions := subsByUser[userID]
+		schedule := getNotificationScheduleDecision(options.Now, settings, subscriptions, options.WindowMinutes, options.Force)
 		if !schedule.Due {
 			results = append(results, notificationCronUserResult{
 				UserID: userID,
@@ -290,8 +306,7 @@ func runNotificationCron(app core.App, options notificationCronOptions) (notific
 			continue
 		}
 
-		subscriptions := subsByUser[userID]
-		due := buildDueNotificationForLocalDate(schedule.ScheduledLocalDate, options.Now, settings, subscriptions, true)
+		due := buildDueNotificationForSchedule(schedule.localScheduleOccurrence, options.Now, settings, subscriptions, true)
 		existingJob, _ := getNotificationJob(app, userID, schedule.ScheduledLocalDate, schedule.ScheduledLocalTime, schedule.TimeZone)
 		if existingJob != nil && (existingJob.GetString("status") == notificationStatusSent || existingJob.GetString("status") == notificationStatusSkipped) {
 			reason := "already_sent"

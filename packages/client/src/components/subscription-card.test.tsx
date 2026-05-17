@@ -69,6 +69,9 @@ const baseSubscription: Subscription = {
   notes: undefined,
   tags: [],
   reminderDays: 7,
+  repeatReminderEnabled: false,
+  repeatReminderInterval: "1h",
+  repeatReminderWindow: "72h",
 };
 
 function createSubscription(overrides: SubscriptionOverrides = {}): Subscription {

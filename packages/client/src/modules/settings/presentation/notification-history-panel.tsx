@@ -129,6 +129,8 @@ function UpcomingBatchList({ batches }: { batches: UpcomingNotificationBatch[] }
                 <span className="break-words text-xs text-muted-foreground sm:shrink-0 sm:text-right">
                   {item.type === "expired"
                     ? t("notification.dailyIncluded")
+                    : item.repeatReminder
+                      ? t("notification.targetRepeatReminder", { date: item.targetDate, interval: item.repeatReminder.interval })
                     : t("notification.targetReminder", { date: item.targetDate, days: item.reminderDays })}
                 </span>
               </div>

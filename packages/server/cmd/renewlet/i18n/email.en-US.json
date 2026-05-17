@@ -18,6 +18,7 @@
   "updateNextBillingDate": "Update the next billing date",
   "dayBefore": "%d day before",
   "daysBefore": "%d days before",
+  "repeatEvery": "Repeat reminder, every %d hours",
   "preheaderItems": "%d subscription reminders are ready.",
   "ctaViewSubscriptions": "View subscriptions",
   "ctaOpenSettings": "Open notification settings"

@@ -74,6 +74,7 @@ type emailCatalog struct {
 	UpdateNextBillingDate string `json:"updateNextBillingDate"`
 	DayBefore             string `json:"dayBefore"`
 	DaysBefore            string `json:"daysBefore"`
+	RepeatEvery           string `json:"repeatEvery"`
 	PreheaderItems        string `json:"preheaderItems"`
 	CTAViewSubscriptions  string `json:"ctaViewSubscriptions"`
 	CTAOpenSettings       string `json:"ctaOpenSettings"`
@@ -427,6 +428,9 @@ func emailItemDateLabel(itemType string, copy emailCatalog) string {
 func emailItemDetail(item notificationContentItem, _ appLocale, copy emailCatalog) string {
 	if item.Type == "expired" {
 		return copy.UpdateNextBillingDate
+	}
+	if item.RepeatReminder != nil && copy.RepeatEvery != "" {
+		return fmt.Sprintf(copy.RepeatEvery, repeatReminderIntervalHours(item.RepeatReminder.Interval))
 	}
 	if item.ReminderDays == 1 && copy.DayBefore != "" {
 		return fmt.Sprintf(copy.DayBefore, item.ReminderDays)

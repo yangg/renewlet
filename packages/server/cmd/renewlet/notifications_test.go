@@ -47,6 +47,168 @@ func TestBuildDueNotificationUsesEnglishLocale(t *testing.T) {
 	}
 }
 
+func TestRepeatReminderScheduleBuildsRepeatItem(t *testing.T) {
+	settings := defaultAppSettings()
+	settings.Timezone = "UTC"
+	settings.NotificationTimeLocal = "08:00"
+
+	subscriptions := []notificationSubscription{{
+		ID:                     "critical",
+		Name:                   "Critical SaaS",
+		Price:                  99,
+		Currency:               "USD",
+		Status:                 "active",
+		NextBillingDate:        "2026-05-17",
+		ReminderDays:           3,
+		RepeatReminderEnabled:  true,
+		RepeatReminderInterval: "1h",
+		RepeatReminderWindow:   "72h",
+	}}
+	now := time.Date(2026, 5, 14, 9, 0, 30, 0, time.UTC)
+
+	schedule := getNotificationScheduleDecision(now, settings, subscriptions, 2, false)
+	if !schedule.Due || schedule.ScheduledLocalTime != "09:00" {
+		t.Fatalf("expected 09:00 repeat reminder to be due, got %#v", schedule)
+	}
+
+	message := buildDueNotificationForSchedule(schedule.localScheduleOccurrence, now, settings, subscriptions, true)
+	if !message.HasPayload || len(message.Items) != 1 {
+		t.Fatalf("expected one repeat reminder item, got %#v", message)
+	}
+	item := message.Items[0]
+	if item.RepeatReminder == nil || item.RepeatReminder.Interval != "1h" || item.RepeatReminder.Window != "72h" {
+		t.Fatalf("expected repeat reminder snapshot, got %#v", item.RepeatReminder)
+	}
+	if !strings.Contains(message.Content, "重复提醒，每 1 小时") {
+		t.Fatalf("expected repeat reminder copy in content, got %q", message.Content)
+	}
+}
+
+func TestRepeatReminderWindowLimitsLongAdvanceReminder(t *testing.T) {
+	settings := defaultAppSettings()
+	settings.Timezone = "UTC"
+	settings.NotificationTimeLocal = "08:00"
+	repeat := repeatReminderSnapshot{Interval: "1h", Window: "72h"}
+
+	if _, ok := repeatReminderDueOccurrence(time.Date(2026, 5, 10, 9, 0, 0, 0, time.UTC), settings, 30, "2026-05-17", repeat, 2); ok {
+		t.Fatal("expected 72h repeat window to suppress earlier occurrences")
+	}
+	if occurrence, ok := repeatReminderDueOccurrence(time.Date(2026, 5, 14, 9, 0, 0, 0, time.UTC), settings, 30, "2026-05-17", repeat, 2); !ok || occurrence.ScheduledLocalTime != "09:00" {
+		t.Fatalf("expected occurrence inside 72h window, got %#v ok=%v", occurrence, ok)
+	}
+}
+
+func TestRepeatReminderOccurrenceHandlesDSTGap(t *testing.T) {
+	settings := defaultAppSettings()
+	settings.Timezone = "America/New_York"
+	settings.NotificationTimeLocal = "01:30"
+	repeat := repeatReminderSnapshot{Interval: "1h", Window: "full"}
+
+	occurrence, ok := repeatReminderDueOccurrence(time.Date(2026, 3, 8, 7, 30, 0, 0, time.UTC), settings, 2, "2026-03-09", repeat, 2)
+	if !ok {
+		t.Fatal("expected repeat reminder to remain due across the DST spring-forward gap")
+	}
+	if occurrence.ScheduledLocalDate != "2026-03-08" || occurrence.ScheduledLocalTime != "03:30" {
+		t.Fatalf("unexpected local occurrence across DST gap: %#v", occurrence)
+	}
+}
+
+func TestRegularAndRepeatReminderItemsShareOneSchedule(t *testing.T) {
+	settings := defaultAppSettings()
+	settings.Timezone = "UTC"
+	settings.NotificationTimeLocal = "08:00"
+	schedule := localScheduleOccurrence{
+		ScheduledLocalDate:  "2026-05-15",
+		ScheduledLocalTime:  "08:00",
+		TimeZone:            "UTC",
+		ScheduledInstantUTC: "2026-05-15T08:00:00Z",
+	}
+
+	message := buildDueNotificationForSchedule(schedule, time.Date(2026, 5, 15, 8, 0, 0, 0, time.UTC), settings, []notificationSubscription{
+		{
+			ID:                     "repeat",
+			Name:                   "Repeat",
+			Price:                  10,
+			Currency:               "USD",
+			Status:                 "active",
+			NextBillingDate:        "2026-05-17",
+			ReminderDays:           3,
+			RepeatReminderEnabled:  true,
+			RepeatReminderInterval: "24h",
+			RepeatReminderWindow:   "72h",
+		},
+		{
+			ID:              "regular",
+			Name:            "Regular",
+			Price:           20,
+			Currency:        "USD",
+			Status:          "active",
+			NextBillingDate: "2026-05-18",
+			ReminderDays:    3,
+		},
+	}, true)
+
+	if len(message.Items) != 2 {
+		t.Fatalf("expected regular and repeat items in one schedule, got %#v", message.Items)
+	}
+	if message.Items[0].RepeatReminder != nil || message.Items[1].RepeatReminder == nil {
+		t.Fatalf("expected regular item then repeat item, got %#v", message.Items)
+	}
+}
+
+func TestRepeatReminderCronCreatesOneIdempotentJob(t *testing.T) {
+	app := newSchemaTestApp(t)
+	if err := ensureSchema(app); err != nil {
+		t.Fatal(err)
+	}
+	user, _ := createRouteTestUser(t, app, "repeat")
+	settings := defaultAppSettings()
+	settings.Timezone = "UTC"
+	settings.NotificationTimeLocal = "08:00"
+	settings.EnabledChannels = []string{}
+	createNotificationCronRouteTestSettings(t, app, user, settings)
+
+	record := newSubscriptionRecord(t, app, user.Id, []string{}, "Critical SaaS")
+	record.Set("nextBillingDate", "2026-05-17")
+	record.Set("reminderDays", 3)
+	record.Set("repeatReminderEnabled", true)
+	record.Set("repeatReminderInterval", "1h")
+	record.Set("repeatReminderWindow", "72h")
+	if err := app.Save(record); err != nil {
+		t.Fatal(err)
+	}
+
+	options := notificationCronOptions{
+		Now:           time.Date(2026, 5, 14, 9, 0, 0, 0, time.UTC),
+		WindowMinutes: 2,
+	}
+	first, err := runNotificationCron(app, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := runNotificationCron(app, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Skipped != 1 || second.Skipped != 1 || second.Results[0].Reason != "already_skipped" {
+		t.Fatalf("expected first skipped job then idempotent skip, got first=%#v second=%#v", first, second)
+	}
+	jobs, err := app.FindAllRecords("notification_jobs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 1 {
+		t.Fatalf("expected one notification job, got %d", len(jobs))
+	}
+	var result notificationJobResult
+	if err := decodeJSONRecordField(jobs[0], "result", &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Message.Items) != 1 || result.Message.Items[0].RepeatReminder == nil {
+		t.Fatalf("expected repeat item in job result, got %#v", result.Message.Items)
+	}
+}
+
 func TestLocalScheduleDecisionUsesUserTimezone(t *testing.T) {
 	now := time.Date(2026, 5, 14, 0, 1, 0, 0, time.UTC)
 	decision := getLocalScheduleDecision(now, "Asia/Shanghai", "08:00", 2, false)

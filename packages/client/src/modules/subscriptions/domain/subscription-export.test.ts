@@ -32,6 +32,9 @@ describe("subscription-export", () => {
       website: undefined,
       notes: undefined,
       reminderDays: 3,
+      repeatReminderEnabled: false,
+      repeatReminderInterval: "1h",
+      repeatReminderWindow: "72h",
       tags: ["SaaS", "Work"],
     };
 

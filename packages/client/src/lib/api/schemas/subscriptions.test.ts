@@ -19,6 +19,9 @@ const validSubscriptionCreateBody = {
   notes: null,
   tags: [],
   reminderDays: 3,
+  repeatReminderEnabled: false,
+  repeatReminderInterval: "1h",
+  repeatReminderWindow: "72h",
 };
 
 describe("subscription API schemas", () => {
@@ -48,6 +51,25 @@ describe("subscription API schemas", () => {
     expect(subscriptionCreateBodySchema.safeParse({
       ...validSubscriptionCreateBody,
       logo: "/other/assets/2pbs0lgyypqhjoy",
+    }).success).toBe(false);
+  });
+
+  it("accepts only supported repeat reminder presets", () => {
+    expect(subscriptionCreateBodySchema.safeParse({
+      ...validSubscriptionCreateBody,
+      repeatReminderEnabled: true,
+      repeatReminderInterval: "3h",
+      repeatReminderWindow: "full",
+    }).success).toBe(true);
+
+    expect(subscriptionCreateBodySchema.safeParse({
+      ...validSubscriptionCreateBody,
+      repeatReminderInterval: "2h",
+    }).success).toBe(false);
+
+    expect(subscriptionCreateBodySchema.safeParse({
+      ...validSubscriptionCreateBody,
+      repeatReminderWindow: "forever",
     }).success).toBe(false);
   });
 });

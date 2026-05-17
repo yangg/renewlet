@@ -1,4 +1,11 @@
-import type { BillingCycle, Category, PaymentMethod, SubscriptionStatus } from "@/types/subscription";
+import type {
+  BillingCycle,
+  Category,
+  PaymentMethod,
+  RepeatReminderInterval,
+  RepeatReminderWindow,
+  SubscriptionStatus,
+} from "@/types/subscription";
 import type { DateOnly } from "@/lib/time/date-only";
 
 /**
@@ -46,6 +53,12 @@ export type SubscriptionFormState = {
   reminderDays: string;
   /** 自定义提醒天数（字符串，提交时 parseInt）。 */
   customReminderDays: string;
+  /** 是否为重要订阅开启重复提醒。 */
+  repeatReminderEnabled: boolean;
+  /** 重复提醒间隔。 */
+  repeatReminderInterval: RepeatReminderInterval;
+  /** 重复提醒窗口。 */
+  repeatReminderWindow: RepeatReminderWindow;
   /** 官网链接输入（可选）。 */
   website: string;
   /** 备注输入（可选）。 */
@@ -79,6 +92,9 @@ export function createSubscriptionFormState(
     reminderType: "preset",
     reminderDays: "3",
     customReminderDays: "",
+    repeatReminderEnabled: false,
+    repeatReminderInterval: "1h",
+    repeatReminderWindow: "72h",
     website: "",
     notes: "",
     tags: "",

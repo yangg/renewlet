@@ -87,29 +87,38 @@ type themeCustomColor struct {
 // notificationSubscription 是通知计算所需的订阅投影。
 // 它刻意不复用完整订阅模型，减少通知任务对 UI 字段的耦合。
 type notificationSubscription struct {
-	ID              string  `json:"id"`
-	Name            string  `json:"name"`
-	LogoURL         string  `json:"-"`
-	Price           float64 `json:"price"`
-	Currency        string  `json:"currency"`
-	Status          string  `json:"status"`
-	NextBillingDate string  `json:"nextBillingDate"`
-	TrialEndDate    string  `json:"trialEndDate,omitempty"`
-	ReminderDays    int     `json:"reminderDays"`
+	ID                     string  `json:"id"`
+	Name                   string  `json:"name"`
+	LogoURL                string  `json:"-"`
+	Price                  float64 `json:"price"`
+	Currency               string  `json:"currency"`
+	Status                 string  `json:"status"`
+	NextBillingDate        string  `json:"nextBillingDate"`
+	TrialEndDate           string  `json:"trialEndDate,omitempty"`
+	ReminderDays           int     `json:"reminderDays"`
+	RepeatReminderEnabled  bool    `json:"repeatReminderEnabled"`
+	RepeatReminderInterval string  `json:"repeatReminderInterval"`
+	RepeatReminderWindow   string  `json:"repeatReminderWindow"`
+}
+
+type repeatReminderSnapshot struct {
+	Interval string `json:"interval"`
+	Window   string `json:"window"`
 }
 
 // notificationContentItem 是一条实际会进入通知内容和历史 result 的提醒项。
 type notificationContentItem struct {
-	Type           string  `json:"type"`
-	SubscriptionID string  `json:"subscriptionId"`
-	Name           string  `json:"name"`
-	LogoURL        string  `json:"-"`
-	Price          float64 `json:"price"`
-	Currency       string  `json:"currency"`
-	Status         string  `json:"status"`
-	TargetDate     string  `json:"targetDate"`
-	ReminderDays   int     `json:"reminderDays"`
-	DaysUntil      int     `json:"daysUntil"`
+	Type           string                  `json:"type"`
+	SubscriptionID string                  `json:"subscriptionId"`
+	Name           string                  `json:"name"`
+	LogoURL        string                  `json:"-"`
+	Price          float64                 `json:"price"`
+	Currency       string                  `json:"currency"`
+	Status         string                  `json:"status"`
+	TargetDate     string                  `json:"targetDate"`
+	ReminderDays   int                     `json:"reminderDays"`
+	DaysUntil      int                     `json:"daysUntil"`
+	RepeatReminder *repeatReminderSnapshot `json:"repeatReminder,omitempty"`
 }
 
 // notificationMessage 是渠道发送层消费的统一消息。

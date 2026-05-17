@@ -10,7 +10,12 @@
  * now + settings + subscriptions -> date-only 比较 -> 文本分组 -> NotificationContent
  * ```
  */
-import type { AppSettings, SubscriptionStatus } from "@/types/subscription";
+import type {
+  AppSettings,
+  RepeatReminderInterval,
+  RepeatReminderWindow,
+  SubscriptionStatus,
+} from "@/types/subscription";
 import { daysBetweenDateOnly, isValidDateOnly, todayDateOnlyInTimeZone, type DateOnly } from "@/lib/time/date-only";
 import { isValidTimeZone } from "@/lib/time/time-zone";
 import { normalizeLocale, type Locale } from "@/i18n/locales";
@@ -35,6 +40,9 @@ export interface SubscriptionForNotification {
   nextBillingDate: string; // YYYY-MM-DD
   trialEndDate?: string | null; // YYYY-MM-DD | null
   reminderDays: number;
+  repeatReminderEnabled?: boolean;
+  repeatReminderInterval?: RepeatReminderInterval;
+  repeatReminderWindow?: RepeatReminderWindow;
 }
 
 export type NotificationItemType = "renewal" | "trial" | "expired";
@@ -50,6 +58,10 @@ export interface NotificationContentItem {
   targetDate: string;
   reminderDays: number;
   daysUntil: number;
+  repeatReminder?: {
+    interval: RepeatReminderInterval;
+    window: RepeatReminderWindow;
+  };
 }
 
 /** 通知内容输出；发送层只关心 title/content/timestamp，调度层使用 hasPayload 决定是否发送。 */
@@ -120,6 +132,11 @@ function formatItemLine(item: NotificationContentItem, locale: Locale): string {
     extra = translate(locale, "notification.content.expiredStatus");
   } else {
     extra = translate(locale, "notification.content.beforeDays", { days: item.reminderDays });
+  }
+  if (item.repeatReminder) {
+    extra += locale === "en-US"
+      ? `; ${translate(locale, "notification.content.repeatEvery", { interval: item.repeatReminder.interval })}`
+      : `；${translate(locale, "notification.content.repeatEvery", { interval: item.repeatReminder.interval })}`;
   }
   if (locale === "en-US") {
     return `- ${item.name}: ${item.targetDate}, ${formatAmount(item.price)} ${item.currency} (${extra})`;

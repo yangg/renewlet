@@ -116,4 +116,22 @@ describe("subscription-form", () => {
     expect(toSubscriptionDraft({ ...base, autoCalculate: true })?.autoCalculateNextBillingDate).toBe(true);
     expect(toSubscriptionDraft({ ...base, autoCalculate: false })?.autoCalculateNextBillingDate).toBe(false);
   });
+
+  it("keeps repeat reminder presets in the draft", () => {
+    const form = createSubscriptionFormState({
+      name: "Critical SaaS",
+      price: "99",
+      startDate: assertDateOnly("2026-05-14"),
+      nextBillingDate: assertDateOnly("2026-05-17"),
+      repeatReminderEnabled: true,
+      repeatReminderInterval: "3h",
+      repeatReminderWindow: "full",
+    });
+
+    expect(toSubscriptionDraft(form)).toMatchObject({
+      repeatReminderEnabled: true,
+      repeatReminderInterval: "3h",
+      repeatReminderWindow: "full",
+    });
+  });
 });

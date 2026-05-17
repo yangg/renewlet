@@ -237,6 +237,9 @@ func ensureSubscriptionsCollection(app core.App, users *core.Collection) error {
 			&core.JSONField{Name: "tags", MaxSize: 4096},
 			&core.JSONField{Name: "extra", MaxSize: 65536},
 			&core.NumberField{Name: "reminderDays", OnlyInt: true, Min: &minZero},
+			&core.BoolField{Name: "repeatReminderEnabled"},
+			&core.SelectField{Name: "repeatReminderInterval", Values: []string{"1h", "3h", "6h", "12h", "24h"}},
+			&core.SelectField{Name: "repeatReminderWindow", Values: []string{"24h", "48h", "72h", "full"}},
 		}
 		for _, field := range fields {
 			if field.GetName() == "logo" {
