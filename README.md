@@ -13,11 +13,14 @@
   <img alt="React" src="https://img.shields.io/badge/React-19-149eca?style=flat-square">
   <img alt="Go and PocketBase" src="https://img.shields.io/badge/Go%20%2B%20PocketBase-00a884?style=flat-square">
   <img alt="Docker" src="https://img.shields.io/badge/Docker-ready-2496ed?style=flat-square">
+  <img alt="H5 mobile ready" src="https://img.shields.io/badge/H5-mobile--ready-2563eb?style=flat-square">
   <img alt="Memory 20-30MiB" src="https://img.shields.io/badge/memory-20--30MiB-10b981?style=flat-square">
   <img alt="MIT License" src="https://img.shields.io/badge/license-MIT-111827?style=flat-square">
 </p>
 
 Renewlet 是给“订阅太多工具”的人用的自托管账本。它把 SaaS、AI 工具、云服务、开发工具的价格、续费日、预算和提醒放到一起：钱花在哪、什么时候扣、提前几天提醒，一眼看清。
+
+H5 移动端完整适配，手机浏览器打开就能录入订阅、筛选列表、看统计和配置通知。
 
 实测空闲内存约 20-30MiB，适合小 VPS、NAS 和 homelab 常驻运行。
 
@@ -78,6 +81,7 @@ docker compose up -d
 - 多币种换算：可选择 Exchange API 或 FloatRates JSON Feeds，远端不可用时会使用备用汇率。
 - 可自定义清单：分类、付款方式、货币都能在设置里调整，内置常见付款方式图标。
 - 单容器自托管：React 前端、Go/PocketBase 后端、SQLite 数据和静态资源一起运行，数据持久化到 `data/`。
+- H5 移动端友好：移动端底部导航、订阅卡片、标签筛选抽屉和设置页面都按小屏幕适配。
 - 中英文界面：应用内支持简体中文和 English。
 
 ## 截图

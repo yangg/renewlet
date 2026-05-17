@@ -13,11 +13,14 @@
   <img alt="React" src="https://img.shields.io/badge/React-19-149eca?style=flat-square">
   <img alt="Go and PocketBase" src="https://img.shields.io/badge/Go%20%2B%20PocketBase-00a884?style=flat-square">
   <img alt="Docker" src="https://img.shields.io/badge/Docker-ready-2496ed?style=flat-square">
+  <img alt="Mobile web ready" src="https://img.shields.io/badge/mobile%20web-ready-2563eb?style=flat-square">
   <img alt="Memory 20-30MiB" src="https://img.shields.io/badge/memory-20--30MiB-10b981?style=flat-square">
   <img alt="MIT License" src="https://img.shields.io/badge/license-MIT-111827?style=flat-square">
 </p>
 
 Renewlet is a self-hosted ledger for people who subscribe to too many tools. It puts prices, renewal dates, budgets, currencies, logos, and reminders for SaaS, AI tools, cloud services, and developer tools in one place, so the next charge is never a surprise.
+
+Mobile web is first-class: open it in a phone browser to add subscriptions, filter lists, review stats, and configure notifications.
 
 Idle memory usage is around 20-30MiB in local testing, making it comfortable for small VPS, NAS, and homelab boxes.
 
@@ -78,6 +81,7 @@ Common settings live in `.env`:
 - Handle multiple currencies: choose Exchange API or FloatRates JSON Feeds, with fallback rates when remote providers are unavailable.
 - Customize your lists: categories, payment methods, and currencies can be adjusted in settings, with built-in icons for common payment methods.
 - Self-host one container: React frontend, Go/PocketBase backend, SQLite data, and static assets run together, with data persisted to `data/`.
+- Mobile-web friendly: bottom navigation, subscription cards, tag-filter drawers, and settings screens are adapted for small screens.
 - Switch languages in the app: Simplified Chinese and English are supported.
 
 ## Screenshots
