@@ -2,7 +2,7 @@
 
 [简体中文](README.md) | [English](README.en.md)
 
-Renewlet is a self-hosted subscription control plane for developers, indie teams, and homelabs: keep AI tools, cloud services, dev tooling, and collaboration SaaS renewals in one calm place.
+Renewlet is a self-hosted subscription manager. It keeps prices, renewal dates, budgets, and reminders for SaaS, AI tools, cloud services, and developer tools in one place, for individuals, small teams, and homelabs.
 
 <p align="center">
   <img alt="Self-hosted" src="https://img.shields.io/badge/self--hosted-0f172a?style=flat-square">
@@ -46,27 +46,29 @@ Renewlet is a self-hosted subscription control plane for developers, indie teams
 
 ## Overview
 
-Renewlet helps you manage recurring services in one place: prices, currencies, billing cycles, renewal dates, payment methods, tags, websites, and notes. Dashboards, renewal calendars, and statistics views help you understand monthly subscription spending. It packages the React frontend and Go/PocketBase backend into a single Docker image, making it suitable for your own server, NAS, or homelab.
+If you subscribe to many tools, Renewlet helps you keep track of them: when each one renews, roughly how much you spend each month, what is coming up soon, and where reminders should go. You can save prices, currencies, billing cycles, renewal dates, payment methods, tags, websites, and notes, then use the dashboard, calendar, and statistics pages to understand the overall spend.
+
+The project packages the React frontend and Go/PocketBase backend into one Docker image. After deployment, a single container serves the app, business APIs, PocketBase APIs, and the PocketBase Admin UI.
 
 Current architecture:
 
-- `packages/server`: Go + embedded PocketBase backend for SQLite, authentication, files, admin UI, data models, and custom business APIs.
-- `packages/client`: Vite + React SPA using the PocketBase JS SDK, local routing, themes, and internationalized copy.
-- Docker image: runs a single Go binary that serves the PocketBase API, app API, PocketBase Admin, static assets, and SPA fallback.
+- `packages/server`: Go + PocketBase backend for SQLite, authentication, files, admin UI, data models, and business APIs.
+- `packages/client`: Vite + React SPA for the app UI, routing, themes, and Chinese/English copy.
+- Docker image: runs one Go binary that serves the PocketBase API, app API, PocketBase Admin, static assets, and SPA fallback.
 
 ## Features
 
-- Subscription management: track names, logos, prices, currencies, billing cycles, statuses, categories, payment methods, websites, tags, and notes.
-- Renewal reminders: generate notifications by each user's local time zone and reminder window, with notification history and retry support.
-- Notification channels: Telegram, Notifyx, Webhook, WeCom Bot, SMTP email, and Bark.
-- Statistics: monthly normalized costs, budget usage, category breakdowns, payment-method breakdowns, and inactive-subscription savings.
-- Multi-currency display: choose Frankfurter or FloatRates as the rate source, with remote fallback first and built-in fallback rates if both fail.
-- Self-hosted deployment: single-container runtime with SQLite data persisted through a local directory or Docker volume.
-- Bilingual UI: Simplified Chinese and English are supported in the app.
+- Track subscriptions: save names, logos, prices, currencies, billing cycles, statuses, categories, payment methods, websites, tags, and notes.
+- Get renewal reminders: generate notifications from each user's time zone and reminder window, keep delivery history, and retry failed sends.
+- Send notifications: use Telegram, Notifyx, Webhook, WeCom Bot, SMTP email, or Bark.
+- Review spending: normalize costs by month and show budget usage, category breakdowns, payment-method breakdowns, and inactive-subscription savings.
+- Handle currencies: choose Frankfurter or FloatRates for exchange rates; if remote sources fail, Renewlet uses fallback rates.
+- Self-host it: run one container and persist SQLite data through a local directory or Docker volume.
+- Switch languages: Simplified Chinese and English are supported in the app.
 
 ## One-Command Docker Deployment
 
-The recommended deployment uses the prebuilt Docker Hub image. The script downloads the Compose template, generates random secrets, creates the local data directory, and requires no manual `.env` or `docker-compose.yml` editing.
+The easiest path is the prebuilt Docker Hub image. The script below downloads the Compose template, generates random secrets, and creates the local data directory. For most installs, you do not need to edit `.env` or `docker-compose.yml` by hand.
 
 On a server with Docker and Docker Compose v2 installed, run:
 
@@ -82,15 +84,15 @@ After the first startup, open:
 http://localhost:3000/setup
 ```
 
-Create the first admin user. If PocketBase does not have a superuser yet, this account also becomes the initial PocketBase Admin UI account; existing superusers are not overwritten.
+Create the first admin user. If PocketBase does not have a superuser yet, this account also becomes the initial PocketBase Admin UI account. Existing superusers are not overwritten.
 
 The script creates:
 
 | Path | Description |
 | --- | --- |
-| `docker-compose.yml` | Production deployment template using `zhiyingzzhou/renewlet:latest`. |
-| `.env` | Port, image, time zone, secrets, and notification scheduler settings; `PB_ENCRYPTION_KEY` and `CRON_SECRET` are generated automatically. |
-| `data/` | Persistent data directory mounted to `/pb_data` inside the container. |
+| `docker-compose.yml` | Production deployment template. It uses `zhiyingzzhou/renewlet:latest` by default. |
+| `.env` | Port, image, time zone, secrets, and notification scheduler settings. `PB_ENCRYPTION_KEY` and `CRON_SECRET` are generated automatically. |
+| `data/` | Data directory mounted to `/pb_data` inside the container. |
 
 If Docker Hub is unavailable, switch `.env` to the GHCR image:
 
@@ -157,15 +159,15 @@ rm -rf data .env docker-compose.yml
 
 ## Configuration
 
-For the one-command deployment, all settings live in `.env`. Defaults are enough for a normal deployment. If you use a reverse proxy and domain, set `APP_URL` to your public HTTPS URL, for example `https://renewlet.example.com`.
+For the one-command deployment, all settings live in `.env`. Defaults are fine for a normal install. If you use a reverse proxy and domain, set `APP_URL` to your public HTTPS URL, for example `https://renewlet.example.com`.
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `PORT` | `3000` | Public service port. |
-| `RENEWLET_IMAGE` | `zhiyingzzhou/renewlet:latest` | Docker image; `latest` follows the newest release. For production, pin `zhiyingzzhou/renewlet:vX.Y.Z`, or switch to `ghcr.io/zhiyingzzhou/renewlet:latest`. |
-| `APP_URL` | `http://localhost:3000` | Public app URL used in email and notification links. |
-| `TZ` | `Asia/Shanghai` | Container time zone, mainly for logs; reminder time follows each user's in-app setting. |
-| `PB_ENCRYPTION_KEY` | generated | Must be exactly 32 characters. Encrypts sensitive PocketBase settings. Do not rotate it casually after deployment. |
+| `RENEWLET_IMAGE` | `zhiyingzzhou/renewlet:latest` | Docker image. `latest` follows the newest release; in production you can pin `zhiyingzzhou/renewlet:vX.Y.Z` or switch to `ghcr.io/zhiyingzzhou/renewlet:latest`. |
+| `APP_URL` | `http://localhost:3000` | Public app URL used to build links in emails and notifications. |
+| `TZ` | `Asia/Shanghai` | Container time zone, mainly for logs. Reminder time follows each user's in-app setting. |
+| `PB_ENCRYPTION_KEY` | generated | Must be exactly 32 characters. It encrypts sensitive PocketBase settings. Do not rotate it casually after deployment. |
 | `GOMEMLIMIT` / `MEM_LIMIT` | `128MiB` / `256m` | Go runtime soft memory limit and container memory limit. |
 | `SMTP_HOST` / `SMTP_FROM` | empty | Enables PocketBase password-reset email when configured. |
 | `BACKUPS_CRON` | empty | Optional PocketBase backup cron expression. |
@@ -176,7 +178,7 @@ For the one-command deployment, all settings live in `.env`. Defaults are enough
 
 ## Scheduled Notifications
 
-For Docker/VPS self-hosting, keep `NOTIFICATION_SCHEDULER_ENABLED=true`. The app checks all user settings on `NOTIFICATION_SCHEDULER_CRON` and only sends reminders when a user's IANA time zone and local notification time match the delivery window.
+For Docker/VPS self-hosting, keep `NOTIFICATION_SCHEDULER_ENABLED=true`. The app checks all user settings on `NOTIFICATION_SCHEDULER_CRON` and sends reminders only when a user's IANA time zone and local notification time match the delivery window.
 
 If your platform provides Cron, or you want to use GitHub Actions, host crontab, or another external scheduler, disable the built-in scheduler and configure an external entrypoint secret:
 
@@ -185,13 +187,13 @@ NOTIFICATION_SCHEDULER_ENABLED="false"
 CRON_SECRET="CHANGE_ME_TO_A_RANDOM_SECRET"
 ```
 
-The external entrypoint is `GET /api/cron/notifications`. It only accepts `Authorization: Bearer <CRON_SECRET>` and does not support URL query secrets. Vercel Cron automatically sends the Bearer header when `CRON_SECRET` is configured; GitHub Actions or crontab can call it like this:
+The external entrypoint is `GET /api/cron/notifications`. It only accepts `Authorization: Bearer <CRON_SECRET>` and does not support URL query secrets. Vercel Cron sends the Bearer header automatically when `CRON_SECRET` is configured; GitHub Actions or crontab can call it like this:
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_DOMAIN/api/cron/notifications"
 ```
 
-For debugging, add `dryRun=1` to run the logic without sending notifications, and add `force=1` to force the schedule window:
+For debugging, add `dryRun=1` to run the logic without sending notifications, or add `force=1` to force the schedule window:
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_DOMAIN/api/cron/notifications?dryRun=1&force=1"
@@ -230,7 +232,7 @@ Start the frontend:
 pnpm --filter @renewlet/client dev
 ```
 
-Vite runs at `http://localhost:5173` by default and proxies `/api` and `/_` to the Go server at `http://127.0.0.1:3000`.
+Vite runs at `http://localhost:5173` by default and proxies `/api` and `/_` to the Go server: `http://127.0.0.1:3000`.
 
 ## Build
 
@@ -238,16 +240,18 @@ Vite runs at `http://localhost:5173` by default and proxies `/api` and `/_` to t
 pnpm build
 ```
 
-The build first generates `packages/client/dist`, syncs it into the server static asset directory, and then compiles `packages/server/dist/renewlet`.
+The build first generates `packages/client/dist`, syncs the static assets into the server directory, and then compiles `packages/server/dist/renewlet`.
 
-## Maintainer Image Publishing
+## Image Publishing
 
-GitHub Actions builds multi-platform images on `main`, `v*.*.*` tags, and manual runs, then pushes them to:
+When maintainers publish a version, GitHub Actions builds multi-platform images and pushes them to:
 
 - `docker.io/zhiyingzzhou/renewlet`
 - `ghcr.io/zhiyingzzhou/renewlet`
 
-Before publishing to Docker Hub:
+The workflow runs on pushes to `main`, `v*.*.*` tags, and manual `Docker Image` workflow runs.
+
+Before the first Docker Hub publish:
 
 1. Create the public Docker Hub repository `zhiyingzzhou/renewlet`.
 2. Create a Docker Hub Access Token.
@@ -260,7 +264,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-CI pushes tags such as `latest`, `v0.1.0`, `0.1.0`, `0.1`, and `sha-*`. You can also run the `Docker Image` workflow manually from the GitHub Actions page.
+CI pushes tags such as `latest`, `v0.1.0`, `0.1.0`, `0.1`, and `sha-*`.
 
 References: [sub2api deployment README](https://github.com/Wei-Shaw/sub2api/blob/main/deploy/README.md), [Docker GitHub Actions guide](https://docs.docker.com/guides/gha/), [Docker multi-platform builds](https://docs.docker.com/build/ci/github-actions/multi-platform/), and [GitHub publish Docker images](https://docs.github.com/actions/tutorials/publish-packages/publish-docker-images).
 
