@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Category, Subscription, SubscriptionStatus } from '@/types/subscription';
-import { Search, Filter, Plus, Grid, List as ListIcon, Download } from 'lucide-react';
+import { Search, Plus, Grid, List as ListIcon, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -45,7 +45,7 @@ import { useMediaQuery } from '@/hooks/use-media-query';
 import {
   SelectedTagScroller,
   SubscriptionTagFilterDrawer,
-  TagFilterChip,
+  SubscriptionTagFilterPopover,
 } from '@/components/subscription-tag-filter-drawer';
 
 /** 空订阅数组：用于在数据未加载完成时提供稳定引用，避免 useMemo 依赖抖动。 */
@@ -215,6 +215,9 @@ const Subscriptions = () => {
   const sortOptionLabel = t(SORT_OPTION_LABEL_KEYS[sortOption]);
   const removeSelectedTag = useCallback((tag: string) => {
     setSelectedTags((current) => current.filter((item) => item !== tag));
+  }, [setSelectedTags]);
+  const clearSelectedTags = useCallback(() => {
+    setSelectedTags([]);
   }, [setSelectedTags]);
 
   // 与参考项目保持一致：首次加载订阅列表时展示骨架屏（筛选条 + 卡片网格占位）。
@@ -421,6 +424,15 @@ const Subscriptions = () => {
                   </SelectContent>
                 </Select>
 
+                {allTags.length > 0 && (
+                  <SubscriptionTagFilterPopover
+                    tags={allTags}
+                    selectedTags={selectedTags}
+                    onToggleTag={toggleTag}
+                    onClearTags={clearSelectedTags}
+                  />
+                )}
+
                 {hasActiveControls && (
                   <Button variant="ghost" size="sm" onClick={clearFilters} className="text-muted-foreground">
                     {t("subscriptions.clearFilters")}
@@ -428,20 +440,11 @@ const Subscriptions = () => {
                 )}
               </div>
 
-              {allTags.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2" data-testid="desktop-tag-filter">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">{t("subscription.field.tags")}:</span>
-                  {allTags.map(tag => (
-                    <TagFilterChip
-                      key={tag}
-                      tag={tag}
-                      selected={selectedTags.includes(tag)}
-                      onToggle={() => toggleTag(tag)}
-                    />
-                  ))}
-                </div>
-              )}
+              <SelectedTagScroller
+                selectedTags={selectedTags}
+                onRemoveTag={removeSelectedTag}
+                testId="desktop-selected-tags"
+              />
             </>
           )}
         </div>

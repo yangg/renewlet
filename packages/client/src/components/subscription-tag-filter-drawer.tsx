@@ -4,6 +4,7 @@ import { Filter, Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useI18n } from "@/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
@@ -21,10 +22,19 @@ interface SubscriptionTagFilterDrawerProps {
   className?: string;
 }
 
+interface SubscriptionTagFilterPopoverProps {
+  tags: string[];
+  selectedTags: string[];
+  onToggleTag: (tag: string) => void;
+  onClearTags: () => void;
+  className?: string;
+}
+
 interface SelectedTagScrollerProps {
   selectedTags: string[];
   onRemoveTag: (tag: string) => void;
   className?: string;
+  testId?: string;
 }
 
 function toggleTag(tags: string[], tag: string) {
@@ -68,7 +78,12 @@ function SelectedTagPill({ tag, onRemove }: { tag: string; onRemove: () => void 
   );
 }
 
-export function SelectedTagScroller({ selectedTags, onRemoveTag, className }: SelectedTagScrollerProps) {
+export function SelectedTagScroller({
+  selectedTags,
+  onRemoveTag,
+  className,
+  testId = "mobile-selected-tags",
+}: SelectedTagScrollerProps) {
   const { t } = useI18n();
 
   if (selectedTags.length === 0) {
@@ -77,7 +92,7 @@ export function SelectedTagScroller({ selectedTags, onRemoveTag, className }: Se
 
   return (
     <div
-      data-testid="mobile-selected-tags"
+      data-testid={testId}
       className={cn(
         "min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         className,
@@ -90,6 +105,114 @@ export function SelectedTagScroller({ selectedTags, onRemoveTag, className }: Se
         ))}
       </div>
     </div>
+  );
+}
+
+export function SubscriptionTagFilterPopover({
+  tags,
+  selectedTags,
+  onToggleTag,
+  onClearTags,
+  className,
+}: SubscriptionTagFilterPopoverProps) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    if (!open) {
+      setSearchQuery("");
+    }
+  }, [open]);
+
+  const visibleTags = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return tags;
+    return tags.filter((tag) => tag.toLowerCase().includes(query));
+  }, [searchQuery, tags]);
+  const triggerLabel =
+    selectedTags.length > 0
+      ? t("subscriptions.tags.selectedCount", { count: selectedTags.length })
+      : t("subscriptions.tags.open");
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <div className={cn("shrink-0", className)} data-testid="desktop-tag-filter">
+        <PopoverTrigger asChild>
+          <Button variant="outline" className="h-10 shrink-0 border-border bg-secondary px-3">
+            <Filter className="h-4 w-4" />
+            <span>{triggerLabel}</span>
+          </Button>
+        </PopoverTrigger>
+      </div>
+
+      <PopoverContent
+        align="end"
+        sideOffset={8}
+        className="w-[min(24rem,calc(100vw-2rem))] overflow-hidden border-border bg-popover p-0 text-popover-foreground"
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground">{t("subscriptions.tags.drawerTitle")}</p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="-mr-2 h-8 w-8 text-muted-foreground"
+            onClick={() => setOpen(false)}
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">{t("common.close")}</span>
+          </Button>
+        </div>
+
+        <div className="border-b border-border px-4 py-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder={t("subscriptions.tags.searchPlaceholder")}
+              className="h-10 border-border bg-secondary pl-10"
+            />
+          </div>
+        </div>
+
+        <div className="max-h-72 overflow-y-auto p-4">
+          {visibleTags.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {visibleTags.map((tag) => (
+                <TagFilterChip
+                  key={tag}
+                  tag={tag}
+                  selected={selectedTags.includes(tag)}
+                  onToggle={() => onToggleTag(tag)}
+                  className="min-h-9 px-3 text-sm"
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex min-h-32 items-center justify-center rounded-lg border border-dashed border-border bg-secondary/40 px-4 text-center text-sm text-muted-foreground">
+              {t("subscriptions.tags.emptyMatch")}
+            </div>
+          )}
+        </div>
+
+        {selectedTags.length > 0 && (
+          <div className="flex justify-end border-t border-border bg-card px-4 py-3">
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-9 text-muted-foreground"
+              onClick={onClearTags}
+            >
+              {t("subscriptions.tags.clearSelection")}
+            </Button>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
 

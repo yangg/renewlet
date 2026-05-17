@@ -245,6 +245,84 @@ describe("Subscriptions page sorting", () => {
   });
 });
 
+describe("Subscriptions page desktop tag filters", () => {
+  beforeAll(() => {
+    Element.prototype.hasPointerCapture ??= vi.fn(() => false);
+    Element.prototype.setPointerCapture ??= vi.fn();
+    Element.prototype.releasePointerCapture ??= vi.fn();
+    Element.prototype.scrollIntoView ??= vi.fn();
+  });
+
+  beforeEach(() => {
+    mockMobileTagFilterMatch(false);
+    mocks.useSettings.mockReturnValue({
+      data: {
+        timezone: "Asia/Shanghai",
+        defaultCurrency: "CNY",
+      },
+    });
+    mocks.useSubscriptions.mockReturnValue({
+      data: [
+        subscription({ id: "cloud", name: "Tagged Cloud", tags: ["工作", "云服务", "Security"] }),
+        subscription({ id: "docs", name: "Docs Notes", tags: ["Docs", "Planning"] }),
+        subscription({ id: "design", name: "Design Suite", tags: ["Design"] }),
+        subscription({ id: "plain", name: "Plain Service", tags: [] }),
+      ],
+      isPending: false,
+    });
+  });
+
+  it("collapses desktop tags into a searchable popover and clears selections", async () => {
+    const user = userEvent.setup();
+    renderSubscriptionsPage();
+
+    const desktopTagFilter = screen.getByTestId("desktop-tag-filter");
+    expect(within(desktopTagFilter).getByRole("button", { name: "标签" })).toBeInTheDocument();
+    expect(screen.queryByText("标签:")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Security" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("desktop-selected-tags")).not.toBeInTheDocument();
+
+    await user.click(within(desktopTagFilter).getByRole("button", { name: "标签" }));
+    await user.type(await screen.findByPlaceholderText("搜索标签..."), "Doc");
+    expect(screen.queryByRole("button", { name: "Security" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Docs" }));
+
+    await waitFor(() => {
+      expect(visibleSubscriptionNames()).toEqual(["Docs Notes"]);
+    });
+    expect(within(desktopTagFilter).getByRole("button", { name: "标签(1)" })).toBeInTheDocument();
+    expect(screen.getByTestId("desktop-selected-tags")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "清空标签" }));
+
+    await waitFor(() => {
+      expect(visibleSubscriptionNames()).toEqual(["Tagged Cloud", "Docs Notes", "Design Suite", "Plain Service"]);
+    });
+    expect(within(desktopTagFilter).getByRole("button", { name: "标签" })).toBeInTheDocument();
+    expect(screen.queryByTestId("desktop-selected-tags")).not.toBeInTheDocument();
+  });
+
+  it("removes selected desktop tag pills without opening the full tag wall", async () => {
+    const user = userEvent.setup();
+    renderSubscriptionsPage();
+
+    const desktopTagFilter = screen.getByTestId("desktop-tag-filter");
+    await user.click(within(desktopTagFilter).getByRole("button", { name: "标签" }));
+    await user.click(await screen.findByRole("button", { name: "Design" }));
+
+    await waitFor(() => {
+      expect(visibleSubscriptionNames()).toEqual(["Design Suite"]);
+    });
+    await user.click(screen.getByRole("button", { name: "移除标签 Design" }));
+
+    await waitFor(() => {
+      expect(visibleSubscriptionNames()).toEqual(["Tagged Cloud", "Docs Notes", "Design Suite", "Plain Service"]);
+    });
+    expect(within(desktopTagFilter).getByRole("button", { name: "标签" })).toBeInTheDocument();
+    expect(screen.queryByTestId("desktop-selected-tags")).not.toBeInTheDocument();
+  });
+});
+
 describe("Subscriptions page mobile tag filters", () => {
   beforeAll(() => {
     Element.prototype.hasPointerCapture ??= vi.fn(() => false);

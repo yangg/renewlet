@@ -64,8 +64,21 @@ test("setup, login, create subscriptions with empty and tagged tags", async ({ p
   });
   await saveSubscription(page);
   await expect(page.getByText("Tagged Cloud")).toBeVisible();
-  await expect(page.getByText("标签:")).toBeVisible();
-  await expect(page.getByText("工作")).toBeVisible();
+  const desktopTagFilter = page.getByTestId("desktop-tag-filter");
+  await expect(desktopTagFilter.getByRole("button", { name: "标签" })).toBeVisible();
+  await expect(page.getByText("标签:")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "工作" })).toHaveCount(0);
+  await desktopTagFilter.getByRole("button", { name: "标签" }).click();
+  await page.getByPlaceholder("搜索标签...").fill("工");
+  await page.getByRole("button", { name: "工作" }).click();
+  await expect(desktopTagFilter.getByRole("button", { name: "标签(1)" })).toBeVisible();
+  await expect(page.getByTestId("desktop-selected-tags")).toBeVisible();
+  await expect(page.getByText("Tagged Cloud")).toBeVisible();
+  await expect(page.getByText("Aws")).toBeHidden();
+  await page.getByRole("button", { name: "清空标签" }).click();
+  await expect(desktopTagFilter.getByRole("button", { name: "标签" })).toBeVisible();
+  await expect(page.getByText("Aws")).toBeVisible();
+  await page.keyboard.press("Escape");
 
   const desktopViewport = page.viewportSize();
   await openSubscriptionEditDialog(page, "Tagged Cloud");
@@ -143,7 +156,10 @@ test("setup, login, create subscriptions with empty and tagged tags", async ({ p
     await page.setViewportSize(desktopViewport);
   }
 
-  await page.getByText("工作").click();
+  const restoredDesktopTagFilter = page.getByTestId("desktop-tag-filter");
+  await restoredDesktopTagFilter.getByRole("button", { name: "标签" }).click();
+  await page.getByPlaceholder("搜索标签...").fill("工作");
+  await page.getByRole("button", { name: "工作" }).click();
   await expect(page.getByText("Tagged Cloud")).toBeVisible();
   await expect(page.getByText("Aws")).toBeHidden();
   await page.getByRole("button", { name: "清除筛选" }).click();
