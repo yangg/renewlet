@@ -66,6 +66,12 @@ Current architecture:
 - Self-host it: run one container and persist SQLite data through a local directory or Docker volume.
 - Switch languages: Simplified Chinese and English are supported in the app.
 
+## Resource Usage
+
+After starting the Docker Hub `latest` image locally and opening `/setup`, `docker stats --no-stream` reported about `15MiB` of memory in use.
+
+This is a single measurement on an idle install with no data. Actual usage depends on subscription count, notification jobs, automatic backups, the host platform, and Docker's accounting. The default deployment already sets a Go runtime soft memory limit; on low-memory machines, start with the defaults and adjust after observing your own workload.
+
 ## One-Command Docker Deployment
 
 The easiest path is the prebuilt Docker Hub image. The script below downloads the Compose template, generates random secrets, and creates the local data directory. For most installs, you do not need to edit `.env` or `docker-compose.yml` by hand.

@@ -66,6 +66,12 @@ Renewlet 是一个自托管的订阅管理工具。它把 SaaS、AI 工具、云
 - 自托管运行：单容器部署，SQLite 数据可放在本地目录或 Docker volume 里。
 - 切换语言：应用内支持简体中文和 English。
 
+## 资源占用
+
+在本地用 Docker Hub `latest` 镜像启动、打开 `/setup` 后，`docker stats --no-stream` 显示内存占用约 `15MiB`。
+
+这个数值只代表空数据、空闲状态下的一次测量；订阅数量、通知任务、自动备份、运行平台和 Docker 统计口径都会影响实际占用。默认部署已设置 Go 运行时软内存限制，低内存机器建议先保持默认配置，跑一段时间后再按自己的负载调整。
+
 ## Docker 一键部署
 
 推荐直接使用 Docker Hub 上的预构建镜像。下面的脚本会下载 Compose 模板、生成随机密钥、创建本地数据目录；一般不需要手动改 `.env` 或 `docker-compose.yml`。
