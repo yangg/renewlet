@@ -10,7 +10,7 @@
  * 需要把 label/color view model 从上层传入。
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { Subscription, STATUS_LABELS, CYCLE_LABELS } from '@/types/subscription';
 import { useCustomConfig } from '@/contexts/CustomConfigContext';
 import { Badge } from '@/components/ui/badge';
@@ -66,6 +66,10 @@ const statusStyles: Record<string, string> = {
 
 const DEFAULT_BADGE_COLOR = "hsl(var(--primary))";
 
+type LogoTileStyle = CSSProperties & {
+  "--subscription-logo-fallback": string;
+};
+
 /** 订阅卡片。 */
 export function SubscriptionCard({ subscription, viewMode = 'grid', onEdit, onDelete, timeZone }: SubscriptionCardProps) {
   const { config } = useCustomConfig();
@@ -78,11 +82,8 @@ export function SubscriptionCard({ subscription, viewMode = 'grid', onEdit, onDe
     borderColor: colorWithAlpha(categoryColor, 0.2) ?? undefined,
     color: categoryColor,
   };
-
-  const logoBackgroundFrom = colorWithAlpha(categoryColor, 0.2) ?? categoryColor;
-  const logoBackgroundTo = colorWithAlpha(categoryColor, 0.05) ?? categoryColor;
-  const logoBackgroundStyle = {
-    backgroundImage: `linear-gradient(135deg, ${logoBackgroundFrom}, ${logoBackgroundTo})`,
+  const logoTileStyle: LogoTileStyle = {
+    "--subscription-logo-fallback": categoryColor,
   };
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -116,17 +117,17 @@ export function SubscriptionCard({ subscription, viewMode = 'grid', onEdit, onDe
       <div className="flex items-start gap-4">
         {/* Logo（有则显示图片，否则显示订阅名称前 2 个字符作为占位） */}
         <div className={cn(
-          "flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br text-lg font-bold",
-        )} style={logoBackgroundStyle}>
+          "subscription-logo-tile flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border text-lg font-bold",
+        )} style={logoTileStyle}>
           {subscription.logo && !logoLoadFailed ? (
             <AuthorizedImage
               src={subscription.logo}
               alt={subscription.name}
-              className="h-full w-full object-contain p-1"
+              className="subscription-logo-image h-full w-full object-contain p-1"
               onError={() => setLogoLoadFailed(true)}
             />
           ) : (
-            subscription.name.slice(0, 2).toUpperCase()
+            <span className="subscription-logo-fallback">{subscription.name.slice(0, 2).toUpperCase()}</span>
           )}
         </div>
 

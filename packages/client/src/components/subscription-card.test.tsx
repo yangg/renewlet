@@ -106,6 +106,40 @@ function renderSubscriptionCard(overrides: SubscriptionOverrides = {}) {
 }
 
 describe("SubscriptionCard", () => {
+  it("renders subscription logos on the shared neutral logo tile", () => {
+    renderSubscriptionCard({ logo: "https://example.com/apple-tv.svg", name: "Apple TV" });
+
+    const logo = screen.getByAltText("Apple TV");
+    const logoTile = logo.closest("div");
+
+    expect(logo).toHaveClass("subscription-logo-image", "object-contain");
+    expect(logoTile).toHaveClass("subscription-logo-tile");
+    expect(logoTile).not.toHaveClass("bg-gradient-to-br");
+    expect(logoTile?.getAttribute("style")).not.toContain("accent");
+  });
+
+  it("uses the same neutral logo path for white transparent logos", () => {
+    renderSubscriptionCard({ logo: "https://example.com/white-logo.svg", name: "ngrok" });
+
+    const logo = screen.getByAltText("ngrok");
+    const logoTile = logo.closest("div");
+
+    expect(logo).toHaveClass("subscription-logo-image", "object-contain");
+    expect(logoTile).toHaveClass("subscription-logo-tile");
+    expect(logoTile?.getAttribute("style")).not.toContain("accent");
+  });
+
+  it("keeps the initials fallback inside the neutral logo tile", () => {
+    renderSubscriptionCard({ name: "dmit", logo: undefined });
+
+    const initials = screen.getByText("DM");
+    const logoTile = initials.closest("div");
+
+    expect(initials).toHaveClass("subscription-logo-fallback");
+    expect(logoTile).toHaveClass("subscription-logo-tile");
+    expect(logoTile).not.toHaveClass("bg-gradient-to-br");
+  });
+
   it("lets the badge group use the full header width before wrapping", () => {
     renderSubscriptionCard();
 
