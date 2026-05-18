@@ -105,8 +105,8 @@ export default function SetupPage() {
 
   if (!isSetupStatusLoading && setupRequired === false) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-6 theme-gradient">
-        <div className="w-full max-w-md rounded-xl border border-border bg-card p-8 text-center shadow-card">
+      <div className="auth-page bg-background theme-gradient">
+        <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-center shadow-card sm:p-8">
           <h1 className="text-xl font-semibold text-foreground">{t("setup.completedTitle")}</h1>
           <p className="mt-2 text-sm text-muted-foreground">{t("setup.completedDescription")}</p>
           <Button className="mt-6 w-full" onClick={() => router.replace("/login")}>
@@ -118,8 +118,8 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-6 theme-gradient">
-      <div className="w-full max-w-md rounded-xl border border-border bg-card p-8 shadow-card">
+    <div className="auth-page bg-background theme-gradient">
+      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-card sm:p-8">
         <div className="mb-8 flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#111720] text-[#f8fafc] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_16px_32px_-22px_rgba(0,0,0,0.8)] ring-1 ring-white/10">
             <RenewletLogo className="h-6 w-6" />
@@ -138,6 +138,7 @@ export default function SetupPage() {
               <Input
                 ref={nameInputRef}
                 id="name"
+                name="name"
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value);
@@ -145,6 +146,7 @@ export default function SetupPage() {
                 }}
                 className="pl-10"
                 autoComplete="name"
+                enterKeyHint="next"
                 aria-invalid={Boolean(errors.name)}
                 aria-describedby={errors.name ? "setup-name-error" : undefined}
                 required
@@ -160,7 +162,9 @@ export default function SetupPage() {
               <Input
                 ref={emailInputRef}
                 id="email"
+                name="email"
                 type="email"
+                inputMode="email"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
@@ -168,6 +172,9 @@ export default function SetupPage() {
                 }}
                 className="pl-10"
                 autoComplete="email"
+                enterKeyHint="next"
+                autoCapitalize="none"
+                spellCheck={false}
                 aria-invalid={Boolean(errors.email)}
                 aria-describedby={errors.email ? "setup-email-error" : undefined}
                 required
@@ -183,6 +190,7 @@ export default function SetupPage() {
               <Input
                 ref={passwordInputRef}
                 id="password"
+                name="password"
                 type="password"
                 minLength={8}
                 value={password}
@@ -192,6 +200,7 @@ export default function SetupPage() {
                 }}
                 className="pl-10"
                 autoComplete="new-password"
+                enterKeyHint="done"
                 aria-invalid={Boolean(errors.password)}
                 aria-describedby={errors.password ? "setup-password-error" : undefined}
                 required

@@ -101,6 +101,98 @@ export function expectRootScrollContainer(snapshot: LayoutSnapshot) {
   expect(snapshot.rootScrollbarGutter).toContain("stable");
 }
 
+export async function expectNoHorizontalOverflow(page: Page, label: string) {
+  const metrics = await page.evaluate(() => {
+    const root = document.getElementById("root");
+    if (!root) {
+      throw new Error("Missing #root scroll container");
+    }
+
+    return {
+      rootClientWidth: root.clientWidth,
+      rootScrollWidth: root.scrollWidth,
+      documentClientWidth: document.documentElement.clientWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      bodyClientWidth: document.body.clientWidth,
+      bodyScrollWidth: document.body.scrollWidth,
+    };
+  });
+
+  expect(metrics.rootScrollWidth - metrics.rootClientWidth, `${label}: #root horizontal overflow`).toBeLessThanOrEqual(1);
+  expect(
+    metrics.documentScrollWidth - metrics.documentClientWidth,
+    `${label}: document horizontal overflow`,
+  ).toBeLessThanOrEqual(1);
+  expect(metrics.bodyScrollWidth - metrics.bodyClientWidth, `${label}: body horizontal overflow`).toBeLessThanOrEqual(1);
+}
+
+export async function expectTouchTarget(locator: Locator, label: string, minSize = 24) {
+  const box = await getRequiredLocatorBoundingBox(locator, label);
+  expect(box.width, `${label}: touch target width`).toBeGreaterThanOrEqual(minSize);
+  expect(box.height, `${label}: touch target height`).toBeGreaterThanOrEqual(minSize);
+}
+
+export async function expectActionNearContainerBottom(
+  container: Locator,
+  action: Locator,
+  label: string,
+  maxGap = 64,
+) {
+  const [containerBox, actionBox] = await Promise.all([
+    getRequiredLocatorBoundingBox(container, `${label} container`),
+    getRequiredLocatorBoundingBox(action, `${label} action`),
+  ]);
+  const gap = containerBox.y + containerBox.height - (actionBox.y + actionBox.height);
+  expect(gap, `${label}: action-to-bottom gap`).toBeGreaterThanOrEqual(0);
+  expect(gap, `${label}: action-to-bottom gap`).toBeLessThanOrEqual(maxGap);
+}
+
+export async function expectScrollContentNearFooter(
+  scrollRegion: Locator,
+  label: string,
+  maxGap = 24,
+) {
+  const gap = await scrollRegion.evaluate((element) => {
+    if (!(element instanceof HTMLElement)) {
+      throw new Error("Scroll region is not an HTMLElement");
+    }
+
+    element.scrollTop = element.scrollHeight;
+
+    const footer = element.parentElement?.querySelector<HTMLElement>("[data-subscription-dialog-footer]");
+    const lastContent = Array.from(element.children)
+      .reverse()
+      .find((child): child is HTMLElement => child instanceof HTMLElement && child.offsetParent !== null);
+
+    if (!footer || !lastContent) {
+      throw new Error("Missing overlay footer or visible scroll content");
+    }
+
+    const footerRect = footer.getBoundingClientRect();
+    const contentRect = lastContent.getBoundingClientRect();
+    return Math.round((footerRect.top - contentRect.bottom) * 100) / 100;
+  });
+
+  expect(gap, `${label}: scroll content to footer gap`).toBeGreaterThanOrEqual(0);
+  expect(gap, `${label}: scroll content to footer gap`).toBeLessThanOrEqual(maxGap);
+}
+
+export async function expectOverlayLeavesTopScrim(
+  page: Page,
+  overlay: Locator,
+  label: string,
+  minScrim = 40,
+) {
+  const box = await getRequiredLocatorBoundingBox(overlay, label);
+  const viewport = page.viewportSize();
+  if (!viewport) {
+    throw new Error("Missing viewport size");
+  }
+
+  expect(box.y, `${label}: visible top scrim`).toBeGreaterThanOrEqual(minScrim);
+  expect(box.height, `${label}: not full viewport height`).toBeLessThanOrEqual(viewport.height - minScrim);
+}
+
 export function expectStableLayout(before: LayoutSnapshot, after: LayoutSnapshot, label: string) {
   // 允许 1px 内的浏览器亚像素差异，但不允许 scroll lock 引起整列横向漂移。
   expect(Math.abs(after.header.x - before.header.x), `${label}: header x offset`).toBeLessThan(1);

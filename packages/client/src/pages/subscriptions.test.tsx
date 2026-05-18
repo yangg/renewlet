@@ -264,6 +264,19 @@ describe("Subscriptions page sorting", () => {
     expect(await screen.findByRole("button", { name: "回到顶部" })).toBeInTheDocument();
   });
 
+  it("uses the shared H5 page shell and native search metadata on mobile", () => {
+    mockMobileTagFilterMatch(true, 390);
+    const { container } = renderSubscriptionsPage();
+
+    expect(container.querySelector(".app-page")).toBeInTheDocument();
+    expect(container.querySelector("main.app-main")).toBeInTheDocument();
+    const searchInput = screen.getByPlaceholderText("搜索订阅、标签或备注...");
+    expect(searchInput).toHaveAttribute("type", "search");
+    expect(searchInput).toHaveAttribute("name", "subscription-search");
+    expect(searchInput).toHaveAttribute("enterkeyhint", "search");
+    expect(screen.getByTestId("mobile-sort-tag-row")).toBeInTheDocument();
+  });
+
   it("filters by expired using the effective status of legacy overdue subscriptions", async () => {
     const user = userEvent.setup();
     mocks.useSubscriptions.mockReturnValue({
@@ -411,6 +424,8 @@ describe("Subscriptions page mobile tag filters", () => {
 
     await user.click(within(sortTagRow).getByRole("button", { name: "标签" }));
     const drawer = await screen.findByRole("dialog", { name: "筛选标签" });
+    expect(drawer).toHaveClass("h5-drawer-panel", "overflow-hidden");
+    expect(drawer).not.toHaveClass("min-h-[52dvh]");
     expect(screen.queryByRole("button", { name: "清空标签" })).not.toBeInTheDocument();
     await user.type(screen.getByPlaceholderText("搜索标签..."), "Doc");
     await user.click(screen.getByRole("button", { name: "Docs" }));

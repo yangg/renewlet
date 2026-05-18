@@ -65,9 +65,9 @@ export default function Index() {
   // 汇率刷新期间保留已有内容，并在统计卡片副标题里提示加载状态，避免整页闪回 loading。
   if (subscriptionsQuery.isPending || settingsQuery.isPending) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="app-page bg-background">
         <Header onAddSubscription={handleAddSubscription} availableTags={availableTags} />
-        <main className="mx-auto max-w-7xl px-6 py-8">
+        <main className="app-main mx-auto max-w-7xl">
           <DashboardSkeleton />
         </main>
       </div>
@@ -78,10 +78,10 @@ export default function Index() {
   const displayedSubscriptions = subscriptions.slice(0, 6);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="app-page bg-background">
       <Header onAddSubscription={handleAddSubscription} availableTags={availableTags} />
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
+      <main className="app-main mx-auto max-w-7xl">
         {/* 统计网格 */}
         <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard

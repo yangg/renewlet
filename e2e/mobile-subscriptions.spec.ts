@@ -2,16 +2,36 @@ import { expect, test } from "@playwright/test";
 import {
   createSubscription,
   expectTagInputPopoverLayout,
+  expectTagSuggestionListScrollable,
   openSubscriptionEditDialog,
   subscriptionCard,
   uniqueE2EName,
 } from "./support/subscriptions";
-import { getRequiredLocatorBoundingBox } from "./support/layout";
+import {
+  expectActionNearContainerBottom,
+  expectOverlayLeavesTopScrim,
+  getRequiredLocatorBoundingBox,
+} from "./support/layout";
 
 test("mobile subscription tag drawer and tag input layout", async ({ page }, testInfo) => {
   const plainName = uniqueE2EName(testInfo, "Mobile Plain");
   const taggedName = uniqueE2EName(testInfo, "Mobile Tagged");
   const tagName = uniqueE2EName(testInfo, "mobile-tag");
+  const manyTags = [
+    tagName,
+    "云服务",
+    "Issues",
+    "Planning",
+    "Testing",
+    "QA",
+    "E2E",
+    "Browsers",
+    "Automation",
+    "Performance",
+    "Billing",
+    "Design",
+    "Docs",
+  ].join("、");
 
   await page.goto("/subscriptions");
   await expect(page.getByRole("heading", { name: "订阅列表" })).toBeVisible();
@@ -25,7 +45,7 @@ test("mobile subscription tag drawer and tag input layout", async ({ page }, tes
     name: taggedName,
     price: "12",
     currencyLabel: "美元 ($)",
-    tags: `${tagName}、云服务`,
+    tags: manyTags,
   });
 
   const mobileSortTagRow = page.getByTestId("mobile-sort-tag-row");
@@ -45,6 +65,12 @@ test("mobile subscription tag drawer and tag input layout", async ({ page }, tes
   await mobileTagButton.click();
   const tagDrawer = page.getByRole("dialog", { name: "筛选标签" });
   await expect(tagDrawer).toBeVisible();
+  await expectOverlayLeavesTopScrim(page, tagDrawer, "mobile tag filter drawer");
+  await expectActionNearContainerBottom(
+    tagDrawer,
+    tagDrawer.getByRole("button", { name: "确定" }),
+    "mobile tag filter drawer confirm",
+  );
   await tagDrawer.getByPlaceholder("搜索标签...").fill(tagName);
   await tagDrawer.getByRole("button", { name: tagName }).click();
   await tagDrawer.getByRole("button", { name: "确定" }).click();
@@ -60,6 +86,13 @@ test("mobile subscription tag drawer and tag input layout", async ({ page }, tes
   await expect(tagDrawer).toBeHidden();
   await expect(page.getByTestId("mobile-selected-tags")).toHaveCount(0);
   await expect(subscriptionCard(page, plainName)).toBeVisible();
+
+  const plainEditDialog = await openSubscriptionEditDialog(page, plainName);
+  await plainEditDialog.getByLabel("标签", { exact: true }).click();
+  await expectTagSuggestionListScrollable(page);
+  await page.keyboard.press("Escape");
+  await plainEditDialog.getByRole("button", { name: "取消" }).click();
+  await expect(plainEditDialog).toBeHidden();
 
   const editDialog = await openSubscriptionEditDialog(page, taggedName);
   const editTagInput = editDialog.getByLabel("标签", { exact: true });

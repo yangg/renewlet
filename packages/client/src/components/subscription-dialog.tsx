@@ -304,8 +304,8 @@ export function SubscriptionDialog(props: SubscriptionDialogProps) {
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       {"trigger" in props && props.trigger ? <DialogTrigger asChild>{props.trigger}</DialogTrigger> : null}
 
-      <DialogContent className="flex max-h-[90vh] min-h-0 flex-col border-border bg-card p-0 sm:max-w-lg">
-        <DialogHeader className="p-6 pb-0">
+      <DialogContent className="h5-subscription-dialog-panel min-h-0 border-border bg-card p-0 sm:max-w-lg">
+        <DialogHeader className="shrink-0 p-6 pb-0">
           <DialogTitle className="text-xl font-semibold">
             {props.mode === "create" ? t("subscription.dialogCreateTitle") : t("subscription.dialogEditTitle")}
           </DialogTitle>
@@ -316,8 +316,16 @@ export function SubscriptionDialog(props: SubscriptionDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <form ref={formRef} onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden" noValidate>
-          <div className="min-h-0 flex-1 grid gap-5 overflow-y-auto px-6 py-4">
+        <form
+          ref={formRef}
+          onSubmit={handleSubmit}
+          className="h5-subscription-dialog-form overflow-hidden"
+          noValidate
+        >
+          <div
+            data-subscription-dialog-scroll=""
+            className="h5-mobile-sheet-scroll h5-subscription-dialog-scroll grid gap-5 px-6 py-4"
+          >
             <SubscriptionFormFields
               idPrefix={idPrefix}
               config={config}
@@ -331,7 +339,10 @@ export function SubscriptionDialog(props: SubscriptionDialogProps) {
             />
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-border bg-card p-6 pt-4 sm:flex-row sm:justify-end">
+          <div
+            data-subscription-dialog-footer=""
+            className="h5-subscription-dialog-footer flex shrink-0 flex-col gap-3 border-t border-border bg-card p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:flex-row sm:justify-end md:p-6 md:pt-4"
+          >
             {submitError ? (
               <p className="w-full min-w-0 break-words text-center text-sm text-destructive sm:mr-auto sm:w-auto sm:text-left">
                 {submitError}

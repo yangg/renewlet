@@ -46,6 +46,29 @@ describe("SearchableSelect", () => {
     expect(onValueChange).toHaveBeenCalledWith("USD");
   });
 
+  it("renders the shared mobile sheet chrome for searchable overlays", async () => {
+    const user = userEvent.setup();
+
+    renderWithTooltipProvider(
+      <SearchableSelect
+        value="CNY"
+        onValueChange={vi.fn()}
+        options={options}
+        searchPlaceholder="搜索货币"
+        aria-label="选择货币"
+      />,
+    );
+
+    await user.click(screen.getByRole("combobox", { name: "选择货币" }));
+
+    const sheet = screen.getByTestId("searchable-select-sheet");
+    expect(sheet).toHaveClass("h5-mobile-sheet-content");
+    expect(sheet).toHaveAttribute("data-mobile-detent", "large");
+    expect(sheet).toHaveAttribute("aria-label", "选择货币");
+    expect(screen.getByText("选择货币")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "关闭" })).toBeInTheDocument();
+  });
+
   it("filters short currency code queries without loose subsequence matches", async () => {
     const user = userEvent.setup();
     const currencyOptions: SearchableSelectOption[] = [
@@ -94,6 +117,28 @@ describe("SearchableSelect", () => {
     fireEvent.click(await screen.findByText("欧元 (€)"));
 
     expect(onValueChange).not.toHaveBeenCalled();
+  });
+
+  it("does not mark explicitly enabled options as disabled", async () => {
+    const user = userEvent.setup();
+
+    renderWithTooltipProvider(
+      <SearchableSelect
+        value="CNY"
+        onValueChange={vi.fn()}
+        options={[
+          { value: "CNY", label: "人民币 (¥)", disabled: false },
+          { value: "USD", label: "美元 ($)", disabled: true },
+        ]}
+        searchPlaceholder="搜索货币"
+      />,
+    );
+
+    await user.click(screen.getByRole("combobox"));
+
+    const listbox = screen.getByRole("listbox");
+    expect(within(listbox).getByText("人民币 (¥)").closest("[cmdk-item]")).toHaveAttribute("data-disabled", "false");
+    expect(within(listbox).getByText("美元 ($)").closest("[cmdk-item]")).toHaveAttribute("data-disabled", "true");
   });
 
   it("shows empty state when no option matches", async () => {

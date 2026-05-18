@@ -206,7 +206,7 @@ export function SubscriptionTagInput({
   };
 
   return (
-    <Popover open={open} onOpenChange={(nextOpen) => {
+    <Popover modal={false} open={open} onOpenChange={(nextOpen) => {
       setOpen(nextOpen);
       if (!nextOpen) setActiveIndex(null);
     }}>
@@ -255,12 +255,14 @@ export function SubscriptionTagInput({
               <input
                 ref={inputRef}
                 id={id}
+                name={id}
                 size={1}
                 value={inputValue}
                 onChange={handleInputEvent}
                 onKeyDown={handleKeyDown}
                 onFocus={() => setOpen(true)}
                 placeholder={hasTags ? "" : placeholder}
+                enterKeyHint="done"
                 role="combobox"
                 aria-expanded={open}
                 aria-autocomplete="list"
@@ -278,10 +280,11 @@ export function SubscriptionTagInput({
           ref={popoverContentRef}
           data-testid="subscription-tag-popover"
           role="presentation"
+          mobilePresentation="anchored"
           side="top"
           align="start"
           sideOffset={6}
-          avoidCollisions
+          avoidCollisions={false}
           collisionPadding={8}
           onOpenAutoFocus={(event) => event.preventDefault()}
           onCloseAutoFocus={(event) => event.preventDefault()}

@@ -133,15 +133,15 @@ export function Header({ onAddSubscription, availableTags }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-xl" data-testid="app-header">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-3">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
+        <div className="flex min-w-0 items-center gap-4 lg:gap-8">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#111720] text-[#f8fafc] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_14px_30px_-20px_rgba(0,0,0,0.8)] ring-1 ring-white/10">
               <RenewletLogo className="h-5 w-5" />
             </div>
-            <div>
-              <h1 className="text-xl font-extrabold tracking-tight text-foreground">Renewlet</h1>
-              <p className="text-xs text-muted-foreground">{t("app.tagline")}</p>
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-extrabold tracking-tight text-foreground">Renewlet</h1>
+              <p className="hidden truncate text-xs text-muted-foreground min-[380px]:block">{t("app.tagline")}</p>
             </div>
           </Link>
 
@@ -165,7 +165,7 @@ export function Header({ onAddSubscription, availableTags }: HeaderProps) {
           </nav>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <Button
             variant="ghost"
             size="icon"

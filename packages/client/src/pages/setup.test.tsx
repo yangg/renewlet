@@ -52,4 +52,24 @@ describe("Setup page", () => {
 
     expect(screen.queryByText("密码至少需要 8 位")).not.toBeInTheDocument();
   });
+
+  it("uses mobile-friendly autofill and keyboard metadata", () => {
+    renderSetup();
+
+    const nameInput = screen.getByLabelText("名称");
+    const emailInput = screen.getByLabelText("邮箱");
+    const passwordInput = screen.getByLabelText("密码");
+    expect(nameInput).toHaveAttribute("name", "name");
+    expect(nameInput).toHaveAttribute("autocomplete", "name");
+    expect(nameInput).toHaveAttribute("enterkeyhint", "next");
+    expect(emailInput).toHaveAttribute("name", "email");
+    expect(emailInput).toHaveAttribute("inputmode", "email");
+    expect(emailInput).toHaveAttribute("autocomplete", "email");
+    expect(emailInput).toHaveAttribute("enterkeyhint", "next");
+    expect(emailInput).toHaveAttribute("autocapitalize", "none");
+    expect(emailInput).toHaveAttribute("spellcheck", "false");
+    expect(passwordInput).toHaveAttribute("name", "password");
+    expect(passwordInput).toHaveAttribute("autocomplete", "new-password");
+    expect(passwordInput).toHaveAttribute("enterkeyhint", "done");
+  });
 });

@@ -89,9 +89,9 @@ export function ResetPasswordClient({ token }: ResetPasswordClientProps) {
   };
 
   return (
-    <div className="min-h-screen theme-gradient flex items-center justify-center p-6">
+    <div className="auth-page theme-gradient">
       <div className="w-full max-w-md">
-        <div className="rounded-2xl border border-border bg-card p-8 shadow-card grid gap-6">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-card grid gap-6 sm:p-8">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#111720] text-[#f8fafc] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_16px_32px_-22px_rgba(0,0,0,0.8)] ring-1 ring-white/10">
               <RenewletLogo className="h-6 w-6" />
@@ -122,6 +122,7 @@ export function ResetPasswordClient({ token }: ResetPasswordClientProps) {
                   <Input
                     ref={passwordInputRef}
                     id="new-password"
+                    name="new-password"
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(event) => {
@@ -133,6 +134,7 @@ export function ResetPasswordClient({ token }: ResetPasswordClientProps) {
                     }}
                     className="pl-10 pr-10 bg-secondary border-border"
                     autoComplete="new-password"
+                    enterKeyHint="next"
                     aria-invalid={Boolean(errors.password)}
                     aria-describedby={errors.password ? "new-password-error" : "new-password-description"}
                     required
@@ -157,6 +159,7 @@ export function ResetPasswordClient({ token }: ResetPasswordClientProps) {
                 <Input
                   ref={confirmInputRef}
                   id="confirm-password"
+                  name="confirm-password"
                   type={showPassword ? "text" : "password"}
                   value={confirm}
                   onChange={(event) => {
@@ -168,6 +171,7 @@ export function ResetPasswordClient({ token }: ResetPasswordClientProps) {
                   }}
                   className="bg-secondary border-border"
                   autoComplete="new-password"
+                  enterKeyHint="done"
                   aria-invalid={Boolean(errors.confirm)}
                   aria-describedby={errors.confirm ? "confirm-password-error" : undefined}
                   required

@@ -53,9 +53,9 @@ const Calendar = () => {
   // 与参考项目保持一致：订阅数据未加载完成前展示日历骨架屏。
   if (subscriptionsQuery.isPending) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="app-page bg-background">
         <Header onAddSubscription={handleAddSubscription} availableTags={availableTags} />
-        <main className="mx-auto max-w-7xl px-6 py-8">
+        <main className="app-main mx-auto max-w-7xl">
           <div className="mb-6">
             <div className="h-8 w-32 bg-muted rounded animate-pulse mb-2" />
             <div className="h-4 w-48 bg-muted rounded animate-pulse" />
@@ -67,10 +67,10 @@ const Calendar = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="app-page bg-background">
       <Header onAddSubscription={handleAddSubscription} availableTags={availableTags} />
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
+      <main className="app-main mx-auto max-w-7xl">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-foreground">{t("calendar.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t("calendar.pageSubtitle")}</p>

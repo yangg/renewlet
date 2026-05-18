@@ -4,14 +4,30 @@
  * 让 @apply 能解析项目 token。
  */
 @layer base {
+  :root {
+    --app-viewport-height: 100vh;
+  }
+
+  @supports (height: 100dvh) {
+    :root {
+      --app-viewport-height: 100dvh;
+    }
+  }
+
   * {
     @apply border-border;
+  }
+
+  html {
+    min-height: 100%;
+    -webkit-text-size-adjust: 100%;
   }
 
   html,
   body,
   #root {
     height: 100%;
+    min-height: 100%;
   }
 
   body {
@@ -23,10 +39,20 @@
 
   #root {
     height: 100vh;
-    /* 100dvh 修正移动端地址栏变化；保留 100vh 作为旧浏览器 fallback。 */
-    height: 100dvh;
+    /* H5 真机上地址栏和虚拟键盘会改变视觉视口；统一滚动容器只消费这个变量。 */
+    height: var(--app-viewport-height);
     overflow-y: auto;
+    overflow-x: clip;
+    overscroll-behavior-y: contain;
     scrollbar-gutter: stable;
+    scroll-padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+    -webkit-overflow-scrolling: touch;
+  }
+
+  @supports not (overflow: clip) {
+    #root {
+      overflow-x: hidden;
+    }
   }
 
   /* 深色主题渐变背景 */

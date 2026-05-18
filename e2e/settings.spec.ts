@@ -5,18 +5,22 @@ import {
   expectRootScrollContainer,
   expectStableLayout,
 } from "./support/layout";
+import {
+  fillChangedTestPhone,
+  getSettingsDiscardButton,
+  getSettingsSaveButton,
+  gotoSettingsAfterHydration,
+} from "./support/settings";
 
 test("settings save, language switch, and floating layer layout stability", async ({ page }) => {
-  await page.goto("/settings");
+  await gotoSettingsAfterHydration(page);
   await expect(page.getByRole("heading", { name: "系统配置" })).toBeVisible();
   await expectLabelControlGap(page.getByLabel("月度预算金额", { exact: true }), "settings monthly budget");
   await expectLabelControlGap(page.getByLabel("第三方 API 测试号码", { exact: true }), "settings test phone");
 
-  const budgetInput = page.getByLabel("月度预算金额", { exact: true });
-  const originalBudget = (await budgetInput.inputValue()).replace(/[^\d.]/g, "") || "1500";
-  const alternateBudget = originalBudget === "1600" ? "1500" : "1600";
-  await budgetInput.fill(alternateBudget);
-  const saveChangesButton = page.getByRole("button", { name: "保存更改" });
+  const testPhoneInput = page.getByLabel("第三方 API 测试号码", { exact: true });
+  await fillChangedTestPhone(testPhoneInput);
+  const saveChangesButton = getSettingsSaveButton(page);
   await expect(saveChangesButton).toBeVisible();
   // 浮层打开后背景可能被 aria-hidden，先保存 ElementHandle 才能比较固定按钮的视觉位置。
   const saveChangesButtonElement = await saveChangesButton.elementHandle();
@@ -71,7 +75,7 @@ test("settings save, language switch, and floating layer layout stability", asyn
   await page.getByRole("option", { name: "中文" }).click();
   await expect(page.getByRole("heading", { name: "系统配置" })).toBeVisible();
 
-  const discardChangesButton = page.getByRole("button", { name: "放弃更改" });
+  const discardChangesButton = getSettingsDiscardButton(page);
   if (await discardChangesButton.isVisible()) {
     await discardChangesButton.click();
     await expect(discardChangesButton).toBeHidden();

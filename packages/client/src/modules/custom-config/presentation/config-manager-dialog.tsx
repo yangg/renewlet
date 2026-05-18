@@ -217,7 +217,7 @@ export const ConfigManagerDialog = ({
           <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
         </button>
       </DialogTrigger>
-      <DialogContent className="flex max-h-[80vh] min-h-0 flex-col sm:max-w-lg">
+      <DialogContent className="flex min-h-0 flex-col sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {icon && <div className="text-primary">{icon}</div>}

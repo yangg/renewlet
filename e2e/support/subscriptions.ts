@@ -26,8 +26,19 @@ export async function openSubscriptionEditDialog(page: Page, subscriptionName: s
   const card = subscriptionCard(page, subscriptionName);
   await expect(card).toBeVisible();
   await card.getByRole("button", { name: "更多操作" }).click();
-  await page.getByRole("menuitem", { name: "编辑" }).click();
+  const editAction = page
+    .getByRole("menuitem", { name: "编辑" })
+    .or(page.getByText("编辑", { exact: true }))
+    .first();
   const dialog = page.getByRole("dialog", { name: "编辑订阅" });
+  await expect(async () => {
+    if (await dialog.isVisible().catch(() => false)) return;
+    await expect(editAction).toBeVisible({ timeout: 100 });
+  }).toPass({ timeout: 10_000 });
+
+  if (!(await dialog.isVisible().catch(() => false))) {
+    await editAction.click();
+  }
   await expect(dialog).toBeVisible();
   return dialog;
 }
@@ -182,6 +193,28 @@ export async function expectTagInputPopoverLayout(page: Page, dialog: Locator) {
   expect(wrapState.inputOverflowsField, "tag input should stay inside the field edge").toBe(false);
 }
 
+export async function expectTagSuggestionListScrollable(page: Page) {
+  const listbox = page.getByRole("listbox");
+  await expect(listbox).toBeVisible();
+
+  const scrollRange = await listbox.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(scrollRange.scrollHeight, "tag suggestions should overflow when many tags exist").toBeGreaterThan(
+    scrollRange.clientHeight,
+  );
+
+  const scrollTopBefore = await listbox.evaluate((element) => element.scrollTop);
+  await listbox.hover();
+  await page.mouse.wheel(0, 480);
+  await expect
+    .poll(() => listbox.evaluate((element) => element.scrollTop), {
+      message: "tag suggestions list should consume wheel scrolling",
+    })
+    .toBeGreaterThan(scrollTopBefore);
+}
+
 function isSubscriptionWriteResponse(response: Response): boolean {
   return response.url().includes("/api/collections/subscriptions/records") &&
     ["POST", "PATCH"].includes(response.request().method());
@@ -217,7 +250,8 @@ async function chooseStartDate(page: Page, dialog: Locator) {
 
   const expandedDateButton = dialog.locator('button[aria-expanded="true"]').first();
   if (await expandedDateButton.count()) {
-    await expandedDateButton.click();
+    // 移动端日期选择现在是 modal sheet；触发器在遮罩后面，统一走 Escape 关闭当前浮层。
+    await page.keyboard.press("Escape");
   }
 
   await expect(calendar).toBeHidden();

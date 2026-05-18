@@ -95,10 +95,10 @@ const StatBox = ({ value, label, icon, variant = 'default', description }: StatB
   }[variant];
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 flex flex-col items-center justify-center text-center transition-all hover:bg-card-hover hover:shadow-lg">
-      <p className={cn("text-2xl sm:text-3xl font-bold", valueColor)}>{value}</p>
-      <div className="mt-1 flex items-center justify-center gap-1 text-sm text-muted-foreground">
-        <span>{label}</span>
+    <div className="min-w-0 rounded-xl border border-border bg-card p-5 flex flex-col items-center justify-center text-center transition-all hover:bg-card-hover hover:shadow-lg">
+      <p className={cn("max-w-full break-words text-2xl sm:text-3xl font-bold", valueColor)}>{value}</p>
+      <div className="mt-1 flex max-w-full items-center justify-center gap-1 text-sm text-muted-foreground">
+        <span className="min-w-0 break-words">{label}</span>
         {description ? (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -228,9 +228,9 @@ const Statistics = () => {
   // 与参考项目保持一致：统计页在“订阅数据/设置/汇率”任一未就绪时展示骨架屏。
   if (subscriptionsQuery.isPending || settingsQuery.isPending || ratesLoading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="app-page bg-background">
         <Header onAddSubscription={handleAddSubscription} availableTags={availableTags} />
-        <main className="mx-auto max-w-7xl px-6 py-8">
+        <main className="app-main mx-auto max-w-7xl">
           <div className="mb-6">
             <div className="h-8 w-32 bg-muted rounded animate-pulse mb-2" />
             <div className="h-4 w-64 bg-muted rounded animate-pulse" />
@@ -242,12 +242,12 @@ const Statistics = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="app-page bg-background">
       <Header onAddSubscription={handleAddSubscription} availableTags={availableTags} />
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
+      <main className="app-main mx-auto max-w-7xl">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold text-foreground">{t("statistics.title")}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {t("statistics.subtitle")}
@@ -263,7 +263,7 @@ const Statistics = () => {
             size="sm" 
             onClick={() => void refreshRates()}
             disabled={ratesLoading}
-            className="gap-2"
+            className="w-full gap-2 sm:w-auto"
           >
             <RefreshCw className={cn("h-4 w-4", ratesLoading && "animate-spin")} />
             {t("statistics.refreshRates")}
@@ -279,7 +279,7 @@ const Statistics = () => {
         {/* 总体统计 */}
         <section className="mb-8">
           <h2 className="text-lg font-semibold text-foreground mb-4">{t("statistics.overview")}</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             <StatBox
               value={stats.activeCount}
               label={t("statistics.activeSubscriptions")}
@@ -368,7 +368,7 @@ const Statistics = () => {
               <h3 className="text-base font-semibold text-foreground text-center mb-1">{t("statistics.costBudget")}</h3>
               <p className="text-xs text-muted-foreground text-center mb-3">{t("statistics.monthlyBudgetHint", { amount: formatCurrency(monthlyBudget, defaultCurrency) })}</p>
               {renderDonutChart(stats.budgetChartData, "currency")}
-              <div className="flex justify-center gap-8 mt-4">
+              <div className="mt-4 flex flex-col justify-center gap-4 min-[380px]:flex-row min-[380px]:gap-8">
                 <div className="text-center">
                   <p className="text-2xl font-bold text-foreground">{formatCurrency(Math.min(stats.totalMonthly, monthlyBudget), defaultCurrency)}</p>
                   <p className="text-xs text-muted-foreground">{t("statistics.budgetUsed")}</p>

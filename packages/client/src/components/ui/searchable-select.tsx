@@ -7,9 +7,9 @@
  */
 import * as React from "react";
 import { Command } from "cmdk";
-import { Check, ChevronsUpDown, Search } from "lucide-react";
+import { Check, ChevronsUpDown, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TruncatedTooltipText } from "@/components/ui/truncated-tooltip-text";
 import { cn } from "@/lib/utils";
 import { rankSearchText, type SearchableSelectOption } from "@/lib/searchable-options";
@@ -114,15 +114,30 @@ export function SearchableSelect({
       </PopoverTrigger>
       <PopoverContent
         align="start"
+        aria-label={ariaLabel ?? resolvedPlaceholder}
+        data-testid="searchable-select-sheet"
+        mobileDetent="large"
+        mobileKind="list"
         className={cn(
           "w-[var(--radix-popover-trigger-width)] min-w-[14rem] overflow-hidden border-border bg-popover p-0 text-popover-foreground",
           contentClassName,
         )}
       >
+        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3 md:hidden">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-foreground">
+              {ariaLabel ?? resolvedPlaceholder}
+            </p>
+          </div>
+          <PopoverClose className="-mr-2 -mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
+            <X className="h-4 w-4" />
+            <span className="sr-only">{translate(locale, "common.close")}</span>
+          </PopoverClose>
+        </div>
         <Command
           loop
           filter={filter}
-          className="flex max-h-[22rem] w-full flex-col bg-popover text-popover-foreground"
+          className="h5-mobile-searchable-select-command flex max-h-[22rem] w-full flex-col bg-popover text-popover-foreground"
         >
           <div className="flex items-center border-b border-border px-3">
             <Search className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -133,7 +148,7 @@ export function SearchableSelect({
               className="h-10 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
-          <Command.List className="max-h-72 overflow-y-auto p-1">
+          <Command.List className="h5-mobile-searchable-select-list max-h-72 overflow-y-auto p-1">
             <Command.Empty className="py-6 text-center text-sm text-muted-foreground">
               {resolvedEmptyMessage}
             </Command.Empty>
@@ -144,7 +159,7 @@ export function SearchableSelect({
                   key={option.value}
                   value={option.value}
                   keywords={[option.label, ...(option.keywords ?? [])]}
-                  {...(option.disabled === undefined ? {} : { disabled: option.disabled })}
+                  {...(option.disabled ? { disabled: true } : {})}
                   onSelect={() => {
                     if (option.disabled) return;
                     onValueChange(option.value);
@@ -152,6 +167,7 @@ export function SearchableSelect({
                   }}
                   className={cn(
                     "relative flex cursor-default select-none items-center rounded-sm py-2 pl-8 pr-2 text-sm outline-none transition-colors",
+                    "h5-mobile-option-item h5-mobile-option-item-leading",
                     "data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground",
                     "data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
                   )}

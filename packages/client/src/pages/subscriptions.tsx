@@ -221,12 +221,12 @@ const Subscriptions = () => {
     setSelectedTags([]);
   }, [setSelectedTags]);
 
-  // 与参考项目保持一致：首次加载订阅列表时展示骨架屏（筛选条 + 卡片网格占位）。
+  // 首次加载订阅列表时展示骨架屏（筛选条 + 卡片网格占位）。
   if (subscriptionsQuery.isPending) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="app-page bg-background">
         <Header onAddSubscription={handleAddSubscription} availableTags={allTags} />
-        <main className="mx-auto max-w-7xl px-6 py-8">
+        <main className="app-main mx-auto max-w-7xl">
           <div className="mb-8">
             <div className="h-8 w-32 bg-muted rounded animate-pulse mb-2" />
             <div className="h-4 w-48 bg-muted rounded animate-pulse" />
@@ -238,10 +238,10 @@ const Subscriptions = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="app-page bg-background">
       <Header onAddSubscription={handleAddSubscription} availableTags={allTags} />
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
+      <main className="app-main mx-auto max-w-7xl">
         {/* 页面标题 */}
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -290,6 +290,9 @@ const Subscriptions = () => {
               <div className="relative w-full">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  name="subscription-search"
+                  type="search"
+                  enterKeyHint="search"
                   placeholder={t("subscriptions.searchPlaceholder")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -374,6 +377,9 @@ const Subscriptions = () => {
                 <div className="relative flex-1 min-w-[200px]">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
+                    name="subscription-search"
+                    type="search"
+                    enterKeyHint="search"
                     placeholder={t("subscriptions.searchPlaceholder")}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}

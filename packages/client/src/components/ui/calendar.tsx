@@ -134,6 +134,8 @@ function CalendarCaption({
         <PopoverContent
           className="w-[260px] p-3"
           align="center"
+          mobileDetent="compact"
+          mobileKind="panel"
           sideOffset={4}
           // 年/月面板内部点击不应触发自动聚焦关闭，否则键盘用户难以连续选择。
           onOpenAutoFocus={(e) => e.preventDefault()}
@@ -218,6 +220,8 @@ function CalendarCaption({
         <PopoverContent
           className="w-[220px] p-3"
           align="center"
+          mobileDetent="compact"
+          mobileKind="panel"
           sideOffset={4}
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
@@ -302,7 +306,7 @@ function CalendarDayButton({ className, modifiers, ...props }: CalendarDayButton
       modifiers={modifiers}
       className={cn(
         buttonVariants({ variant: isPrimarySelected ? "default" : "ghost" }),
-        "h-9 w-9 p-0 font-normal",
+        "h5-calendar-day-button h-9 w-9 p-0 font-normal",
         isOutside && "text-muted-foreground opacity-50",
         isDisabled && "text-muted-foreground opacity-50",
         isToday && !isSelected && "bg-accent text-accent-foreground",
@@ -333,6 +337,7 @@ function CalendarDay({ className, modifiers, ...props }: CalendarDayProps) {
       modifiers={modifiers}
       className={cn(
         "h-9 w-9 text-center text-sm p-0 relative focus-within:relative focus-within:z-20",
+        "h5-calendar-day",
         isRangeSelected && "bg-accent",
         isOutsideSelected && "bg-accent/50",
         isRangeStart && "rounded-l-md",
@@ -417,17 +422,17 @@ function Calendar({
         locale={dayPickerLocale ?? (locale === "zh-CN" ? zhCN : enUS)}
         month={displayMonth}
         onMonthChange={handleMonthChange}
-        className={cn("p-3", className)}
+        className={cn("h5-calendar-root p-3", className)}
         classNames={{
-          months: "flex flex-col gap-4 sm:flex-row",
-          month: "grid gap-4",
-          month_caption: "flex justify-center pt-1 relative items-center",
+          months: "h5-calendar-months flex flex-col gap-4 sm:flex-row",
+          month: "h5-calendar-month grid gap-4",
+          month_caption: "h5-calendar-month-caption flex justify-center pt-1 relative items-center",
           caption_label: "text-sm font-medium hidden",
           nav: "flex items-center gap-1",
-          month_grid: "w-full border-collapse",
-          weekdays: "flex",
-          weekday: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
-          week: "flex w-full mt-2",
+          month_grid: "h5-calendar-month-grid w-full border-collapse",
+          weekdays: "h5-calendar-weekdays flex",
+          weekday: "h5-calendar-weekday text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
+          week: "h5-calendar-week flex w-full mt-2",
           ...classNames,
         }}
         components={{

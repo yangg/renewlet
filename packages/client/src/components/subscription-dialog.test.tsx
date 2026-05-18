@@ -92,6 +92,31 @@ describe("SubscriptionDialog", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("keeps the action footer in normal flow without oversized scroll padding", () => {
+    render(
+      <TooltipProvider delayDuration={0}>
+        <SubscriptionDialog
+          mode="create"
+          open
+          onOpenChange={vi.fn()}
+          onSubmit={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    const form = document.querySelector("form");
+    const scrollRegion = form?.firstElementChild;
+    const footer = screen.getByRole("button", { name: "添加订阅" }).closest("div");
+
+    expect(form).toHaveClass("h5-subscription-dialog-form");
+    expect(scrollRegion).toHaveClass("h5-mobile-sheet-scroll", "h5-subscription-dialog-scroll", "py-4");
+    expect(scrollRegion?.className).not.toContain("--subscription-dialog-footer-space");
+    expect(scrollRegion?.className).not.toContain("md:max-h-[calc(90vh-12rem)]");
+    expect(scrollRegion).not.toHaveClass("pb-[calc(10rem+env(safe-area-inset-bottom))]");
+    expect(footer).toHaveClass("shrink-0");
+    expect(footer).not.toHaveClass("absolute");
+  });
+
   it("keeps a manually selected create currency instead of syncing back to the default", async () => {
     const user = userEvent.setup();
 

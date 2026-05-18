@@ -227,8 +227,23 @@ describe("SettingsScreen SMTP email settings", () => {
 
     const budgetInput = screen.getByLabelText("月度预算金额");
     expect(budgetInput).toHaveAttribute("type", "text");
+    expect(budgetInput).toHaveAttribute("name", "monthlyBudget");
     expect(budgetInput).toHaveAttribute("inputmode", "decimal");
+    expect(budgetInput).toHaveAttribute("enterkeyhint", "done");
     expect(screen.queryByRole("spinbutton", { name: "月度预算金额" })).not.toBeInTheDocument();
+  });
+
+  it("uses H5 layout classes and native phone metadata for settings", () => {
+    const { container } = renderSettingsScreen();
+
+    expect(container.querySelector(".app-page")).toBeInTheDocument();
+    expect(container.querySelector("main")).not.toHaveClass("h5-bottom-bar-space");
+    const phoneInput = screen.getByLabelText("第三方 API 测试号码");
+    expect(phoneInput).toHaveAttribute("name", "testPhone");
+    expect(phoneInput).toHaveAttribute("type", "tel");
+    expect(phoneInput).toHaveAttribute("inputmode", "tel");
+    expect(phoneInput).toHaveAttribute("autocomplete", "tel");
+    expect(phoneInput).toHaveAttribute("enterkeyhint", "done");
   });
 
   it("uses test wording for the Notifyx channel button", () => {
@@ -364,6 +379,8 @@ describe("SettingsScreen SMTP email settings", () => {
     renderSettingsScreen();
 
     expect(screen.getByText("有未保存更改")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-main")).toHaveClass("h5-bottom-bar-space");
+    expect(screen.getByText("有未保存更改").closest(".h5-bottom-bar")).not.toBeNull();
     await user.click(screen.getByRole("button", { name: "放弃更改" }));
     expect(controller.handleDiscardChanges).toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "保存更改" }));

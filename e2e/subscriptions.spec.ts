@@ -8,6 +8,24 @@ import {
   subscriptionCard,
   uniqueE2EName,
 } from "./support/subscriptions";
+import { expectActionNearContainerBottom, expectScrollContentNearFooter } from "./support/layout";
+
+test("desktop tall subscription dialog keeps footer tight to the panel bottom", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await page.goto("/subscriptions");
+  await expect(page.getByRole("heading", { name: "订阅列表" })).toBeVisible();
+
+  const dialog = await openAddSubscriptionDialog(page);
+  await expectActionNearContainerBottom(
+    dialog,
+    dialog.getByRole("button", { name: "添加订阅" }),
+    "desktop tall subscription dialog submit",
+  );
+  await expectScrollContentNearFooter(
+    dialog.locator("[data-subscription-dialog-scroll]"),
+    "desktop tall subscription dialog scroll end",
+  );
+});
 
 test("desktop subscription create, tag filter, edit, and reload persistence", async ({ page }, testInfo) => {
   const plainName = uniqueE2EName(testInfo, "Plain Cloud");
@@ -54,13 +72,38 @@ test("desktop subscription create, tag filter, edit, and reload persistence", as
   await expect(subscriptionCard(page, taggedName)).toBeHidden();
 
   const emptyTagDialog = await openAddSubscriptionDialog(page);
+  await expectActionNearContainerBottom(
+    emptyTagDialog,
+    emptyTagDialog.getByRole("button", { name: "添加订阅" }),
+    "desktop subscription dialog submit",
+  );
   await emptyTagDialog.getByLabel("标签", { exact: true }).click();
   await expect(page.getByRole("listbox")).toBeVisible();
   await page.keyboard.press("Escape");
   await emptyTagDialog.getByRole("button", { name: "取消" }).click();
   await expect(emptyTagDialog).toBeHidden();
 
-  await page.reload();
+  await page.goto("/calendar");
+  await expect(page.getByRole("heading", { name: "续费日历", level: 1 })).toBeVisible();
+  for (let attempts = 0; attempts < 3; attempts += 1) {
+    const calendarEntry = page.getByRole("button", { name: editedName, exact: true }).first();
+    if (await calendarEntry.isVisible().catch(() => false)) {
+      await calendarEntry.click();
+      break;
+    }
+    await page.getByRole("button", { name: "下个月" }).click();
+  }
+  const detailDialog = page.getByRole("dialog", { name: editedName });
+  await expect(detailDialog).toBeVisible();
+  await expectActionNearContainerBottom(
+    detailDialog,
+    detailDialog.getByRole("button", { name: "编辑" }),
+    "desktop calendar detail edit",
+  );
+  await detailDialog.getByRole("button", { name: "关闭" }).click();
+  await expect(detailDialog).toBeHidden();
+
+  await page.goto("/subscriptions");
   await expect(subscriptionCard(page, plainName)).toBeVisible();
   await expect(subscriptionCard(page, editedName)).toBeVisible();
 });

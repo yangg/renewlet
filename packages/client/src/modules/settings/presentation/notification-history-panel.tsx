@@ -340,8 +340,8 @@ export function NotificationHistoryPanel({
               {t("notification.viewScheduleHistory")}
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-h-[calc(100vh-1.5rem)] w-[calc(100vw-2rem)] max-w-5xl overflow-hidden border-border bg-card p-0 sm:w-[calc(100vw-3rem)]">
-            <div className="flex max-h-[calc(100vh-1.5rem)] flex-col">
+          <DialogContent className="flex min-h-0 max-w-5xl flex-col overflow-hidden border-border bg-card p-0">
+            <div className="flex min-h-0 flex-1 flex-col">
               <DialogHeader className="border-b border-border px-4 py-5 pr-12 sm:px-6 sm:pr-14">
                 <DialogTitle className="flex items-center gap-2 text-left">
                   <BellRing className="h-5 w-5 text-primary" />

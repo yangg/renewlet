@@ -150,6 +150,52 @@ describe("LogoPicker", () => {
     );
   });
 
+  it("keeps typed Logo search state inside the shared mobile sheet until selection", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    mocks.apiFetch.mockImplementation((url: string) => {
+      if (url.startsWith("/api/app/thesvg-icons")) {
+        return Promise.resolve({
+          icons: [
+            {
+              slug: "linear",
+              title: "Linear",
+              iconUrl: "https://testingcf.jsdelivr.net/gh/glincker/thesvg@main/public/icons/linear/default.svg",
+              aliases: [],
+              categories: ["Software"],
+            },
+          ],
+        });
+      }
+
+      return Promise.resolve({ imageUrls: [], kind: "logo" });
+    });
+
+    render(<LogoPicker value={undefined} onChange={onChange} />);
+
+    await user.click(screen.getByRole("button", { name: "搜索" }));
+    const sheet = screen.getByTestId("logo-search-sheet");
+    expect(sheet).toHaveClass("h5-mobile-sheet-content");
+    expect(sheet).toHaveAttribute("aria-label", "搜索 Logo");
+
+    const searchInput = screen.getByPlaceholderText("输入服务名称或品牌...");
+    await user.type(searchInput, "Linear{enter}");
+
+    await waitFor(() => {
+      expectApiFetchCallWithSignal("/api/app/thesvg-icons?search=Linear");
+    });
+    expect(searchInput).toHaveValue("Linear");
+
+    await user.click(await screen.findByTitle("Linear"));
+
+    expect(onChange).toHaveBeenCalledWith(
+      "https://testingcf.jsdelivr.net/gh/glincker/thesvg@main/public/icons/linear/default.svg",
+    );
+    await waitFor(() => {
+      expect(screen.queryByTestId("logo-search-sheet")).not.toBeInTheDocument();
+    });
+  });
+
   it("uses the shared low-noise canvas for the current Logo preview", () => {
     render(<LogoPicker value="https://example.com/logo.svg" onChange={vi.fn()} />);
 

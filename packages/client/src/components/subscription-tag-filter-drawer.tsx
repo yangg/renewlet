@@ -258,7 +258,7 @@ export function SubscriptionTagFilterDrawer({
       {open && (
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
-          <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[85dvh] min-h-[52dvh] w-full max-w-lg flex-col rounded-t-lg border border-border bg-card text-card-foreground shadow-lg outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-4">
+          <Drawer.Content className="h5-drawer-panel fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full max-w-lg flex-col overflow-hidden rounded-t-lg border border-border bg-card text-card-foreground shadow-lg outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-4">
             <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-muted" />
 
             <div className="flex items-start justify-between gap-4 px-5 pb-3 pt-4">

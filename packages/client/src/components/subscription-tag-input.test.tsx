@@ -1,7 +1,8 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { SubscriptionTagInput } from "./subscription-tag-input";
 
 function TagInputHarness({
@@ -33,6 +34,32 @@ describe("SubscriptionTagInput", () => {
     const content = listbox.parentElement;
     expect(content).toHaveAttribute("data-side", "top");
     expect(content).toHaveClass("w-[var(--radix-popover-trigger-width)]");
+  });
+
+  it("keeps suggestions inside the parent dialog portal so the list remains interactive", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <Dialog open>
+        <DialogContent data-testid="dialog-content">
+          <DialogTitle>编辑订阅</DialogTitle>
+          <DialogDescription className="sr-only">测试标签列表滚动。</DialogDescription>
+          <TagInputHarness
+            suggestions={Array.from({ length: 24 }, (_, index) => `Tag ${index + 1}`)}
+          />
+        </DialogContent>
+      </Dialog>,
+    );
+
+    await user.click(screen.getByLabelText("标签"));
+
+    const dialogContent = screen.getByTestId("dialog-content");
+    const listbox = await screen.findByRole("listbox");
+    const popoverContent = screen.getByTestId("subscription-tag-popover");
+    await waitFor(() => {
+      expect(dialogContent).toContainElement(popoverContent);
+    });
+    expect(listbox).toHaveClass("overflow-y-auto", "max-h-64");
   });
 
   it("sizes the input from a mirror wrapper after tags exist", async () => {

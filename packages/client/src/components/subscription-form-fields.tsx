@@ -174,7 +174,7 @@ export const SubscriptionFormFields = memo(function SubscriptionFormFields({
       <div className="grid gap-2">
         <Label htmlFor={id("name")}>{t("subscription.field.name")}</Label>
         <Input
-          id={id("name")}
+          id={id("name")} name={id("name")} enterKeyHint="next"
           placeholder={t("subscription.placeholder.name")}
           value={formData.name}
           onChange={(e) => update("name", e.target.value)}
@@ -197,10 +197,10 @@ export const SubscriptionFormFields = memo(function SubscriptionFormFields({
         <div className="grid gap-2">
           <Label htmlFor={id("price")}>{t("subscription.field.price")}</Label>
           <NumericInput
-            id={id("price")}
+            id={id("price")} name={id("price")}
             allowNegative={false}
             allowedDecimalSeparators={[".", "。"]}
-            inputMode="decimal"
+            inputMode="decimal" enterKeyHint="next"
             placeholder="0.00"
             thousandSeparator
             value={formData.price}
@@ -287,10 +287,10 @@ export const SubscriptionFormFields = memo(function SubscriptionFormFields({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-muted-foreground">{t("subscription.customCycleEvery")}</span>
               <NumericInput
-                id={id("customDays")}
+                id={id("customDays")} name={id("customDays")}
                 allowNegative={false}
                 decimalScale={0}
-                inputMode="numeric"
+                inputMode="numeric" enterKeyHint="next"
                 placeholder="30"
                 value={formData.customDays}
                 onRawValueChange={(value: string) => update("customDays", value)}
@@ -399,11 +399,19 @@ export const SubscriptionFormFields = memo(function SubscriptionFormFields({
                   </span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 border-border bg-card" align="start">
+              <PopoverContent
+                className="w-auto p-0 border-border bg-card"
+                align="start"
+                mobileDetent="compact"
+                mobileKind="calendar"
+              >
                 <Calendar
                   mode="single"
                   {...(selectedStartDate ? { selected: selectedStartDate, defaultMonth: selectedStartDate } : {})}
-                  onSelect={(date) => update("startDate", date ? dateToDateOnly(date) : undefined)}
+                  onSelect={(date) => {
+                    update("startDate", date ? dateToDateOnly(date) : undefined);
+                    setStartDatePickerOpen(false);
+                  }}
                   autoFocus
                   className="p-3 pointer-events-auto"
                 />
@@ -439,14 +447,22 @@ export const SubscriptionFormFields = memo(function SubscriptionFormFields({
                   </span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 border-border bg-card" align="start">
+              <PopoverContent
+                className="w-auto p-0 border-border bg-card"
+                align="start"
+                mobileDetent="compact"
+                mobileKind="calendar"
+              >
                 <Calendar
                   mode="single"
                   {...(selectedNextBillingDate ? { selected: selectedNextBillingDate } : {})}
                   {...(nextBillingDateCalendarMonth ? { defaultMonth: nextBillingDateCalendarMonth } : {})}
                   // DayPicker 的 before 是排他边界：禁用开始日前的日期，同时保留“同一天到期”这个合法选择。
                   {...(selectedStartDate ? { disabled: { before: selectedStartDate } } : {})}
-                  onSelect={(date) => update("nextBillingDate", date ? dateToDateOnly(date) : undefined)}
+                  onSelect={(date) => {
+                    update("nextBillingDate", date ? dateToDateOnly(date) : undefined);
+                    setNextBillingDatePickerOpen(false);
+                  }}
                   autoFocus
                   className="p-3 pointer-events-auto"
                 />
@@ -510,9 +526,9 @@ export const SubscriptionFormFields = memo(function SubscriptionFormFields({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-muted-foreground whitespace-nowrap">{t("subscription.reminderBefore")}</span>
               <NumericInput
-                allowNegative={false}
+                name={id("customReminderDays")} allowNegative={false}
                 decimalScale={0}
-                inputMode="numeric"
+                inputMode="numeric" enterKeyHint="next"
                 placeholder={t("subscription.daysPlaceholder")}
                 value={formData.customReminderDays}
                 onRawValueChange={(value: string) => update("customReminderDays", value)}
@@ -572,8 +588,7 @@ export const SubscriptionFormFields = memo(function SubscriptionFormFields({
       <div className="grid gap-2">
         <Label htmlFor={id("website")}>{t("subscription.field.website")}</Label>
         <Input
-          id={id("website")}
-          type="url"
+          id={id("website")} name={id("website")} type="url" inputMode="url" enterKeyHint="next" autoCapitalize="none" spellCheck={false}
           placeholder="https://example.com"
           value={formData.website}
           onChange={(e) => update("website", e.target.value)}
@@ -587,7 +602,7 @@ export const SubscriptionFormFields = memo(function SubscriptionFormFields({
       <div className="grid gap-2">
         <Label htmlFor={id("notes")}>{t("subscription.field.notes")}</Label>
         <Input
-          id={id("notes")}
+          id={id("notes")} name={id("notes")} enterKeyHint="done"
           placeholder={t("subscription.placeholder.notes")}
           value={formData.notes}
           onChange={(e) => update("notes", e.target.value)}

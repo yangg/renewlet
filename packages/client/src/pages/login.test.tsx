@@ -67,8 +67,15 @@ describe("Login page", () => {
   it("uses login autofill metadata for email and password fields", () => {
     renderLogin();
 
-    expect(screen.getByLabelText("邮箱")).toHaveAttribute("autocomplete", "username");
-    expect(screen.getByLabelText("密码")).toHaveAttribute("autocomplete", "current-password");
+    const emailInput = screen.getByLabelText("邮箱");
+    const passwordInput = screen.getByLabelText("密码");
+    expect(emailInput).toHaveAttribute("autocomplete", "username");
+    expect(emailInput).toHaveAttribute("inputmode", "email");
+    expect(emailInput).toHaveAttribute("enterkeyhint", "next");
+    expect(emailInput).toHaveAttribute("autocapitalize", "none");
+    expect(emailInput).toHaveAttribute("spellcheck", "false");
+    expect(passwordInput).toHaveAttribute("autocomplete", "current-password");
+    expect(passwordInput).toHaveAttribute("enterkeyhint", "done");
   });
 
   it("uses form errors instead of native validation for empty credentials", async () => {

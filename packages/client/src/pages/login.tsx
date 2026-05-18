@@ -119,7 +119,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background theme-gradient flex">
+    <div className="app-page bg-background theme-gradient flex">
       {/* 左侧品牌区 */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary/20 via-primary/10 to-background items-center justify-center p-12">
         <div className="max-w-md grid gap-8">
@@ -156,7 +156,7 @@ const Login = () => {
       </div>
 
       {/* 右侧登录表单 */}
-      <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
+      <div className="auth-form-panel flex-1 flex items-center justify-center">
         <div className="w-full max-w-md grid gap-8">
           {/* 移动端 logo */}
           <div className="flex items-center justify-center gap-3 lg:hidden">
@@ -187,7 +187,11 @@ const Login = () => {
                     id="login-email"
                     name="email"
                     type="email"
+                    inputMode="email"
                     autoComplete="username"
+                    enterKeyHint="next"
+                    autoCapitalize="none"
+                    spellCheck={false}
                     placeholder="your@email.com"
                     value={email}
                     onChange={(e) => {
@@ -220,6 +224,7 @@ const Login = () => {
                     name="password"
                     type={showPassword ? 'text' : 'password'}
                     autoComplete="current-password"
+                    enterKeyHint="done"
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => {

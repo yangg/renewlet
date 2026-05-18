@@ -181,6 +181,12 @@ export function NotificationChannelConfigPanel({
               <Label htmlFor="webhookUrl">Webhook URL</Label>
               <Input
                 id="webhookUrl"
+                name="webhookUrl"
+                type="url"
+                inputMode="url"
+                enterKeyHint="next"
+                autoCapitalize="none"
+                spellCheck={false}
                 placeholder="https://your-webhook-endpoint.com/path"
                 value={settings.webhookUrl}
                 onChange={(e) => updateSetting('webhookUrl', e.target.value)}
@@ -250,6 +256,12 @@ export function NotificationChannelConfigPanel({
               <Label htmlFor="wechatUrl">{t("settings.wechatUrl")}</Label>
               <Input
                 id="wechatUrl"
+                name="wechatUrl"
+                type="url"
+                inputMode="url"
+                enterKeyHint="next"
+                autoCapitalize="none"
+                spellCheck={false}
                 placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxxxxxx-xxxx"
                 value={settings.wechatWebhookUrl}
                 onChange={(e) => updateSetting('wechatWebhookUrl', e.target.value)}
@@ -284,6 +296,11 @@ export function NotificationChannelConfigPanel({
               <Label htmlFor="wechatPhones">{t("settings.wechatPhones")}</Label>
               <Input
                 id="wechatPhones"
+                name="wechatPhones"
+                type="tel"
+                inputMode="tel"
+                enterKeyHint="next"
+                autoComplete="tel"
                 placeholder="135xxxxxxxx,136xxxxxxxx"
                 value={settings.wechatAtPhones}
                 onChange={(e) => updateSetting('wechatAtPhones', e.target.value)}
@@ -327,7 +344,9 @@ export function NotificationChannelConfigPanel({
                 <Label htmlFor="smtpPort">{t("settings.smtpPort")}</Label>
                 <Input
                   id="smtpPort"
+                  name="smtpPort"
                   inputMode="numeric"
+                  enterKeyHint="next"
                   placeholder="587"
                   value={settings.smtpPort}
                   onChange={(e) => updateSetting('smtpPort', e.target.value)}
@@ -347,21 +366,25 @@ export function NotificationChannelConfigPanel({
                 <Label htmlFor="smtpUser">{t("settings.smtpUser")}</Label>
                 <Input
                   id="smtpUser"
+                  name="smtpUser"
                   value={settings.smtpUser}
                   onChange={(e) => updateSetting('smtpUser', e.target.value)}
                   className="border-border bg-secondary"
                   autoComplete="username"
+                  enterKeyHint="next"
                 />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="smtpPassword">{t("settings.smtpPassword")}</Label>
                 <Input
                   id="smtpPassword"
+                  name="smtpPassword"
                   type="password"
                   value={settings.smtpPassword}
                   onChange={(e) => updateSetting('smtpPassword', e.target.value)}
                   className="border-border bg-secondary"
                   autoComplete="new-password"
+                  enterKeyHint="next"
                 />
               </div>
             </div>

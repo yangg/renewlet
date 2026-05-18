@@ -192,6 +192,7 @@ export const SubscriptionCalendar = ({ subscriptions, onEditSubscription }: Subs
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label={t("calendar.previousMonth")}
                 className="h-8 w-8"
                 onClick={goToPreviousMonth}
               >
@@ -325,6 +326,7 @@ export const SubscriptionCalendar = ({ subscriptions, onEditSubscription }: Subs
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label={t("calendar.nextMonth")}
                 className="h-8 w-8"
                 onClick={goToNextMonth}
               >

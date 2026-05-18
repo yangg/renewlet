@@ -32,9 +32,9 @@ export function LegalPageShell({
   const { t } = useI18n();
 
   return (
-    <div className="min-h-screen theme-gradient flex items-center justify-center p-6">
+    <div className="auth-page theme-gradient">
       <div className="w-full max-w-2xl">
-        <div className="rounded-2xl border border-border bg-card p-8 shadow-card grid gap-6">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-card grid gap-6 sm:p-8">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#111720] text-[#f8fafc] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_16px_32px_-22px_rgba(0,0,0,0.8)] ring-1 ring-white/10">
               <RenewletLogo className="h-6 w-6" />

@@ -9,10 +9,48 @@ import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 
+import { useDialogPortalContainer } from "@/components/ui/dialog";
+import {
+  getMobileSheetClassName,
+  handleMobileOverlayOutsideEvent,
+  MobileOverlayBackdrop,
+  resolveMobileSheetDetent,
+  shouldSuppressMobileOverlayTriggerEvent,
+  useControllableOpen,
+  type MobileSheetDetent,
+  type MobileSheetKind,
+} from "@/components/ui/mobile-overlay";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-const Select = SelectPrimitive.Root;
+const SelectOpenContext = React.createContext<{
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}>({
+  open: false,
+  setOpen: () => {},
+});
+
+function Select({
+  defaultOpen,
+  onOpenChange,
+  open: openProp,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root>) {
+  const [open, setOpen] = useControllableOpen({
+    defaultOpen,
+    onOpenChange,
+    open: openProp,
+  });
+
+  return (
+    <SelectOpenContext.Provider value={{ open, setOpen }}>
+      <SelectPrimitive.Root open={open} onOpenChange={setOpen} {...props} />
+    </SelectOpenContext.Provider>
+  );
+}
+
+Select.displayName = SelectPrimitive.Root.displayName;
 
 const SelectGroup = SelectPrimitive.Group;
 
@@ -31,7 +69,14 @@ function isSelectValueOverflowing(node: HTMLElement) {
 const SelectTrigger = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Trigger>,
   SelectTriggerProps
->(({ className, children, tooltipContent, ...props }, ref) => {
+>(({
+  className,
+  children,
+  onClickCapture,
+  onPointerDownCapture,
+  tooltipContent,
+  ...props
+}, ref) => {
   const triggerRef = React.useRef<React.ElementRef<typeof SelectPrimitive.Trigger> | null>(null);
   const [isOverflowing, setIsOverflowing] = React.useState(false);
 
@@ -76,6 +121,14 @@ const SelectTrigger = React.forwardRef<
   const trigger = (
     <SelectPrimitive.Trigger
       ref={setRefs}
+      onClickCapture={(event) => {
+        if (shouldSuppressMobileOverlayTriggerEvent(event)) return;
+        onClickCapture?.(event);
+      }}
+      onPointerDownCapture={(event) => {
+        if (shouldSuppressMobileOverlayTriggerEvent(event)) return;
+        onPointerDownCapture?.(event);
+      }}
       className={cn(
         "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
         className,
@@ -134,35 +187,89 @@ SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayNam
 
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = "popper", ...props }, ref) => (
-  <SelectPrimitive.Portal>
-    <SelectPrimitive.Content
-      ref={ref}
-      className={cn(
-        "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-        position === "popper" &&
-          "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
-        className,
-      )}
-      position={position}
-      {...props}
-    >
-      <SelectScrollUpButton />
-      <SelectPrimitive.Viewport
-        className={cn(
-          "p-1",
-          position === "popper" &&
-            "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
-        )}
-      >
-        {children}
-      </SelectPrimitive.Viewport>
-      <SelectScrollDownButton />
-    </SelectPrimitive.Content>
-  </SelectPrimitive.Portal>
-));
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & {
+    mobileDetent?: MobileSheetDetent;
+    mobileKind?: MobileSheetKind;
+  }
+>(({
+  className,
+  children,
+  mobileDetent = "auto",
+  mobileKind = "list",
+  onPointerDownOutside,
+  position = "popper",
+  ...props
+}, ref) => {
+  const dialogPortalContainer = useDialogPortalContainer();
+  const { open, setOpen } = React.useContext(SelectOpenContext);
+  const optionCount = countSelectOptions(children);
+  const resolvedMobileDetent = resolveMobileSheetDetent({
+    itemCount: optionCount,
+    kind: mobileKind,
+    requestedDetent: mobileDetent,
+  });
+  const closeCurrentSelect = React.useCallback(() => setOpen(false), [setOpen]);
+
+  return (
+    <SelectPrimitive.Portal container={dialogPortalContainer ?? undefined}>
+      <div data-mobile-overlay-portal="">
+        {open ? <MobileOverlayBackdrop onDismiss={closeCurrentSelect} /> : null}
+        <SelectPrimitive.Content
+          ref={ref}
+          data-mobile-detent={resolvedMobileDetent}
+          data-mobile-kind={mobileKind}
+          onPointerDownOutside={(event) => {
+            onPointerDownOutside?.(event);
+            if (!event.defaultPrevented) {
+              handleMobileOverlayOutsideEvent(event, closeCurrentSelect);
+            }
+          }}
+          className={cn(
+            "h5-floating-content h5-mobile-sheet-content relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+            getMobileSheetClassName({ detent: resolvedMobileDetent, kind: mobileKind }),
+            position === "popper" &&
+              "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+            className,
+          )}
+          position={position}
+          {...props}
+        >
+          <SelectScrollUpButton />
+          <SelectPrimitive.Viewport
+            className={cn(
+              "h5-mobile-select-viewport p-1",
+              position === "popper" &&
+                "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+            )}
+          >
+            {children}
+          </SelectPrimitive.Viewport>
+          <SelectScrollDownButton />
+        </SelectPrimitive.Content>
+      </div>
+    </SelectPrimitive.Portal>
+  );
+});
 SelectContent.displayName = SelectPrimitive.Content.displayName;
+
+function countSelectOptions(children: React.ReactNode): number {
+  let count = 0;
+
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement<{ children?: React.ReactNode; value?: string }>(child)) return;
+
+    if (typeof child.props.value === "string") {
+      count += 1;
+      return;
+    }
+
+    if (child.props.children) {
+      count += countSelectOptions(child.props.children);
+    }
+  });
+
+  return count;
+}
 
 const SelectLabel = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Label>,
@@ -180,6 +287,7 @@ const SelectItem = React.forwardRef<
     ref={ref}
     className={cn(
       "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-accent focus:text-accent-foreground",
+      "h5-mobile-option-item h5-mobile-option-item-leading",
       className,
     )}
     {...props}

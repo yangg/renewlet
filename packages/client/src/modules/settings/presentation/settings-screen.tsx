@@ -176,11 +176,11 @@ export function SettingsScreen() {
   useUnsavedChangesGuard(hasUnsavedChanges, t("settings.unsavedLeavePrompt"), handleDiscardChanges);
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="app-page bg-background flex flex-col">
       <Header />
 
-      <main className={cn("flex-1", hasUnsavedChanges && "pb-24")} data-testid="settings-main">
-        <div className="mx-auto max-w-7xl px-6 py-8">
+      <main className={cn("flex-1", hasUnsavedChanges && "h5-bottom-bar-space")} data-testid="settings-main">
+        <div className="app-main mx-auto max-w-7xl">
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-foreground">{t("settings.title")}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{t("settings.subtitle")}</p>
@@ -253,15 +253,17 @@ export function SettingsScreen() {
             <div className="grid gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="monthlyBudget">{t("settings.monthlyBudget")}</Label>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-2 min-[380px]:flex-row min-[380px]:items-center min-[380px]:gap-3">
                   <NumericInput
                     id="monthlyBudget"
+                    name="monthlyBudget"
                     allowNegative={false}
                     allowedDecimalSeparators={[".", "。"]}
                     inputMode="decimal"
+                    enterKeyHint="done"
                     value={settings.monthlyBudget}
                     onRawValueChange={handleMonthlyBudgetInputChange}
-                    className="w-[200px] border-border bg-secondary"
+                    className="w-full border-border bg-secondary min-[380px]:w-[200px]"
                     placeholder="1500"
                     thousandSeparator
                     aria-invalid={Boolean(monthlyBudgetError)}
@@ -438,6 +440,11 @@ export function SettingsScreen() {
                 <Label htmlFor="testPhone">{t("settings.testPhone")}</Label>
                 <Input
                   id="testPhone"
+                  name="testPhone"
+                  type="tel"
+                  inputMode="tel"
+                  enterKeyHint="done"
+                  autoComplete="tel"
                   placeholder={t("settings.testPhonePlaceholder")}
                   value={settings.testPhone}
                   onChange={(e) => updateSetting('testPhone', e.target.value)}
@@ -473,7 +480,7 @@ export function SettingsScreen() {
       />
 
       {hasUnsavedChanges ? (
-        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card/95 p-4 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] backdrop-blur-sm">
+        <div className="h5-bottom-bar fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card/95 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] backdrop-blur-sm">
           <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm font-medium text-foreground">{t("settings.unsavedChanges")}</p>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

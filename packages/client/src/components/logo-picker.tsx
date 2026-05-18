@@ -254,7 +254,13 @@ export function LogoPicker({
                   {t("media.uploaded")}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80 p-3 border-border bg-card" align="start" sideOffset={8}>
+              <PopoverContent
+                aria-label={t("media.uploadedLogo")}
+                className="w-80 p-3 border-border bg-card"
+                align="start"
+                sideOffset={8}
+                data-testid="uploaded-logo-sheet"
+              >
                 <div className="grid gap-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">{t("media.uploadedLogo")}</span>
@@ -371,7 +377,13 @@ export function LogoPicker({
                   {t("media.search")}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80 p-4 border-border bg-card" align="start" sideOffset={8}>
+              <PopoverContent
+                aria-label={t("media.searchLogo")}
+                className="w-80 p-4 border-border bg-card"
+                align="start"
+                sideOffset={8}
+                data-testid="logo-search-sheet"
+              >
                 <div className="grid gap-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">{t("media.searchLogo")}</span>

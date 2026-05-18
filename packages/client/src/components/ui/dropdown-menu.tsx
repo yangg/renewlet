@@ -9,17 +9,90 @@ import * as React from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronRight, Circle } from "lucide-react";
 
+import { useDialogPortalContainer } from "@/components/ui/dialog";
+import {
+  getMobileSheetClassName,
+  handleMobileOverlayOutsideEvent,
+  MobileOverlayBackdrop,
+  resolveMobileSheetDetent,
+  shouldSuppressMobileOverlayTriggerEvent,
+  useControllableOpen,
+  useIsMobileOverlay,
+  type MobileSheetDetent,
+  type MobileSheetKind,
+} from "@/components/ui/mobile-overlay";
 import { cn } from "@/lib/utils";
 
 type DropdownMenuProps = React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Root>;
 
-function DropdownMenu({ modal = false, ...props }: DropdownMenuProps) {
-  return <DropdownMenuPrimitive.Root modal={modal} {...props} />;
+const DropdownMenuOpenContext = React.createContext<{
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}>({
+  open: false,
+  setOpen: () => {},
+});
+
+function DropdownMenu({
+  defaultOpen,
+  modal: modalProp,
+  onOpenChange,
+  open: openProp,
+  ...props
+}: DropdownMenuProps) {
+  const isMobileOverlay = useIsMobileOverlay();
+  const [open, setOpen] = useControllableOpen({
+    defaultOpen,
+    onOpenChange,
+    open: openProp,
+  });
+
+  return (
+    <DropdownMenuOpenContext.Provider value={{ open, setOpen }}>
+      <DropdownMenuPrimitive.Root
+        modal={modalProp ?? isMobileOverlay}
+        open={open}
+        onOpenChange={setOpen}
+        {...props}
+      />
+    </DropdownMenuOpenContext.Provider>
+  );
 }
 
 DropdownMenu.displayName = DropdownMenuPrimitive.Root.displayName;
 
-const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
+const DropdownMenuTrigger = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Trigger>
+>(({ onClickCapture, onPointerDownCapture, ...props }, ref) => {
+  const isMobileOverlay = useIsMobileOverlay();
+  const { open, setOpen } = React.useContext(DropdownMenuOpenContext);
+
+  return (
+    <DropdownMenuPrimitive.Trigger
+      ref={ref}
+      {...props}
+      onClickCapture={(event) => {
+        if (shouldSuppressMobileOverlayTriggerEvent(event)) return;
+        if (isMobileOverlay) {
+          event.preventDefault();
+          event.stopPropagation();
+          setOpen(!open);
+        }
+        onClickCapture?.(event);
+      }}
+      onPointerDownCapture={(event) => {
+        if (shouldSuppressMobileOverlayTriggerEvent(event)) return;
+        if (isMobileOverlay) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        onPointerDownCapture?.(event);
+      }}
+    />
+  );
+});
+DropdownMenuTrigger.displayName = DropdownMenuPrimitive.Trigger.displayName;
 
 const DropdownMenuGroup = DropdownMenuPrimitive.Group;
 
@@ -57,7 +130,7 @@ const DropdownMenuSubContent = React.forwardRef<
   <DropdownMenuPrimitive.SubContent
     ref={ref}
     className={cn(
-      "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+      "h5-floating-content z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
       className,
     )}
     {...props}
@@ -67,20 +140,64 @@ DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayNam
 
 const DropdownMenuContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => (
-  <DropdownMenuPrimitive.Portal>
-    <DropdownMenuPrimitive.Content
-      ref={ref}
-      sideOffset={sideOffset}
-      className={cn(
-        "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-        className,
-      )}
-      {...props}
-    />
-  </DropdownMenuPrimitive.Portal>
-));
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> & {
+    mobileDetent?: MobileSheetDetent;
+    mobileKind?: MobileSheetKind;
+  }
+>(({
+  children,
+  className,
+  mobileDetent = "auto",
+  mobileKind = "list",
+  onInteractOutside,
+  onPointerDownOutside,
+  sideOffset = 4,
+  ...props
+}, ref) => {
+  const dialogPortalContainer = useDialogPortalContainer();
+  const { open, setOpen } = React.useContext(DropdownMenuOpenContext);
+  const optionCount = countDropdownOptions(children);
+  const resolvedMobileDetent = resolveMobileSheetDetent({
+    itemCount: optionCount,
+    kind: mobileKind,
+    requestedDetent: mobileDetent,
+  });
+  const closeCurrentMenu = React.useCallback(() => setOpen(false), [setOpen]);
+
+  return (
+    <DropdownMenuPrimitive.Portal container={dialogPortalContainer ?? undefined}>
+      <div data-mobile-overlay-portal="">
+        {open ? <MobileOverlayBackdrop onDismiss={closeCurrentMenu} /> : null}
+        <DropdownMenuPrimitive.Content
+          ref={ref}
+          sideOffset={sideOffset}
+          data-mobile-detent={resolvedMobileDetent}
+          data-mobile-kind={mobileKind}
+          onInteractOutside={(event) => {
+            onInteractOutside?.(event);
+            if (!event.defaultPrevented) {
+              handleMobileOverlayOutsideEvent(event, closeCurrentMenu);
+            }
+          }}
+          onPointerDownOutside={(event) => {
+            onPointerDownOutside?.(event);
+            if (!event.defaultPrevented) {
+              handleMobileOverlayOutsideEvent(event, closeCurrentMenu);
+            }
+          }}
+          className={cn(
+            "h5-floating-content h5-mobile-sheet-content h5-mobile-menu-content z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+            getMobileSheetClassName({ detent: resolvedMobileDetent, kind: mobileKind }),
+            className,
+          )}
+          {...props}
+        >
+          {children}
+        </DropdownMenuPrimitive.Content>
+      </div>
+    </DropdownMenuPrimitive.Portal>
+  );
+});
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
 const DropdownMenuItem = React.forwardRef<
@@ -93,7 +210,8 @@ const DropdownMenuItem = React.forwardRef<
     ref={ref}
     className={cn(
       "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-accent focus:text-accent-foreground",
-      inset && "pl-8",
+      "h5-mobile-option-item",
+      inset && "h5-mobile-option-item-leading pl-8",
       className,
     )}
     {...props}
@@ -109,6 +227,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
     ref={ref}
     className={cn(
       "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-accent focus:text-accent-foreground",
+      "h5-mobile-option-item h5-mobile-option-item-leading",
       className,
     )}
     {...(checked === undefined ? {} : { checked })}
@@ -132,6 +251,7 @@ const DropdownMenuRadioItem = React.forwardRef<
     ref={ref}
     className={cn(
       "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-accent focus:text-accent-foreground",
+      "h5-mobile-option-item h5-mobile-option-item-leading",
       className,
     )}
     {...props}
@@ -172,6 +292,29 @@ const DropdownMenuShortcut = ({ className, ...props }: React.HTMLAttributes<HTML
   return <span className={cn("ml-auto text-xs tracking-widest opacity-60", className)} {...props} />;
 };
 DropdownMenuShortcut.displayName = "DropdownMenuShortcut";
+
+function countDropdownOptions(children: React.ReactNode): number {
+  let count = 0;
+
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement<{ children?: React.ReactNode }>(child)) return;
+
+    if (
+      child.type === DropdownMenuItem ||
+      child.type === DropdownMenuCheckboxItem ||
+      child.type === DropdownMenuRadioItem
+    ) {
+      count += 1;
+      return;
+    }
+
+    if (child.props.children) {
+      count += countDropdownOptions(child.props.children);
+    }
+  });
+
+  return count;
+}
 
 export {
   DropdownMenu,
