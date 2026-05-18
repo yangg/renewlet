@@ -7,14 +7,19 @@
  */
 import type { Locale } from "@/i18n/locales";
 import { toMonthlyAmount } from "@/lib/subscription-billing";
-import { compareDateOnly } from "@/lib/time/date-only";
+import { compareDateOnly, type DateOnly } from "@/lib/time/date-only";
 import type { Category, Subscription, SubscriptionStatus } from "@/types/subscription";
+import { getEffectiveSubscriptionStatus } from "./subscription-status";
 
 export interface SubscriptionFilterState {
   searchQuery: string;
   categoryFilter: Category | "all";
   statusFilter: SubscriptionStatus | "all";
   selectedTags: string[];
+}
+
+export interface SubscriptionFilterContext {
+  today: DateOnly | string;
 }
 
 export const SUBSCRIPTION_SORT_OPTIONS = [
@@ -54,6 +59,7 @@ export function collectSubscriptionTags(subscriptions: readonly Subscription[]):
 export function filterSubscriptions(
   subscriptions: readonly Subscription[],
   filters: SubscriptionFilterState,
+  { today }: SubscriptionFilterContext,
 ): Subscription[] {
   const query = filters.searchQuery.trim().toLowerCase();
 
@@ -72,7 +78,8 @@ export function filterSubscriptions(
       return false;
     }
 
-    if (filters.statusFilter !== "all" && subscription.status !== filters.statusFilter) {
+    // 状态筛选必须走“有效状态”，否则旧 active/trial 过期记录无法被“已过期”筛出，也会继续出现在“活跃/试用中”。
+    if (filters.statusFilter !== "all" && getEffectiveSubscriptionStatus(subscription, today) !== filters.statusFilter) {
       return false;
     }
 

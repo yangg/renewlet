@@ -9,6 +9,7 @@ import type { ConfigItem } from "@/types/config";
 const statusItems: ConfigItem[] = [
   { id: "trial", value: "trial", labels: { "zh-CN": "试用中", "en-US": "Trial" }, color: "#fbbf24" },
   { id: "active", value: "active", labels: { "zh-CN": "活跃", "en-US": "Active" }, color: "#22c55e" },
+  { id: "expired", value: "expired", labels: { "zh-CN": "已过期", "en-US": "Expired" }, color: "#ef4444" },
   { id: "paused", value: "paused", labels: { "zh-CN": "已暂停", "en-US": "Paused" }, color: "#f59e0b" },
   { id: "cancelled", value: "cancelled", labels: { "zh-CN": "已取消", "en-US": "Cancelled" }, color: "#ef4444" },
 ];
@@ -32,7 +33,7 @@ const dialogCases: Array<{
     title: "状态管理",
     items: statusItems,
     props: { showColor: true, readOnly: true },
-    expectedValues: ["trial", "active", "paused", "cancelled"],
+    expectedValues: ["trial", "active", "expired", "paused", "cancelled"],
   },
   {
     title: "支付方式管理",

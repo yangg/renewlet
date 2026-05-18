@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { assertDateOnly } from "@/lib/time/date-only";
 import type { Subscription } from "@/types/subscription";
@@ -106,6 +106,15 @@ function renderSubscriptionCard(overrides: SubscriptionOverrides = {}) {
 }
 
 describe("SubscriptionCard", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-18T00:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders subscription logos on the shared neutral logo tile", () => {
     renderSubscriptionCard({ logo: "https://example.com/apple-tv.svg", name: "Apple TV" });
 
@@ -186,5 +195,18 @@ describe("SubscriptionCard", () => {
     expect(menuButton).toHaveClass("h-8", "w-8", "shrink-0");
     expect(menuButton).not.toHaveClass("opacity-0");
     expect(menuButton.getAttribute("class")).not.toContain("group-hover:opacity-100");
+  });
+
+  it("renders overdue active subscriptions with the expired status treatment", () => {
+    renderSubscriptionCard({ status: "active", nextBillingDate: assertDateOnly("2026-05-15") });
+
+    const statusBadge = screen.getByText("已过期").closest("div");
+    const expiredDateText = screen.getByText("已过期 3 天");
+    const card = statusBadge?.closest(".group");
+
+    expect(statusBadge).toHaveClass("bg-destructive/10", "text-destructive", "border-destructive/20");
+    expect(expiredDateText.closest("div")).toHaveClass("text-destructive");
+    expect(card).toHaveClass("border-destructive/40");
+    expect(screen.queryByText("到期: 2026/5/15")).not.toBeInTheDocument();
   });
 });

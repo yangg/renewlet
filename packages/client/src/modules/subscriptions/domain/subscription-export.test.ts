@@ -42,6 +42,7 @@ describe("subscription-export", () => {
       categoryLabelByValue: new Map([["productivity", "生产力"]]),
       statusLabelByValue: new Map([["active", "活跃"]]),
       locale: "zh-CN",
+      today: assertDateOnly("2026-01-01"),
     });
 
     expect(csv).toContain('"\'=Formula"');

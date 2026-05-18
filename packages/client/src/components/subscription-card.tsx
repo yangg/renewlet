@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState, type CSSProperties } from 'react';
-import { Subscription, STATUS_LABELS, CYCLE_LABELS } from '@/types/subscription';
+import { STATUS_LABELS, CYCLE_LABELS, type Subscription, type SubscriptionStatus } from '@/types/subscription';
 import { useCustomConfig } from '@/contexts/CustomConfigContext';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -21,6 +21,7 @@ import {
   daysBetweenDateOnly,
   todayDateOnlyInTimeZone,
 } from '@/lib/time/date-only';
+import { getEffectiveSubscriptionStatus } from '@/modules/subscriptions/domain/subscription-status';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,9 +58,10 @@ interface SubscriptionCardProps {
 }
 
 /** 状态配色：用于 trial/active 等视觉提示。 */
-const statusStyles: Record<string, string> = {
+const statusStyles: Record<SubscriptionStatus, string> = {
   trial: 'bg-warning/10 text-warning border-warning/20',
   active: 'bg-success/10 text-success border-success/20',
+  expired: 'bg-destructive/10 text-destructive border-destructive/20',
   paused: 'bg-muted text-muted-foreground border-muted',
   cancelled: 'bg-destructive/10 text-destructive border-destructive/20',
 };
@@ -91,9 +93,12 @@ export function SubscriptionCard({ subscription, viewMode = 'grid', onEdit, onDe
   const today = todayDateOnlyInTimeZone(new Date(), timeZone);
   const daysUntilRenewal = daysBetweenDateOnly(today, subscription.nextBillingDate);
   const daysUntilTrialEnd = subscription.trialEndDate ? daysBetweenDateOnly(today, subscription.trialEndDate) : null;
+  // 卡片是用户最先看到的状态入口，必须用有效状态，避免旧 active/trial 过期数据同时显示“活跃”和“即将续费”。
+  const effectiveStatus = getEffectiveSubscriptionStatus(subscription, today);
+  const isExpired = effectiveStatus === "expired";
   // 这里是展示提示窗口，不等同于 Cron 通知窗口；不要把两者的阈值混用。
-  const isRenewingSoon = daysUntilRenewal <= 7 && daysUntilRenewal >= 0;
-  const isTrialEndingSoon = subscription.status === 'trial' && daysUntilTrialEnd !== null &&
+  const isRenewingSoon = !isExpired && daysUntilRenewal <= 7 && daysUntilRenewal >= 0;
+  const isTrialEndingSoon = !isExpired && subscription.status === 'trial' && daysUntilTrialEnd !== null &&
     daysUntilTrialEnd <= 3 && daysUntilTrialEnd >= 0;
 
   // 当 logo 变化时重置错误状态（例如用户从无效 URL 换成了有效 URL）
@@ -111,6 +116,7 @@ export function SubscriptionCard({ subscription, viewMode = 'grid', onEdit, onDe
     <>
     <div className={cn(
       "group relative h-full overflow-hidden rounded-xl border border-border bg-card p-5 shadow-card transition-all duration-300 hover:bg-card-hover",
+      isExpired && "border-destructive/40",
       isRenewingSoon && "border-warning/40",
       isTrialEndingSoon && "animate-pulse-glow"
     )}>
@@ -183,9 +189,9 @@ export function SubscriptionCard({ subscription, viewMode = 'grid', onEdit, onDe
               </Badge>
               <Badge
                 variant="outline"
-                className={cn("shrink-0 whitespace-nowrap text-xs", statusStyles[subscription.status])}
+                className={cn("shrink-0 whitespace-nowrap text-xs", statusStyles[effectiveStatus])}
               >
-                {localizedLabel(STATUS_LABELS[subscription.status], locale)}
+                {localizedLabel(STATUS_LABELS[effectiveStatus], locale)}
               </Badge>
             </div>
           </div>
@@ -203,11 +209,15 @@ export function SubscriptionCard({ subscription, viewMode = 'grid', onEdit, onDe
             {/* 下次账单信息 */}
             <div className={cn(
               "flex items-center gap-1.5",
-              isRenewingSoon ? "text-warning" : "text-muted-foreground"
+              isExpired ? "text-destructive" : isRenewingSoon ? "text-warning" : "text-muted-foreground"
             )}>
               <Calendar className="h-3.5 w-3.5" />
               <span className="text-xs">
-                {isRenewingSoon ? (
+                {isExpired ? (
+                  daysUntilRenewal < 0
+                    ? t("subscription.card.expiredDays", { days: Math.abs(daysUntilRenewal) })
+                    : t("subscription.card.expired")
+                ) : isRenewingSoon ? (
                   daysUntilRenewal === 0 ? t("subscription.card.renewsToday") : t("subscription.card.renewsInDays", { days: daysUntilRenewal })
                 ) : (
                   t("subscription.card.duePrefix", { date: formatDateOnly(subscription.nextBillingDate) })

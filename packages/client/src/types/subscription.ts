@@ -14,7 +14,7 @@ import type { ExchangeRateProvider } from '@/lib/api/schemas/exchange-rates';
 import type { DateOnly } from '@/lib/time/date-only';
 import type { LocalTime } from '@/lib/time/local-time';
 
-export const SUBSCRIPTION_STATUSES = ['trial', 'active', 'paused', 'cancelled'] as const;
+export const SUBSCRIPTION_STATUSES = ['trial', 'active', 'expired', 'paused', 'cancelled'] as const;
 /** 订阅状态（影响展示、统计与提醒逻辑）。 */
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 
@@ -297,6 +297,7 @@ export const CATEGORY_LABELS: Record<BuiltInCategory, LocalizedLabels> = {
 export const STATUS_LABELS: Record<SubscriptionStatus, LocalizedLabels> = {
   trial: labels('试用中', 'Trial'),
   active: labels('活跃', 'Active'),
+  expired: labels('已过期', 'Expired'),
   paused: labels('已暂停', 'Paused'),
   cancelled: labels('已取消', 'Cancelled'),
 };

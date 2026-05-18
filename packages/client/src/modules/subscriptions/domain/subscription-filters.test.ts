@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { assertDateOnly } from "@/lib/time/date-only";
 import type { Subscription } from "@/types/subscription";
 import {
+  filterSubscriptions,
   hasActiveSubscriptionControls,
   hasActiveSubscriptionFilters,
   sortSubscriptions,
@@ -157,5 +158,28 @@ describe("subscription filter state", () => {
     expect(hasActiveSubscriptionControls(emptyFilters, "monthly_cost_desc")).toBe(true);
 
     expect(hasActiveSubscriptionFilters({ ...emptyFilters, searchQuery: "cloud" })).toBe(true);
+  });
+
+  it("filters by effective expired status for legacy active subscriptions", () => {
+    const subscriptions = [
+      subscription({ id: "legacy-overdue", status: "active", nextBillingDate: assertDateOnly("2026-05-15") }),
+      subscription({ id: "active-future", status: "active", nextBillingDate: assertDateOnly("2026-05-20") }),
+      subscription({ id: "stored-expired", status: "expired", nextBillingDate: assertDateOnly("2026-05-20") }),
+      subscription({ id: "paused-overdue", status: "paused", nextBillingDate: assertDateOnly("2026-05-15") }),
+    ];
+
+    const expired = filterSubscriptions(
+      subscriptions,
+      { ...emptyFilters, statusFilter: "expired" },
+      { today: assertDateOnly("2026-05-18") },
+    );
+    const active = filterSubscriptions(
+      subscriptions,
+      { ...emptyFilters, statusFilter: "active" },
+      { today: assertDateOnly("2026-05-18") },
+    );
+
+    expect(expired.map((item) => item.id)).toEqual(["legacy-overdue", "stored-expired"]);
+    expect(active.map((item) => item.id)).toEqual(["active-future"]);
   });
 });

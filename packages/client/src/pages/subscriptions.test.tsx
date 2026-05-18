@@ -61,6 +61,12 @@ vi.mock("@/contexts/CustomConfigContext", () => ({
           labels: { "zh-CN": "活跃", "en-US": "Active" },
           color: "hsl(160 84% 45%)",
         },
+        {
+          id: "expired",
+          value: "expired",
+          labels: { "zh-CN": "已过期", "en-US": "Expired" },
+          color: "hsl(0 72% 51%)",
+        },
       ],
       paymentMethods: [],
       currencies: [],
@@ -256,6 +262,32 @@ describe("Subscriptions page sorting", () => {
     fireEvent.scroll(root);
 
     expect(await screen.findByRole("button", { name: "回到顶部" })).toBeInTheDocument();
+  });
+
+  it("filters by expired using the effective status of legacy overdue subscriptions", async () => {
+    const user = userEvent.setup();
+    mocks.useSubscriptions.mockReturnValue({
+      data: [
+        subscription({ id: "legacy-overdue", name: "Legacy Overdue", status: "active", nextBillingDate: assertDateOnly("2000-05-15") }),
+        subscription({ id: "active-future", name: "Active Future", status: "active", nextBillingDate: assertDateOnly("2099-05-20") }),
+      ],
+      isPending: false,
+    });
+
+    renderSubscriptionsPage();
+
+    const statusFilter = screen
+      .getAllByRole("combobox")
+      .find((element) => element.textContent?.includes("所有状态"));
+    expect(statusFilter).toBeDefined();
+
+    await user.click(statusFilter!);
+    await user.click(await screen.findByRole("option", { name: "已过期" }));
+
+    await waitFor(() => {
+      expect(visibleSubscriptionNames()).toEqual(["Legacy Overdue"]);
+    });
+    expect(screen.queryByText("Active Future")).not.toBeInTheDocument();
   });
 });
 

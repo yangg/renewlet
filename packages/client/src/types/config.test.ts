@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { CATEGORIES, CURRENCY_OPTIONS } from "./subscription";
-import { getDefaultCategories, getDefaultCurrencies, normalizeCategories, normalizeCurrencies, type ConfigItem } from "./config";
+import { CATEGORIES, CURRENCY_OPTIONS, SUBSCRIPTION_STATUSES } from "./subscription";
+import {
+  getDefaultCategories,
+  getDefaultCurrencies,
+  getDefaultStatuses,
+  normalizeCategories,
+  normalizeCurrencies,
+  normalizeStatuses,
+  type ConfigItem,
+} from "./config";
 
 const legacyCategory = (value: string): ConfigItem => ({
   id: value,
@@ -56,6 +64,67 @@ describe("category config defaults", () => {
     ];
 
     expect(normalizeCategories(customItems)).toEqual(customItems);
+  });
+});
+
+const legacyStatus = (value: string): ConfigItem => ({
+  id: `legacy-${value}`,
+  value,
+  labels: {
+    "zh-CN": `旧 ${value}`,
+    "en-US": `Legacy ${value}`,
+  },
+  color: `legacy-${value}`,
+});
+
+describe("status config defaults", () => {
+  it("defines expired as a built-in status with labels and color", () => {
+    const statuses = getDefaultStatuses();
+
+    expect(SUBSCRIPTION_STATUSES).toEqual(["trial", "active", "expired", "paused", "cancelled"]);
+    expect(statuses.map((status) => status.value)).toEqual([...SUBSCRIPTION_STATUSES]);
+    expect(statuses.find((status) => status.value === "expired")).toMatchObject({
+      id: "expired",
+      labels: { "zh-CN": "已过期", "en-US": "Expired" },
+      color: "hsl(0 72% 51%)",
+    });
+  });
+
+  it("backfills expired into legacy status configs while preserving built-in order", () => {
+    const legacyItems = [
+      legacyStatus("active"),
+      legacyStatus("trial"),
+      legacyStatus("paused"),
+      legacyStatus("cancelled"),
+    ];
+
+    const normalized = normalizeStatuses(legacyItems);
+
+    expect(normalized.map((status) => status.value)).toEqual([
+      "active",
+      "trial",
+      "paused",
+      "cancelled",
+      "expired",
+    ]);
+    expect(normalized.find((status) => status.value === "active")?.labels["zh-CN"]).toBe("活跃");
+    expect(normalized.find((status) => status.value === "expired")?.labels["zh-CN"]).toBe("已过期");
+  });
+
+  it("drops custom status values so status-driven business logic stays bounded", () => {
+    const normalized = normalizeStatuses([
+      legacyStatus("active"),
+      legacyStatus("archived"),
+      legacyStatus("cancelled"),
+    ]);
+
+    expect(normalized.map((status) => status.value)).toEqual([
+      "active",
+      "cancelled",
+      "trial",
+      "expired",
+      "paused",
+    ]);
   });
 });
 

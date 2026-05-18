@@ -72,4 +72,11 @@ describe("subscription API schemas", () => {
       repeatReminderWindow: "forever",
     }).success).toBe(false);
   });
+
+  it("accepts expired as a first-class subscription status", () => {
+    expect(subscriptionCreateBodySchema.safeParse({
+      ...validSubscriptionCreateBody,
+      status: "expired",
+    }).success).toBe(true);
+  });
 });

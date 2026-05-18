@@ -14,6 +14,7 @@ import { Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { daysBetweenDateOnly, formatDateOnlyMonthDay, todayDateOnlyInTimeZone } from '@/lib/time/date-only';
 import { useI18n } from '@/i18n/I18nProvider';
+import { isEffectivelyActiveSubscription } from '@/modules/subscriptions/domain/subscription-status';
 
 interface UpcomingRenewalsProps {
   /** 订阅列表（前端 domain 类型）。 */
@@ -27,7 +28,8 @@ export function UpcomingRenewals({ subscriptions, timeZone }: UpcomingRenewalsPr
   const { t, formatCurrency, locale } = useI18n();
   const today = todayDateOnlyInTimeZone(new Date(), timeZone);
   const upcoming = subscriptions
-    .filter(s => s.status === 'active' || s.status === 'trial')
+    // 即将续费只看有效活跃订阅，旧 active/trial 过期记录应进入“已过期”，不能继续占用未来续费提醒位。
+    .filter(s => isEffectivelyActiveSubscription(s, today))
     .map(s => ({
       ...s,
       daysUntil: daysBetweenDateOnly(today, s.nextBillingDate),

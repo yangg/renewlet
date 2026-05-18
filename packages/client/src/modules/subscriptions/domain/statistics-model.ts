@@ -18,6 +18,7 @@ import { localizedLabel, type Locale } from "@/i18n/locales";
 import { translate } from "@/i18n/messages";
 import type { CustomConfig } from "@/types/config";
 import type { Subscription } from "@/types/subscription";
+import { isEffectivelyActiveSubscription, isEffectivelyInactiveSubscription } from "./subscription-status";
 
 /** 统计图表固定色板；保持跨图表颜色稳定，避免同一分类在不同渲染中频繁换色。 */
 export const STATISTICS_CHART_COLORS = [
@@ -60,12 +61,9 @@ export function buildStatisticsModel({
   const today = todayDateOnlyInTimeZone(now, timeZone);
   const categoryByValue = new Map(config.categories.map((category) => [category.value, category]));
   const paymentMethodByValue = new Map(config.paymentMethods.map((method) => [method.value, method]));
-  const activeSubscriptions = subscriptions.filter((subscription) =>
-    subscription.status === "active" || subscription.status === "trial"
-  );
-  const inactiveSubscriptions = subscriptions.filter((subscription) =>
-    subscription.status === "paused" || subscription.status === "cancelled"
-  );
+  // 统计页是成本口径入口，必须用有效状态统一 active/trial/expired 的兼容语义，避免图表和列表筛选结果对不上。
+  const activeSubscriptions = subscriptions.filter((subscription) => isEffectivelyActiveSubscription(subscription, today));
+  const inactiveSubscriptions = subscriptions.filter((subscription) => isEffectivelyInactiveSubscription(subscription, today));
 
   const convertToDefault = (price: number, currency: string) => convert(price, currency, defaultCurrency);
   const calculateMonthlyAmount = (subscription: Subscription): number => {

@@ -94,7 +94,7 @@ function subscription(overrides: SubscriptionOverrides): Subscription {
     status: "active",
     paymentMethod: undefined,
     startDate: assertDateOnly("2026-01-01"),
-    nextBillingDate: assertDateOnly("2026-01-05"),
+    nextBillingDate: assertDateOnly("2099-01-05"),
     autoCalculateNextBillingDate: true,
     trialEndDate: undefined,
     website: undefined,
@@ -169,7 +169,7 @@ describe("Statistics page", () => {
     await user.hover(screen.getByRole("button", { name: "说明：停用月节省" }));
 
     expect(
-      await screen.findAllByText("已暂停和已取消订阅按月折算后的金额，不包含活跃或试用订阅，也不是预算剩余。"),
+      await screen.findAllByText("已暂停、已取消和已过期订阅按月折算后的金额，不包含活跃或试用订阅，也不是预算剩余。"),
     ).not.toHaveLength(0);
   });
 

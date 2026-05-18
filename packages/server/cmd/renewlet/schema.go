@@ -232,7 +232,7 @@ func ensureSubscriptionsCollection(app core.App, users *core.Collection) error {
 			&core.SelectField{Name: "billingCycle", Required: true, Values: []string{"weekly", "monthly", "quarterly", "semi-annual", "annual", "custom"}},
 			&core.NumberField{Name: "customDays", OnlyInt: true, Min: &minZero},
 			&core.TextField{Name: "category", Required: true, Max: 80},
-			&core.SelectField{Name: "status", Required: true, Values: []string{"trial", "active", "paused", "cancelled"}},
+			&core.SelectField{Name: "status", Required: true, Values: []string{"trial", "active", "expired", "paused", "cancelled"}},
 			&core.TextField{Name: "paymentMethod", Max: 80},
 			&core.TextField{Name: "startDate", Required: true, Max: 10, Pattern: `^\d{4}-\d{2}-\d{2}$`},
 			&core.TextField{Name: "nextBillingDate", Required: true, Max: 10, Pattern: `^\d{4}-\d{2}-\d{2}$`},

@@ -8,6 +8,7 @@
 import { toMonthlyAmount } from "@/lib/subscription-billing";
 import { daysBetweenDateOnly, todayDateOnlyInTimeZone } from "@/lib/time/date-only";
 import type { Subscription } from "@/types/subscription";
+import { getEffectiveSubscriptionStatus, isEffectivelyActiveSubscription } from "./subscription-status";
 
 interface BuildDashboardStatsInput {
   subscriptions: readonly Subscription[];
@@ -26,21 +27,20 @@ export function buildDashboardStats({
   timeZone = "UTC",
 }: BuildDashboardStatsInput) {
   const today = todayDateOnlyInTimeZone(now, timeZone);
-  // 首页只把 active/trial 算作有效支出；paused/cancelled 不进入月度预算口径。
-  const activeSubscriptions = subscriptions.filter((subscription) =>
-    subscription.status === "active" || subscription.status === "trial"
-  );
+  // 首页金额和数量使用有效状态，避免旧 active/trial 过期记录继续计入活跃月支出。
+  const activeSubscriptions = subscriptions.filter((subscription) => isEffectivelyActiveSubscription(subscription, today));
   const totalMonthly = activeSubscriptions.reduce((sum, subscription) => {
     const amountInDefault = convert(subscription.price, subscription.currency, defaultCurrency);
     return sum + toMonthlyAmount(amountInDefault, subscription.billingCycle, subscription.customDays);
   }, 0);
   const upcomingCount = subscriptions.filter((subscription) => {
-    if (subscription.status !== "active" && subscription.status !== "trial") return false;
+    if (!isEffectivelyActiveSubscription(subscription, today)) return false;
     // 注意： 这里是用户时区下的 0..7 天窗口，和 Cron 的发送时间窗口不是同一个概念。
     const days = daysBetweenDateOnly(today, subscription.nextBillingDate);
     return days <= 7 && days >= 0;
   }).length;
-  const trialCount = subscriptions.filter((subscription) => subscription.status === "trial").length;
+  // 试用数量也按有效状态统计：过期 trial 应归入 expired，而不是继续提醒用户关注转付费。
+  const trialCount = subscriptions.filter((subscription) => getEffectiveSubscriptionStatus(subscription, today) === "trial").length;
 
   return {
     activeSubscriptions,

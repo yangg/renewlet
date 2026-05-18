@@ -31,12 +31,13 @@ import {
   setYear
 } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { dateToDateOnly, isSameMonthDateOnly } from '@/lib/time/date-only';
+import { dateToDateOnly, isSameMonthDateOnly, todayDateOnlyInTimeZone } from '@/lib/time/date-only';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useI18n } from '@/i18n/I18nProvider';
 import { DaySubscriptionsDialog, SubscriptionDetailDialog } from './subscription-calendar-dialogs';
 import type { CalendarDaySubscriptions } from './subscription-calendar-dialogs';
+import { isEffectivelyActiveSubscription } from '@/modules/subscriptions/domain/subscription-status';
 
 interface SubscriptionCalendarProps {
   /** 订阅列表（前端 domain 类型）。 */
@@ -63,6 +64,7 @@ export const SubscriptionCalendar = ({ subscriptions, onEditSubscription }: Subs
   // 默认货币来自 Settings（持久化到 SQLite），用于日历底部“预计支出”的换算口径。
   const { data: settings } = useSettings();
   const defaultCurrency = settings?.defaultCurrency ?? 'CNY';
+  const today = todayDateOnlyInTimeZone(new Date(), settings?.timezone ?? "UTC");
   const { convert, getCurrencySymbol } = useExchangeRates(settings?.exchangeRateProvider);
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -88,7 +90,8 @@ export const SubscriptionCalendar = ({ subscriptions, onEditSubscription }: Subs
     const map = new Map<string, Subscription[]>();
     
     subscriptions
-      .filter(sub => sub.status === 'active' || sub.status === 'trial')
+      // 日历只展示有效活跃订阅的未来扣费安排，避免旧过期记录继续占用日历格和月度预计支出。
+      .filter(sub => isEffectivelyActiveSubscription(sub, today))
       .forEach(sub => {
         const dateKey = sub.nextBillingDate;
         const existing = map.get(dateKey) || [];
@@ -96,7 +99,7 @@ export const SubscriptionCalendar = ({ subscriptions, onEditSubscription }: Subs
       });
     
     return map;
-  }, [subscriptions]);
+  }, [subscriptions, today]);
 
   /**
    * 日历底部汇总：本月续费订阅数量 + 预计支出（换算到 defaultCurrency）。
@@ -568,6 +571,7 @@ export const SubscriptionCalendar = ({ subscriptions, onEditSubscription }: Subs
         onOpenChange={setDetailOpen}
         subscription={selectedSubscription}
         onEditSubscription={onEditSubscription}
+        today={today}
       />
 
       <DaySubscriptionsDialog
@@ -575,6 +579,7 @@ export const SubscriptionCalendar = ({ subscriptions, onEditSubscription }: Subs
         onOpenChange={setDayListOpen}
         selectedDaySubs={selectedDaySubs}
         onSelectSubscription={handleSelectFromList}
+        today={today}
         isMobile={isMobileCalendar}
       />
     </>

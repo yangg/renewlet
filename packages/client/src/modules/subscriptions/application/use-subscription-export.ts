@@ -10,13 +10,19 @@
 import { useMemo } from "react";
 import type { Locale } from "@/i18n/locales";
 import { localizedLabel } from "@/i18n/locales";
+import { todayDateOnlyInTimeZone } from "@/lib/time/date-only";
 import { downloadFile } from "@/shared/browser/download-file";
 import type { CustomConfig } from "@/types/config";
 import type { Subscription } from "@/types/subscription";
 import { buildSubscriptionsCsv, buildSubscriptionsJsonExport } from "../domain/subscription-export";
 
 /** 订阅导出控制器。 */
-export function useSubscriptionExport(subscriptions: readonly Subscription[], config: CustomConfig, locale: Locale) {
+export function useSubscriptionExport(
+  subscriptions: readonly Subscription[],
+  config: CustomConfig,
+  locale: Locale,
+  timeZone = "UTC",
+) {
   const categoryLabelByValue = useMemo(
     () => new Map(config.categories.map((category) => [category.value, localizedLabel(category.labels, locale)])),
     [config.categories, locale],
@@ -33,10 +39,12 @@ export function useSubscriptionExport(subscriptions: readonly Subscription[], co
   };
 
   const exportToCSV = () => {
+    const today = todayDateOnlyInTimeZone(new Date(), timeZone);
     const csvContent = buildSubscriptionsCsv(subscriptions, {
       categoryLabelByValue,
       statusLabelByValue,
       locale,
+      today,
     });
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8" });
     downloadFile(blob, "subscriptions.csv");

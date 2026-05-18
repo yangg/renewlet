@@ -75,6 +75,7 @@ func TestEnsureSchemaCreatesContractFieldsAndIndexes(t *testing.T) {
 		"updated":      core.FieldTypeAutodate,
 	})
 	assertNumberField(t, app, "subscriptions", "price", false, 0, maxSubscriptionPrice)
+	assertSelectFieldValues(t, app, "subscriptions", "status", "trial", "active", "expired", "paused", "cancelled")
 	assertJSONFieldMaxSize(t, app, "subscriptions", "tags", maxSubscriptionTagsFieldSize)
 	assertFileFieldMimeTypes(t, app, "assets", "file", "image/svg+xml", "image/x-icon", "image/vnd.microsoft.icon")
 	assertFields(t, app, "notification_jobs", map[string]string{
@@ -257,6 +258,26 @@ func assertJSONFieldMaxSize(t *testing.T, app core.App, collectionName string, f
 	}
 	if field.MaxSize != maxSize {
 		t.Fatalf("collection %s field %s max size = %d, want %d", collectionName, fieldName, field.MaxSize, maxSize)
+	}
+}
+
+func assertSelectFieldValues(t *testing.T, app core.App, collectionName string, fieldName string, expected ...string) {
+	t.Helper()
+	collection, err := app.FindCollectionByNameOrId(collectionName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	field, ok := collection.Fields.GetByName(fieldName).(*core.SelectField)
+	if !ok {
+		t.Fatalf("collection %s field %s is not a select field", collectionName, fieldName)
+	}
+	if len(field.Values) != len(expected) {
+		t.Fatalf("collection %s field %s values = %#v, want %#v", collectionName, fieldName, field.Values, expected)
+	}
+	for i, value := range expected {
+		if field.Values[i] != value {
+			t.Fatalf("collection %s field %s values = %#v, want %#v", collectionName, fieldName, field.Values, expected)
+		}
 	}
 }
 

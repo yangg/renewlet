@@ -8,6 +8,7 @@
  */
 import { 
   BuiltInCategory,
+  SUBSCRIPTION_STATUSES,
   SubscriptionStatus, 
   BuiltInPaymentMethod,
   CATEGORY_LABELS, 
@@ -116,9 +117,11 @@ const LEGACY_DEFAULT_CATEGORY_VALUE_SET = new Set<string>(LEGACY_DEFAULT_CATEGOR
 const STATUS_COLORS: Record<SubscriptionStatus, string> = {
   trial: 'hsl(45 90% 50%)',
   active: 'hsl(160 84% 45%)',
+  expired: 'hsl(0 72% 51%)',
   paused: 'hsl(35 90% 55%)',
   cancelled: 'hsl(350 75% 55%)',
 };
+const DEFAULT_STATUS_VALUE_SET = new Set<string>(SUBSCRIPTION_STATUSES as readonly string[]);
 
 // 从现有类型生成默认配置
 export const getDefaultCategories = (): ConfigItem[] => {
@@ -131,11 +134,11 @@ export const getDefaultCategories = (): ConfigItem[] => {
 };
 
 export const getDefaultStatuses = (): ConfigItem[] => {
-  return Object.entries(STATUS_LABELS).map(([value, itemLabels]) => ({
+  return SUBSCRIPTION_STATUSES.map((value) => ({
     id: value,
     value,
-    labels: itemLabels,
-    color: STATUS_COLORS[value as SubscriptionStatus],
+    labels: STATUS_LABELS[value],
+    color: STATUS_COLORS[value],
   }));
 };
 
@@ -243,12 +246,31 @@ export function normalizeCategories(items: ConfigItem[]): ConfigItem[] {
 
 /**
  * 规范化状态列表：
- * - value 必须唯一（重复项保留首次出现）
- * - 至少保留 1 个状态（空列表回退到默认状态）
+ * - 只保留内置状态，并用当前版本的 label/color 覆盖旧配置
+ * - 保留旧版本/用户排序，同时补齐新增的内置状态
  */
 export function normalizeStatuses(items: ConfigItem[]): ConfigItem[] {
-  const unique = uniqByValue(items);
-  return unique.length > 0 ? unique : getDefaultStatuses();
+  const defaults = getDefaultStatuses();
+  // 状态配置会在登录/设置页反复规范化；Map/Set 让补齐和去重保持 O(n)，同时避免在循环里反复扫描默认列表。
+  const defaultByValue = new Map(defaults.map((item) => [item.value, item]));
+  const seen = new Set<string>();
+  const normalized: ConfigItem[] = [];
+
+  for (const item of items) {
+    if (!DEFAULT_STATUS_VALUE_SET.has(item.value) || seen.has(item.value)) continue;
+    seen.add(item.value);
+    // 状态会参与统计/筛选逻辑，升级时只保留用户排序，不继承旧 label/color，避免 expired 缺色或被旧文案改名后语义漂移。
+    normalized.push(defaultByValue.get(item.value)!);
+  }
+
+  // 旧版本没有 expired；这里追加缺失内置项，让老用户进入状态管理/表单/筛选时都能看到完整状态集。
+  for (const item of defaults) {
+    if (seen.has(item.value)) continue;
+    normalized.push(item);
+    seen.add(item.value);
+  }
+
+  return normalized;
 }
 
 /**

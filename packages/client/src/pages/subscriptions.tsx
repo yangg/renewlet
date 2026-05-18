@@ -199,8 +199,8 @@ const Subscriptions = () => {
     hasActiveControls,
     toggleTag,
     clearFilters,
-  } = useSubscriptionFilters(subscriptions, { defaultCurrency, convert, locale });
-  const { exportToJSON, exportToCSV } = useSubscriptionExport(filteredSubscriptions, config, locale);
+  } = useSubscriptionFilters(subscriptions, { defaultCurrency, convert, locale, timeZone });
+  const { exportToJSON, exportToCSV } = useSubscriptionExport(filteredSubscriptions, config, locale, timeZone);
   const categoryFilterLabel =
     categoryFilter === "all"
       ? t("subscriptions.allCategories")

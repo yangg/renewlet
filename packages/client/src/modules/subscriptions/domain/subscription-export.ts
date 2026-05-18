@@ -10,12 +10,15 @@
  */
 import { localizedLabel, type Locale } from "@/i18n/locales";
 import { translate } from "@/i18n/messages";
+import type { DateOnly } from "@/lib/time/date-only";
 import { CYCLE_LABELS, type Subscription } from "@/types/subscription";
+import { getEffectiveSubscriptionStatus } from "./subscription-status";
 
 interface SubscriptionExportLabelMaps {
   categoryLabelByValue: ReadonlyMap<string, string>;
   statusLabelByValue: ReadonlyMap<string, string>;
   locale: Locale;
+  today: DateOnly | string;
 }
 
 /** CSV 单元格转义，并防护常见表格公式注入前缀。 */
@@ -53,18 +56,22 @@ export function buildSubscriptionsCsv(
     translate(labelMaps.locale, "subscriptions.csv.reminderDays"),
     translate(labelMaps.locale, "subscriptions.csv.tags"),
   ];
-  const rows = subscriptions.map((subscription) => [
-    subscription.name,
-    subscription.price,
-    subscription.currency,
-    localizedLabel(CYCLE_LABELS[subscription.billingCycle], labelMaps.locale),
-    labelMaps.categoryLabelByValue.get(subscription.category) ?? subscription.category,
-    labelMaps.statusLabelByValue.get(subscription.status) ?? subscription.status,
-    subscription.startDate,
-    subscription.nextBillingDate,
-    subscription.reminderDays,
-    subscription.tags?.join(";") || "",
-  ]);
+  const rows = subscriptions.map((subscription) => {
+    // CSV 是面向用户阅读的报表，状态列跟 UI 一样使用有效状态；JSON 导出仍保留原始 status，方便备份和未来迁移。
+    const effectiveStatus = getEffectiveSubscriptionStatus(subscription, labelMaps.today);
+    return [
+      subscription.name,
+      subscription.price,
+      subscription.currency,
+      localizedLabel(CYCLE_LABELS[subscription.billingCycle], labelMaps.locale),
+      labelMaps.categoryLabelByValue.get(subscription.category) ?? subscription.category,
+      labelMaps.statusLabelByValue.get(effectiveStatus) ?? effectiveStatus,
+      subscription.startDate,
+      subscription.nextBillingDate,
+      subscription.reminderDays,
+      subscription.tags?.join(";") || "",
+    ];
+  });
 
   return [
     headers.map(escapeCsvCell).join(","),

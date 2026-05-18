@@ -82,7 +82,7 @@ function subscription(overrides: SubscriptionOverrides = {}): Subscription {
     status: "active",
     paymentMethod: undefined,
     startDate: assertDateOnly("2026-01-01"),
-    nextBillingDate: assertDateOnly("2026-01-05"),
+    nextBillingDate: assertDateOnly("2099-01-05"),
     autoCalculateNextBillingDate: true,
     trialEndDate: undefined,
     website: undefined,

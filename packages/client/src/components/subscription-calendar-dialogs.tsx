@@ -7,7 +7,7 @@
  * 注意： 弹窗中的金额、周期和状态标签必须继续复用 subscription domain 常量，避免日历视图口径分叉。
  */
 import { useEffect, useState, type CSSProperties } from 'react';
-import type { Subscription } from '@/types/subscription';
+import type { Subscription, SubscriptionStatus } from '@/types/subscription';
 import { STATUS_LABELS, CYCLE_LABELS } from '@/types/subscription';
 import { Button } from '@/components/ui/button';
 import { CalendarDays, ExternalLink, Edit2, X } from 'lucide-react';
@@ -19,8 +19,18 @@ import { TruncatedTooltipText } from '@/components/ui/truncated-tooltip-text';
 import { useCustomConfig } from '@/contexts/CustomConfigContext';
 import { useI18n } from '@/i18n/I18nProvider';
 import { cn } from '@/lib/utils';
+import type { DateOnly } from '@/lib/time/date-only';
+import { getEffectiveSubscriptionStatus } from '@/modules/subscriptions/domain/subscription-status';
 
 const DEFAULT_LOGO_FALLBACK_COLOR = "hsl(var(--primary))";
+
+const statusBadgeClassNames = {
+  trial: "border-warning/20 bg-warning/10 text-warning",
+  active: "border-success/20 bg-success/10 text-success",
+  expired: "border-destructive/20 bg-destructive/10 text-destructive",
+  paused: "border-muted bg-muted text-muted-foreground",
+  cancelled: "border-destructive/20 bg-destructive/10 text-destructive",
+} satisfies Record<SubscriptionStatus, string>;
 
 type LogoTileStyle = CSSProperties & {
   "--subscription-logo-fallback": string;
@@ -75,6 +85,7 @@ export interface SubscriptionDetailDialogProps {
   onOpenChange: (open: boolean) => void;
   subscription: Subscription | null;
   onEditSubscription: ((subscription: Subscription) => void) | undefined;
+  today: DateOnly | string;
 }
 
 export function SubscriptionDetailDialog({
@@ -82,6 +93,7 @@ export function SubscriptionDetailDialog({
   onOpenChange,
   subscription,
   onEditSubscription,
+  today,
 }: SubscriptionDetailDialogProps) {
   const { config } = useCustomConfig();
   const { t, label, formatDateOnly, formatCurrency } = useI18n();
@@ -89,6 +101,8 @@ export function SubscriptionDetailDialog({
     ? config.categories.find((item) => item.value === subscription.category)
     : undefined;
   const categoryColor = category?.color ?? DEFAULT_LOGO_FALLBACK_COLOR;
+  // 详情弹窗可能被不同入口复用，状态标签也走有效状态，避免绕过日历筛选时退回原始 active/trial。
+  const effectiveStatus = subscription ? getEffectiveSubscriptionStatus(subscription, today) : null;
 
   const handleEdit = () => {
     if (subscription && onEditSubscription) {
@@ -126,8 +140,11 @@ export function SubscriptionDetailDialog({
                 </p>
               </div>
               <div className="text-right">
-                <Badge variant={subscription.status === 'active' ? 'default' : 'secondary'}>
-                  {label(STATUS_LABELS[subscription.status])}
+                <Badge
+                  variant="outline"
+                  className={effectiveStatus ? statusBadgeClassNames[effectiveStatus] : undefined}
+                >
+                  {effectiveStatus ? label(STATUS_LABELS[effectiveStatus]) : null}
                 </Badge>
               </div>
             </div>
@@ -212,50 +229,60 @@ export interface DaySubscriptionsDialogProps {
   onOpenChange: (open: boolean) => void;
   selectedDaySubs: CalendarDaySubscriptions | null;
   onSelectSubscription: (subscription: Subscription) => void;
+  today: DateOnly | string;
   isMobile?: boolean | undefined;
 }
 
 interface DaySubscriptionsListProps {
   subscriptions: Subscription[];
   onSelectSubscription: (subscription: Subscription) => void;
+  today: DateOnly | string;
 }
 
-function DaySubscriptionsList({ subscriptions, onSelectSubscription }: DaySubscriptionsListProps) {
+function DaySubscriptionsList({ subscriptions, onSelectSubscription, today }: DaySubscriptionsListProps) {
   const { config } = useCustomConfig();
   const { label, formatCurrency } = useI18n();
 
   return (
     <div className="grid gap-2">
-      {subscriptions.map((sub) => (
-        <button
-          key={sub.id}
-          type="button"
-          onClick={() => onSelectSubscription(sub)}
-          className="group flex w-full items-center gap-3 rounded-lg border border-border bg-secondary/30 p-3 text-left transition-colors hover:bg-secondary/60"
-        >
-          <CalendarSubscriptionLogo
-            subscription={sub}
-            categoryColor={
-              config.categories.find((item) => item.value === sub.category)?.color ??
-              DEFAULT_LOGO_FALLBACK_COLOR
-            }
-          />
-          <div className="min-w-0 flex-1">
-            <TruncatedTooltipText as="p" text={sub.name} className="text-sm font-medium" />
-            <p className="text-xs text-muted-foreground">
-              {label(CYCLE_LABELS[sub.billingCycle])}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="font-semibold text-foreground">
-              {formatCurrency(sub.price, sub.currency)}
-            </p>
-            <Badge variant={sub.status === 'active' ? 'default' : 'secondary'} className="text-xs">
-              {label(STATUS_LABELS[sub.status])}
-            </Badge>
-          </div>
-        </button>
-      ))}
+      {subscriptions.map((sub) => {
+        // 当天列表和详情弹窗保持同一口径，确保旧过期数据不会在同一个日历流程里显示成不同状态。
+        const effectiveStatus = getEffectiveSubscriptionStatus(sub, today);
+
+        return (
+          <button
+            key={sub.id}
+            type="button"
+            onClick={() => onSelectSubscription(sub)}
+            className="group flex w-full items-center gap-3 rounded-lg border border-border bg-secondary/30 p-3 text-left transition-colors hover:bg-secondary/60"
+          >
+            <CalendarSubscriptionLogo
+              subscription={sub}
+              categoryColor={
+                config.categories.find((item) => item.value === sub.category)?.color ??
+                DEFAULT_LOGO_FALLBACK_COLOR
+              }
+            />
+            <div className="min-w-0 flex-1">
+              <TruncatedTooltipText as="p" text={sub.name} className="text-sm font-medium" />
+              <p className="text-xs text-muted-foreground">
+                {label(CYCLE_LABELS[sub.billingCycle])}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="font-semibold text-foreground">
+                {formatCurrency(sub.price, sub.currency)}
+              </p>
+              <Badge
+                variant="outline"
+                className={cn("text-xs", statusBadgeClassNames[effectiveStatus])}
+              >
+                {label(STATUS_LABELS[effectiveStatus])}
+              </Badge>
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -265,6 +292,7 @@ export function DaySubscriptionsDialog({
   onOpenChange,
   selectedDaySubs,
   onSelectSubscription,
+  today,
   isMobile = false,
 }: DaySubscriptionsDialogProps) {
   const { t, formatDateTime } = useI18n();
@@ -306,6 +334,7 @@ export function DaySubscriptionsDialog({
                   <DaySubscriptionsList
                     subscriptions={selectedDaySubs.subscriptions}
                     onSelectSubscription={onSelectSubscription}
+                    today={today}
                   />
                 </div>
               )}
@@ -336,6 +365,7 @@ export function DaySubscriptionsDialog({
             <DaySubscriptionsList
               subscriptions={selectedDaySubs.subscriptions}
               onSelectSubscription={onSelectSubscription}
+              today={today}
             />
           </div>
         )}

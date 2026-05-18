@@ -9,6 +9,7 @@
  */
 import { useMemo, useState } from "react";
 import type { Locale } from "@/i18n/locales";
+import { todayDateOnlyInTimeZone } from "@/lib/time/date-only";
 import type { Category, Subscription, SubscriptionStatus } from "@/types/subscription";
 import {
   collectSubscriptionTags,
@@ -24,6 +25,7 @@ interface UseSubscriptionFiltersOptions {
   defaultCurrency?: string;
   convert?: (amount: number, from: string, to: string) => number;
   locale?: Locale;
+  timeZone?: string;
 }
 
 const IDENTITY_CONVERT = (amount: number) => amount;
@@ -35,6 +37,7 @@ export function useSubscriptionFilters(
     defaultCurrency = "CNY",
     convert = IDENTITY_CONVERT,
     locale = "zh-CN",
+    timeZone = "UTC",
   }: UseSubscriptionFiltersOptions = {},
 ) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -47,10 +50,11 @@ export function useSubscriptionFilters(
     () => ({ searchQuery, categoryFilter, statusFilter, selectedTags }),
     [categoryFilter, searchQuery, selectedTags, statusFilter],
   );
+  const today = useMemo(() => todayDateOnlyInTimeZone(new Date(), timeZone), [timeZone]);
   const allTags = useMemo(() => collectSubscriptionTags(subscriptions), [subscriptions]);
   const filteredSubscriptions = useMemo(
-    () => filterSubscriptions(subscriptions, filters),
-    [filters, subscriptions],
+    () => filterSubscriptions(subscriptions, filters, { today }),
+    [filters, subscriptions, today],
   );
   const sortedSubscriptions = useMemo(
     () => sortSubscriptions(filteredSubscriptions, { sortOption, defaultCurrency, convert, locale }),

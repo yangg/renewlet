@@ -18,6 +18,8 @@ import { useSettings } from '@/hooks/use-settings';
 import { useMemo } from 'react';
 import { useCustomConfig } from '@/contexts/CustomConfigContext';
 import { useI18n } from '@/i18n/I18nProvider';
+import { todayDateOnlyInTimeZone } from '@/lib/time/date-only';
+import { isEffectivelyActiveSubscription } from '@/modules/subscriptions/domain/subscription-status';
 
 interface SpendingChartProps {
   /** 订阅列表（前端 domain 类型）。 */
@@ -72,6 +74,7 @@ export function SpendingChart({ subscriptions }: SpendingChartProps) {
   const { config } = useCustomConfig();
   const { t, label, formatCurrency } = useI18n();
   const defaultCurrency = settings?.defaultCurrency ?? "CNY";
+  const today = todayDateOnlyInTimeZone(new Date(), settings?.timezone ?? "UTC");
   const { convert } = useExchangeRates(settings?.exchangeRateProvider);
 
   const categoryByValue = useMemo(() => {
@@ -79,7 +82,8 @@ export function SpendingChart({ subscriptions }: SpendingChartProps) {
   }, [config.categories]);
 
   const data = useMemo(() => {
-    const activeSubscriptions = subscriptions.filter((s) => s.status === "active" || s.status === "trial");
+    // 支出图只统计有效活跃订阅，避免已过扣费日的旧 active/trial 继续推高分类月支出。
+    const activeSubscriptions = subscriptions.filter((s) => isEffectivelyActiveSubscription(s, today));
 
     const categorySpending = activeSubscriptions.reduce(
       (acc, sub) => {
@@ -102,7 +106,7 @@ export function SpendingChart({ subscriptions }: SpendingChartProps) {
           color: categoryConfig?.color ?? fallbackColorAt(index),
         };
       });
-  }, [categoryByValue, convert, defaultCurrency, label, subscriptions]);
+  }, [categoryByValue, convert, defaultCurrency, label, subscriptions, today]);
 
   const CustomTooltip = ({ active, payload }: ChartTooltipProps) => {
     const first = payload?.[0];
