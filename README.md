@@ -18,7 +18,7 @@
   <img alt="MIT License" src="https://img.shields.io/badge/license-MIT-111827?style=flat-square">
 </p>
 
-Renewlet is a self-hosted ledger for people who subscribe to too many tools. It puts prices, renewal dates, budgets, currencies, logos, and reminders for SaaS, AI tools, cloud services, and developer tools in one place, so the next charge is never a surprise.
+Renewlet is a self-hosted subscription ledger that reminds you before renewals. Add a subscription or any recurring charge, set its renewal date and reminder days, and it will notify you through the channels you configure. You can also track price, currency, budget, logo, category, and payment method.
 
 Mobile web is first-class: open it in a phone browser to add subscriptions, filter lists, review stats, and configure notifications.
 
