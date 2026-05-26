@@ -64,11 +64,11 @@
     ]
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260520.1",
+    "@cloudflare/workers-types": "^4.20260521.1",
     "@lingui/format-po": "6.1.0",
     "@playwright/test": "^1.60.0",
     "@types/node": "^25.8.0",
     "typescript": "^6.0.3",
-    "wrangler": "^4.93.0"
+    "wrangler": "^4.94.0"
   }
 }
