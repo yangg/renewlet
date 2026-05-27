@@ -52,16 +52,87 @@ jobs:
 
   docker:
     needs: metadata
-    uses: ./.github/workflows/docker-image.yml
+    if: ${{ github.repository == 'zhiyingzzhou/renewlet' }}
     permissions:
       contents: read
       packages: write
-    with:
-      version: ${{ needs.metadata.outputs.version }}
-    secrets: inherit
+    runs-on: ubuntu-latest
+    outputs:
+      image-tags: ${{ steps.tags.outputs.tags }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6.0.0
+        with:
+          node-version: 24
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate release version
+        run: node scripts/release.mjs validate-version "${{ needs.metadata.outputs.version }}"
+
+      - name: Validate deployment config
+        run: pnpm check:deploy
+
+      - name: Resolve Docker tags
+        id: tags
+        # tag 规则集中在 release.mjs：stable 才写 latest，RC 只写 rc，避免 workflow 分叉后语义漂移。
+        run: |
+          TAGS="$(node scripts/release.mjs docker-tags "${{ needs.metadata.outputs.version }}")"
+          {
+            echo "tags<<EOF"
+            echo "$TAGS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "$TAGS"
+
+      - name: Resolve build time
+        id: build-time
+        run: echo "value=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.0.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4.1.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7.1.0
+        with:
+          context: .
+          file: ./Dockerfile
+          build-args: |
+            VERSION=${{ needs.metadata.outputs.version }}
+            COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ steps.build-time.outputs.value }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   cloudflare-check:
     needs: metadata
+    if: ${{ github.repository == 'zhiyingzzhou/renewlet' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -86,6 +157,7 @@ jobs:
         run: pnpm build:cloudflare
 
   github-release:
+    if: ${{ github.repository == 'zhiyingzzhou/renewlet' }}
     needs:
       - metadata
       - docker
@@ -160,11 +232,75 @@ jobs:
     needs:
       - metadata
       - github-release
-    if: ${{ needs.metadata.outputs.is-stable == 'true' }}
+    if: ${{ github.repository == 'zhiyingzzhou/renewlet' && needs.metadata.outputs.is-stable == 'true' }}
     # 稳定版才进入生产审批；RC 只保留 Cloudflare check/build 作为发布前验证。
-    uses: ./.github/workflows/cloudflare-production.yml
     permissions:
       contents: read
-    with:
-      version: ${{ needs.metadata.outputs.version }}
-    secrets: inherit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # GitHub Environment 是生产部署的人审闸门，保护远端 D1 migration 和 Worker 覆盖。
+    environment:
+      name: production-cloudflare
+    env:
+      CI_WRANGLER_CONFIG: wrangler.generated.jsonc
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WORKER_NAME: ${{ secrets.WORKER_NAME }}
+      D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6.0.0
+        with:
+          node-version: 24
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve build time
+        id: build-time
+        run: echo "value=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Validate stable release version
+        # 双保险：上游 job 已过滤 RC，但生产部署自身也拒绝候选版，避免改动条件时误放行。
+        run: |
+          VERSION="$(node scripts/release.mjs validate-version "${{ needs.metadata.outputs.version }}")"
+          if [[ "$VERSION" == *"-rc."* ]]; then
+            echo "Cloudflare production deploy only accepts stable versions." >&2
+            exit 1
+          fi
+
+      - name: Generate Cloudflare config
+        env:
+          RENEWLET_VERSION: ${{ needs.metadata.outputs.version }}
+          RENEWLET_COMMIT: ${{ github.sha }}
+          RENEWLET_BUILD_TIME: ${{ steps.build-time.outputs.value }}
+        run: pnpm cloudflare:config:ci
+
+      - name: Check Cloudflare build
+        run: pnpm check:cloudflare
+
+      - name: Build Cloudflare assets
+        run: pnpm build:cloudflare
+
+      - name: Apply D1 migrations
+        run: pnpm exec wrangler d1 migrations apply DB --remote --config "$CI_WRANGLER_CONFIG"
+
+      - name: Deploy Worker
+        run: pnpm exec wrangler deploy --config "$CI_WRANGLER_CONFIG"
+
+  fork-notice:
+    needs: metadata
+    if: ${{ github.repository != 'zhiyingzzhou/renewlet' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip official publishing on forks
+        run: |
+          echo "Release Publish is reserved for zhiyingzzhou/renewlet."
+          echo "Forks still get CI, Build Smoke, and Cloudflare Worker self-host deployment workflows."

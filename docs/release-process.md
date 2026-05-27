@@ -1,6 +1,16 @@
 # Release Process
 
-Renewlet uses a tag-driven release process. `dev` is the integration branch, `main` is the latest stable release, and production artifacts are created only from release tags.
+Renewlet uses a tag-driven release process. `dev` is the integration branch, `main` is the latest stable release, and production artifacts are created only from release tags. The Actions page keeps only a few human-facing entry points so maintainers and fork users do not have to understand internal release plumbing.
+
+## Workflow Entry Points
+
+- `CI`: public quality gate. It needs no secrets and works for forks and PRs.
+- `Build Smoke`: public build smoke test. It needs no secrets, validates Docker build and Cloudflare build, and never pushes or deploys.
+- `Cloudflare Worker`: self-managed Worker deployment for fork users or maintainer test environments. It skips remote deployment when Cloudflare secrets are missing; once secrets exist, it applies D1 migrations and deploys the Worker.
+- `Maintainer Release`: the only manual maintainer release workflow. Use `action=prepare|rc|promote` to choose the stage.
+- `Release Publish`: tag-driven official publishing workflow for `v*.*.*` tags. It handles Docker images, GitHub Releases, and the production Cloudflare approval chain.
+
+Official Docker publishing and production Cloudflare deploys live inside `Release Publish`; there are no extra manual internal workflows.
 
 ## Branches
 
@@ -21,26 +31,26 @@ Create a GitHub App named `renewlet-release-bot`, disable webhooks, and install 
 - Pull requests: read and write
 - Workflows: read and write
 
-Add these repository settings before running release workflows:
+Add these repository settings before running `Maintainer Release`:
 
 - Variable `RENEWLET_RELEASE_APP_CLIENT_ID`: the GitHub App Client ID.
 - Secret `RENEWLET_RELEASE_APP_PRIVATE_KEY`: the full private key PEM generated for the app.
 
-The release workflows fail early if either value is missing. Existing `release/vX.Y.Z` branches can stay in place; the release bot updates the branch and, after RC validation, creates or updates the matching PR.
+`Maintainer Release` fails early if either value is missing. Existing `release/vX.Y.Z` branches can stay in place; the release bot updates the branch and, after RC validation, creates or updates the matching PR.
 
 ## Prepare A Release
 
 1. Make sure `dev` is green in CI.
-2. Run the `Release Prepare` workflow.
+2. Run the `Maintainer Release` workflow with `action=prepare`.
 3. Enter a stable SemVer version such as `0.1.0`.
-4. The workflow syncs package versions and pushes `release/v0.1.0`.
+4. The workflow syncs package versions and pushes or updates `release/v0.1.0`.
 5. Edit `CHANGELOG.md` for that version. Keep the notes short and user-facing; the GitHub Release links to the full commit history separately.
 6. Keep release-only fixes on `release/v0.1.0`.
 7. Do not open the `main` PR yet; publish and validate at least one RC first.
 
 ## Publish A Release Candidate
 
-1. Run the `Release Candidate` workflow.
+1. Run the `Maintainer Release` workflow with `action=rc`.
 2. Enter the stable version, for example `0.1.0`.
 3. Enter the RC number, for example `1`.
 4. The workflow creates tag `v0.1.0-rc.1` with the release bot token.
@@ -56,13 +66,15 @@ The release workflows fail early if either value is missing. Existing `release/v
 
 1. Test the RC Docker image, GitHub prerelease assets, and Cloudflare release build output.
 2. If the RC fails validation, fix `release/v0.1.0` and publish the next RC, for example `v0.1.0-rc.2`.
-3. After an RC passes validation, run the `Release Promote` workflow.
+3. After an RC passes validation, run the `Maintainer Release` workflow with `action=promote`.
 4. Enter the stable version, for example `0.1.0`, and the validated RC number, for example `1`.
 5. The workflow checks that `v0.1.0-rc.1` exists, then creates or updates the `release/v0.1.0` PR against `main`.
 
 ## Cloudflare Test Deploy
 
-Use `.github/workflows/cloudflare-worker.yml` for Cloudflare test deployments. It runs on `dev` pushes and can also be started manually from GitHub Actions. This workflow is for test or user-managed Worker environments; it is separate from the release production gate.
+Use the `Cloudflare Worker` workflow for Cloudflare test deployments. It runs on `dev` and `main` pushes and can also be started manually from GitHub Actions. This workflow is for test or user-managed Worker environments; it is separate from the release production gate.
+
+If a fork user has not configured `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `WORKER_NAME`, `D1_DATABASE_ID`, and `R2_BUCKET_NAME`, the workflow finishes check/build and skips remote deployment with a notice. Once all secrets exist, it generates the Wrangler config, applies D1 migrations, and deploys the Worker.
 
 ## Publish Stable
 
@@ -85,7 +97,7 @@ git push origin v0.1.0
    - `ghcr.io/zhiyingzzhou/renewlet:0.1`
    - `ghcr.io/zhiyingzzhou/renewlet:latest`
 5. Review the draft Release, verify the Docker image list and short changelog, then publish it manually.
-6. Approve the `production-cloudflare` environment if this release should deploy the production Worker. Stable releases use `.github/workflows/cloudflare-production.yml`, not the test deploy workflow.
+6. Approve the `production-cloudflare` environment if this release should deploy the production Worker. Stable releases use the production deploy job inside `Release Publish`, not the `Cloudflare Worker` test deploy workflow.
 
 ## Docker In-App Updates
 

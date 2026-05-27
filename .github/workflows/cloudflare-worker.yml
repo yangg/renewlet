@@ -1,14 +1,19 @@
 name: Cloudflare Worker
 
-# 测试/用户自管 Cloudflare 部署入口，保留 dev push 和手动运行；正式发布走 cloudflare-production。
+# fork 用户和维护者测试环境共用的自管部署入口；缺少 secrets 时只跳过远端部署，仍保留构建验证。
 on:
   push:
     branches:
       - dev
+      - main
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CI_WRANGLER_CONFIG: wrangler.generated.jsonc
@@ -52,6 +57,8 @@ jobs:
         id: deployment-secrets
         shell: bash
         run: |
+          set -euo pipefail
+
           missing=()
           for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID WORKER_NAME D1_DATABASE_ID R2_BUCKET_NAME; do
             if [[ -z "${!name}" ]]; then

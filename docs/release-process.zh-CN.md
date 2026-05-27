@@ -1,6 +1,16 @@
 # 发布流程
 
-Renewlet 使用 tag 驱动发布。`dev` 是日常集成分支，`main` 是最新稳定版分支，Release、镜像和 Cloudflare 生产部署只从发布 tag 产生。
+Renewlet 使用 tag 驱动发布。`dev` 是日常集成分支，`main` 是最新稳定版分支，Release、镜像和 Cloudflare 生产部署只从发布 tag 产生。Actions 页面只保留少量入口，降低维护者和 fork 用户的心智负担。
+
+## Workflow 入口
+
+- `CI`：公开质量门，不需要 secrets，fork 和 PR 都能运行。
+- `Build Smoke`：公开构建冒烟，不需要 secrets，只验证 Docker build 和 Cloudflare build，不推镜像、不部署。
+- `Cloudflare Worker`：fork 用户或维护者测试环境的自管 Worker 部署。缺少 Cloudflare secrets 时只跳过远端部署；配置 secrets 后才执行 D1 migration 和 Worker deploy。
+- `Maintainer Release`：维护者唯一手动发布入口，通过 `action=prepare|rc|promote` 控制阶段。
+- `Release Publish`：tag 驱动的官方发布入口，响应 `v*.*.*` tag，负责 Docker/GitHub Release/生产 Cloudflare 审批链路。
+
+官方 Docker 发布和生产 Cloudflare 部署都收在 `Release Publish` 内部，不再暴露额外手动 workflow。
 
 ## 分支
 
@@ -21,26 +31,26 @@ PR 标题和 commit 使用 Conventional Commits。示例：`feat: add notificati
 - Pull requests：read and write
 - Workflows：read and write
 
-运行发布 workflow 前，在仓库里配置：
+运行 `Maintainer Release` 前，在仓库里配置：
 
 - Variable `RENEWLET_RELEASE_APP_CLIENT_ID`：GitHub App 的 Client ID。
 - Secret `RENEWLET_RELEASE_APP_PRIVATE_KEY`：App 生成的完整 private key PEM。
 
-任一配置缺失时，发布 workflow 会在开头直接失败并提示配置项。已经存在的 `release/vX.Y.Z` 分支不用删除；release bot 会更新分支，并在 RC 验证通过后创建或更新对应 PR。
+任一配置缺失时，`Maintainer Release` 会在开头直接失败并提示配置项。已经存在的 `release/vX.Y.Z` 分支不用删除；release bot 会更新分支，并在 RC 验证通过后创建或更新对应 PR。
 
 ## 准备发布
 
 1. 确认 `dev` 的 CI 通过。
-2. 运行 `Release Prepare` workflow。
+2. 运行 `Maintainer Release` workflow，`action` 选择 `prepare`。
 3. 输入稳定版 SemVer，例如 `0.1.0`。
-4. workflow 会同步 package 版本，并推送 `release/v0.1.0`。
+4. workflow 会同步 package 版本，并推送或更新 `release/v0.1.0`。
 5. 编辑 `CHANGELOG.md` 中对应版本的短 release notes。内容保持面向用户、简短可读；GitHub Release 会单独附完整 commit 历史链接。
 6. 发布期只在 `release/v0.1.0` 上做 release 修复。
 7. 这一步不要创建 `main` PR；先发布并验证至少一个 RC。
 
 ## 发布候选版
 
-1. 运行 `Release Candidate` workflow。
+1. 运行 `Maintainer Release` workflow，`action` 选择 `rc`。
 2. 输入稳定版版本号，例如 `0.1.0`。
 3. 输入 RC 编号，例如 `1`。
 4. workflow 会用 release bot token 创建 `v0.1.0-rc.1` tag。
@@ -56,13 +66,15 @@ PR 标题和 commit 使用 Conventional Commits。示例：`feat: add notificati
 
 1. 测试 RC Docker 镜像、GitHub prerelease 附件和 Cloudflare release build 输出。
 2. 如果 RC 验证失败，继续修 `release/v0.1.0`，然后发布下一个 RC，例如 `v0.1.0-rc.2`。
-3. RC 验证通过后，运行 `Release Promote` workflow。
+3. RC 验证通过后，运行 `Maintainer Release` workflow，`action` 选择 `promote`。
 4. 输入稳定版版本号，例如 `0.1.0`，以及已验证的 RC 编号，例如 `1`。
 5. workflow 会检查 `v0.1.0-rc.1` 是否存在，然后创建或更新指向 `main` 的 `release/v0.1.0` PR。
 
 ## Cloudflare 测试部署
 
-Cloudflare 测试部署使用 `.github/workflows/cloudflare-worker.yml`。它会在 `dev` push 时运行，也可以在 GitHub Actions 页面手动启动。这个 workflow 面向测试环境或用户自管 Worker 环境，和正式版发布的生产审批门分开。
+Cloudflare 测试部署使用 `Cloudflare Worker` workflow。它会在 `dev` 或 `main` push 时运行，也可以在 GitHub Actions 页面手动启动。这个 workflow 面向测试环境或用户自管 Worker 环境，和正式版发布的生产审批门分开。
+
+如果 fork 用户没有配置 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`WORKER_NAME`、`D1_DATABASE_ID`、`R2_BUCKET_NAME`，workflow 会完成 check/build 后跳过远端部署并给出 notice；配置齐全后才会生成 Wrangler 配置、执行 D1 migration、部署 Worker。
 
 ## 发布稳定版
 
@@ -85,7 +97,7 @@ git push origin v0.1.0
    - `ghcr.io/zhiyingzzhou/renewlet:0.1`
    - `ghcr.io/zhiyingzzhou/renewlet:latest`
 5. 检查 draft Release 的镜像列表和短 changelog 后，手动发布 Release。
-6. 如果本次稳定版需要部署 Cloudflare 生产 Worker，审批 `production-cloudflare` environment。稳定版发布使用 `.github/workflows/cloudflare-production.yml`，不使用测试部署 workflow。
+6. 如果本次稳定版需要部署 Cloudflare 生产 Worker，审批 `production-cloudflare` environment。稳定版发布使用 `Release Publish` 内部的生产部署 job，不使用 `Cloudflare Worker` 测试部署 workflow。
 
 ## Docker 页面内更新
 

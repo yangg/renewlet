@@ -1,0 +1,243 @@
+name: Maintainer Release
+
+# 维护者唯一手动发布入口：prepare 准备分支，rc 发布候选 tag，promote 在候选版验证后打开 main PR。
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Release action to run."
+        required: true
+        default: prepare
+        type: choice
+        options:
+          - prepare
+          - rc
+          - promote
+      version:
+        description: "Stable SemVer version without the leading v, for example 0.1.0."
+        required: true
+        type: string
+      rc:
+        description: "RC number for rc/promote, for example 1."
+        required: false
+        type: string
+      base_branch:
+        description: "Integration branch used by prepare."
+        required: true
+        default: dev
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: maintainer-release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Resolve inputs
+        id: release-input
+        env:
+          ACTION: ${{ inputs.action }}
+          RAW_VERSION: ${{ inputs.version }}
+          RC: ${{ inputs.rc }}
+          BASE_BRANCH: ${{ inputs.base_branch }}
+        run: |
+          set -euo pipefail
+
+          VERSION="${RAW_VERSION#v}"
+          case "$ACTION" in
+            prepare|rc|promote) ;;
+            *)
+              echo "Unsupported release action: ${ACTION}" >&2
+              exit 1
+              ;;
+          esac
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version must be a stable SemVer value such as 0.1.0." >&2
+            exit 1
+          fi
+
+          if [[ "$ACTION" != "prepare" && ! "$RC" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Action ${ACTION} requires a positive RC number, for example 1." >&2
+            exit 1
+          fi
+
+          RELEASE_BRANCH="release/v${VERSION}"
+          if [[ "$ACTION" == "prepare" ]]; then
+            CHECKOUT_REF="$BASE_BRANCH"
+          else
+            CHECKOUT_REF="$RELEASE_BRANCH"
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "release_branch=${RELEASE_BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "checkout_ref=${CHECKOUT_REF}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate release bot configuration
+        env:
+          RELEASE_APP_CLIENT_ID: ${{ vars.RENEWLET_RELEASE_APP_CLIENT_ID }}
+          RELEASE_APP_PRIVATE_KEY: ${{ secrets.RENEWLET_RELEASE_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$RELEASE_APP_CLIENT_ID" || -z "$RELEASE_APP_PRIVATE_KEY" ]]; then
+            echo "Maintainer Release requires a dedicated GitHub App token." >&2
+            echo "Set repository variable RENEWLET_RELEASE_APP_CLIENT_ID and repository secret RENEWLET_RELEASE_APP_PRIVATE_KEY." >&2
+            echo "The release bot app needs Contents: write, Pull requests: write, and Workflows: write on this repository." >&2
+            exit 1
+          fi
+
+      - name: Create release bot token
+        id: release-bot
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.RENEWLET_RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RENEWLET_RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+
+      - name: Check release branch
+        if: ${{ inputs.action != 'prepare' }}
+        env:
+          RELEASE_BOT_TOKEN: ${{ steps.release-bot.outputs.token }}
+          RELEASE_BRANCH: ${{ steps.release-input.outputs.release_branch }}
+        run: |
+          set -euo pipefail
+
+          REPO_URL="https://x-access-token:${RELEASE_BOT_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if ! git ls-remote --exit-code --heads "$REPO_URL" "${RELEASE_BRANCH}" > /dev/null 2>&1; then
+            echo "Release branch ${RELEASE_BRANCH} does not exist. Run action=prepare for this version first." >&2
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ steps.release-input.outputs.checkout_ref }}
+          fetch-depth: 0
+          token: ${{ steps.release-bot.outputs.token }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6.0.0
+        with:
+          node-version: 24
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare release branch
+        if: ${{ inputs.action == 'prepare' }}
+        env:
+          RELEASE_BOT_TOKEN: ${{ steps.release-bot.outputs.token }}
+          VERSION: ${{ steps.release-input.outputs.version }}
+          RELEASE_BRANCH: ${{ steps.release-input.outputs.release_branch }}
+        run: |
+          set -euo pipefail
+
+          node scripts/release.mjs validate-next-version "$VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${RELEASE_BOT_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          # prepare 初次从 dev 切分支；重跑同版本时接管既有 release 分支，避免覆盖发布期修复。
+          if git ls-remote --exit-code --heads origin "${RELEASE_BRANCH}" > /dev/null 2>&1; then
+            git fetch origin "${RELEASE_BRANCH}"
+            git checkout -B "${RELEASE_BRANCH}" "origin/${RELEASE_BRANCH}"
+          else
+            git checkout -B "${RELEASE_BRANCH}"
+          fi
+
+          node scripts/release.mjs sync-version "$VERSION"
+          if ! git diff --quiet; then
+            git add package.json packages/*/package.json
+            git commit -m "chore: prepare release v${VERSION}"
+          fi
+
+          git push origin "HEAD:${RELEASE_BRANCH}"
+          echo "Release branch ready: ${RELEASE_BRANCH}"
+
+      - name: Publish release candidate tag
+        if: ${{ inputs.action == 'rc' }}
+        env:
+          RELEASE_BOT_TOKEN: ${{ steps.release-bot.outputs.token }}
+          VERSION: ${{ steps.release-input.outputs.version }}
+          RC: ${{ inputs.rc }}
+        run: |
+          set -euo pipefail
+
+          RC_VERSION="$(node scripts/release.mjs validate-version "${VERSION}-rc.${RC}")"
+          TAG="v${RC_VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${RELEASE_BOT_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" > /dev/null 2>&1; then
+            echo "Tag ${TAG} already exists. Delete it intentionally or use the next RC number." >&2
+            exit 1
+          fi
+
+          # RC tag 必须由 release bot 推送；GITHUB_TOKEN 推出的 tag 不会触发 tag 驱动的 Release Publish。
+          git tag -a "${TAG}" -m "Renewlet ${TAG}"
+          git push origin "${TAG}"
+          echo "Release candidate tag published: ${TAG}"
+
+      - name: Promote release branch
+        if: ${{ inputs.action == 'promote' }}
+        env:
+          GH_TOKEN: ${{ steps.release-bot.outputs.token }}
+          VERSION: ${{ steps.release-input.outputs.version }}
+          RELEASE_BRANCH: ${{ steps.release-input.outputs.release_branch }}
+          RC: ${{ inputs.rc }}
+        run: |
+          set -euo pipefail
+
+          RC_VERSION="$(node scripts/release.mjs validate-version "${VERSION}-rc.${RC}")"
+          RC_TAG="v${RC_VERSION}"
+          PR_TITLE="release: v${VERSION}"
+          BODY_FILE="$(mktemp)"
+
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if ! git ls-remote --exit-code --tags origin "refs/tags/${RC_TAG}" > /dev/null 2>&1; then
+            echo "Validated RC tag ${RC_TAG} does not exist. Publish and test the RC before promoting this release." >&2
+            exit 1
+          fi
+
+          cat > "$BODY_FILE" <<EOF
+          ## Release v${VERSION}
+
+          This PR promotes \`${RELEASE_BRANCH}\` to \`main\` after RC validation.
+
+          Validated RC:
+          - \`${RC_TAG}\`
+
+          Checklist:
+          - [ ] CI is green on \`${RELEASE_BRANCH}\`
+          - [ ] \`${RC_TAG}\` Docker and GHCR images have been tested
+          - [ ] Docker deployment package has been checked
+          - [ ] Cloudflare release build has passed
+          EOF
+
+          # main PR 只在已验证 RC 存在后创建，避免未测试候选版提前进入稳定合并队列。
+          PR_URL="$(gh pr list --base main --head "${RELEASE_BRANCH}" --state open --json url --jq '.[0].url // ""')"
+          if [[ -n "$PR_URL" ]]; then
+            gh pr edit "$PR_URL" --title "$PR_TITLE" --body-file "$BODY_FILE"
+          else
+            PR_URL="$(gh pr create --base main --head "${RELEASE_BRANCH}" --title "$PR_TITLE" --body-file "$BODY_FILE")"
+          fi
+
+          if [[ -z "$PR_URL" ]]; then
+            echo "Release pull request was not created or found." >&2
+            exit 1
+          fi
+
+          echo "Release pull request: ${PR_URL}"
