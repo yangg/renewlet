@@ -12,6 +12,12 @@ Renewlet uses a tag-driven release process. `dev` is the integration branch, `ma
 
 Official Docker publishing and production Cloudflare deploys live inside `Release Publish`; there are no extra manual internal workflows.
 
+## Docker Hub Overview
+
+Docker Hub does not populate the repository Overview from image pushes. `Release Publish` updates the Docker Hub short description and Overview after the official image push succeeds, using `README.md` as the source.
+
+Keep repository secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` configured before publishing RC or stable tags. The token must be able to push `zhiyingzzhou/renewlet` and update repository metadata, because the same release job handles both image upload and Overview synchronization.
+
 ## Branches
 
 - `dev`: day-to-day integration branch. Feature and fix PRs target this branch.

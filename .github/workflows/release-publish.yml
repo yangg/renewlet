@@ -128,6 +128,16 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Update Docker Hub overview
+        # docker push 只写镜像 manifest；仓库 Overview 是独立元数据，必须随官方发布显式同步。
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: zhiyingzzhou/renewlet
+          short-description: Self-hosted subscription ledger and renewal reminders
+          readme-filepath: ./README.md
+
   cloudflare-check:
     needs: metadata
     if: ${{ github.repository == 'zhiyingzzhou/renewlet' }}
