@@ -3,17 +3,16 @@ import { Image as ImageIcon, ImageOff, Images, Link, Loader2, RefreshCw, Search,
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FaviconResultImage } from "@/components/favicon-result-image";
 import { MediaCandidateSearchPanel } from "@/components/media-candidate-search-panel";
 import { MediaCandidateViewport } from "@/components/media-candidate-viewport";
 import { MediaThumbnailButton } from "@/components/media-thumbnail-button";
 import { LogoUrlInputPanel } from "@/components/logo-url-input-panel";
+import { SubscriptionLogo } from "@/components/subscription-logo";
 import { useMediaCandidates } from "@/hooks/use-media-candidates";
 import { useUploadedLogoAssets } from "@/hooks/use-uploaded-logo-assets";
 import { dataUrlToBlob, validateImageFileForUpload } from "@/lib/upload-image";
 import { IMAGE_UPLOAD_ACCEPT, imageExtensionForMime, isIcoImageMime, isSvgImageMime, uploadMimeTypeForFile } from "@/lib/upload-constraints";
 import { useI18n } from "@/i18n/I18nProvider";
-import { cn } from "@/lib/utils";
 
 const loadImageCropDialog = () => import("@/components/image-crop-dialog");
 const LazyImageCropDialog = lazy(() => loadImageCropDialog().then((mod) => ({ default: mod.ImageCropDialog })));
@@ -272,11 +271,7 @@ export function ImportLogoEditor({ name, value, assetPreviewUrl, onChange }: Imp
 }
 
 function LogoThumb({ src, name, className }: { src?: string | undefined; name: string; className?: string | undefined }) {
-  return (
-    <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-secondary/60", className)}>
-      {src ? <FaviconResultImage src={src} alt={`${name} Logo`} className="media-thumbnail-image" /> : <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />}
-    </span>
-  );
+  return <SubscriptionLogo name={name} logo={src} size="xs" className={className} />;
 }
 
 function LogoGrid({ children, empty }: { children: ReactNode; empty: string }) {

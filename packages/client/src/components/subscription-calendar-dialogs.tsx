@@ -6,13 +6,12 @@
  *
  * 注意： 弹窗中的金额、周期和状态标签必须继续复用 subscription domain 常量，避免日历视图口径分叉。
  */
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useState } from 'react';
 import type { Subscription, SubscriptionStatus } from '@/types/subscription';
 import { DEFAULT_NOTIFICATION_REMINDER_DAYS, INHERIT_REMINDER_DAYS, STATUS_LABELS, CYCLE_LABELS } from '@/types/subscription';
 import { Button } from '@/components/ui/button';
 import { CalendarDays, CalendarPlus, ExternalLink, Edit2, X } from 'lucide-react';
 import { Drawer } from 'vaul';
-import { AuthorizedImage } from '@/components/authorized-image';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { TruncatedTooltipText } from '@/components/ui/truncated-tooltip-text';
@@ -23,6 +22,7 @@ import type { DateOnly } from '@/lib/time/date-only';
 import { getEffectiveSubscriptionStatus } from '@/modules/subscriptions/domain/subscription-status';
 import { useSettings } from '@/hooks/use-settings';
 import { AddToCalendarDialog } from '@/components/add-to-calendar-dialog';
+import { SubscriptionLogo } from '@/components/subscription-logo';
 
 const DEFAULT_LOGO_FALLBACK_COLOR = "hsl(var(--primary))";
 
@@ -34,10 +34,6 @@ const statusBadgeClassNames = {
   cancelled: "border-destructive/20 bg-destructive/10 text-destructive",
 } satisfies Record<SubscriptionStatus, string>;
 
-type LogoTileStyle = CSSProperties & {
-  "--subscription-logo-fallback": string;
-};
-
 interface CalendarSubscriptionLogoProps {
   subscription: Subscription;
   categoryColor: string | undefined;
@@ -45,37 +41,7 @@ interface CalendarSubscriptionLogoProps {
 }
 
 function CalendarSubscriptionLogo({ subscription, categoryColor, className }: CalendarSubscriptionLogoProps) {
-  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
-
-  useEffect(() => {
-    // 日历列表会复用同一个 Logo 组件展示不同订阅；错误态必须按 logo 字段隔离。
-    setLogoLoadFailed(false);
-  }, [subscription.logo]);
-
-  const logoTileStyle: LogoTileStyle = {
-    "--subscription-logo-fallback": categoryColor ?? DEFAULT_LOGO_FALLBACK_COLOR,
-  };
-
-  return (
-    <div
-      className={cn(
-        "subscription-logo-tile flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border text-sm font-bold",
-        className,
-      )}
-      style={logoTileStyle}
-    >
-      {subscription.logo && !logoLoadFailed ? (
-        <AuthorizedImage
-          src={subscription.logo}
-          alt={subscription.name}
-          className="subscription-logo-image h-full w-full object-contain p-1"
-          onError={() => setLogoLoadFailed(true)}
-        />
-      ) : (
-        <span className="subscription-logo-fallback">{subscription.name.slice(0, 2).toUpperCase()}</span>
-      )}
-    </div>
-  );
+  return <SubscriptionLogo name={subscription.name} logo={subscription.logo} fallbackColor={categoryColor ?? DEFAULT_LOGO_FALLBACK_COLOR} size="sm" className={className} />;
 }
 
 export interface CalendarDaySubscriptions {

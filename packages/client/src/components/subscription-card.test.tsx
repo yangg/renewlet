@@ -1,4 +1,6 @@
 // 订阅卡片测试保护有效状态、菜单操作和日历入口，避免列表页展示与 domain 状态计算分叉。
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,6 +9,7 @@ import type { Subscription } from "@/types/subscription";
 import { SubscriptionCard } from "./subscription-card";
 
 const originalWindowOpen = window.open;
+const mediaUtilitiesCss = readFileSync(join(process.cwd(), "src/styles/media-utilities.css"), "utf8");
 
 type FixedBillingCycle = Exclude<Subscription["billingCycle"], "custom">;
 type SubscriptionOverrides = Partial<Omit<Subscription, "billingCycle" | "customDays">> & (
@@ -167,38 +170,63 @@ describe("SubscriptionCard", () => {
     Object.defineProperty(window, "open", { configurable: true, value: originalWindowOpen });
   });
 
-  it("renders subscription logos on the shared neutral logo tile", () => {
+  it("renders subscription logos through the unified theme-aware logo surface", () => {
     renderSubscriptionCard({ logo: "https://example.com/apple-tv.svg", name: "Apple TV" });
 
     const logo = screen.getByAltText("Apple TV");
-    const logoTile = logo.closest("div");
+    const logoTile = logo.closest(".subscription-logo-tile");
 
     expect(logo).toHaveClass("subscription-logo-image", "object-contain");
-    expect(logoTile).toHaveClass("subscription-logo-tile");
+    expect(logo).not.toHaveClass("media-thumbnail-image", "invert", "brightness-125", "mix-blend-screen");
+    expect(logoTile).not.toBeNull();
+    expect(logoTile).not.toHaveClass("media-thumbnail-canvas");
     expect(logoTile).not.toHaveClass("bg-gradient-to-br");
     expect(logoTile?.getAttribute("style")).not.toContain("accent");
   });
 
-  it("uses the same neutral logo path for white transparent logos", () => {
+  it("keeps real subscription logo styling as one plate without an inner pseudo-element", () => {
+    expect(mediaUtilitiesCss).not.toContain(".subscription-logo-tile::before");
+    expect(mediaUtilitiesCss).not.toContain(".dark .subscription-logo-tile::before");
+    expect(mediaUtilitiesCss).not.toMatch(/\.subscription-logo-tile\s*{[^}]*media-thumbnail-canvas/s);
+    expect(mediaUtilitiesCss).not.toMatch(/\.subscription-logo-tile\s*{[^}]*(::before|::after)/s);
+    expect(mediaUtilitiesCss).toMatch(/\.subscription-logo-tile\s*{[^}]*background:\s*hsl\(/s);
+    expect(mediaUtilitiesCss).toMatch(/\.dark \.subscription-logo-tile\s*{[^}]*background:\s*hsl\(210 18% 90% \/ 0\.88\)/s);
+    expect(mediaUtilitiesCss).toMatch(/\.dark \.subscription-logo-image\s*{[^}]*drop-shadow/s);
+    expect(mediaUtilitiesCss).toMatch(/\.subscription-logo-image\s*{[^}]*drop-shadow/s);
+    expect(mediaUtilitiesCss).not.toMatch(/\.subscription-logo-image\s*{[^}]*(mix-blend|invert|brightness|contrast|saturate)/s);
+  });
+
+  it("uses the same unified logo surface for white transparent logos", () => {
     renderSubscriptionCard({ logo: "https://example.com/white-logo.svg", name: "ngrok" });
 
     const logo = screen.getByAltText("ngrok");
-    const logoTile = logo.closest("div");
+    const logoTile = logo.closest(".subscription-logo-tile");
 
     expect(logo).toHaveClass("subscription-logo-image", "object-contain");
-    expect(logoTile).toHaveClass("subscription-logo-tile");
+    expect(logoTile).not.toBeNull();
+    expect(logoTile).not.toHaveClass("media-thumbnail-canvas");
     expect(logoTile?.getAttribute("style")).not.toContain("accent");
   });
 
-  it("keeps the initials fallback inside the neutral logo tile", () => {
+  it("keeps the initials fallback inside the unified logo surface", () => {
     renderSubscriptionCard({ name: "dmit", logo: undefined });
 
     const initials = screen.getByText("DM");
-    const logoTile = initials.closest("div");
+    const logoTile = initials.closest(".subscription-logo-tile");
 
     expect(initials).toHaveClass("subscription-logo-fallback");
-    expect(logoTile).toHaveClass("subscription-logo-tile");
+    expect(logoTile).not.toBeNull();
     expect(logoTile).not.toHaveClass("bg-gradient-to-br");
+  });
+
+  it("falls back to initials when the subscription logo fails to load", () => {
+    renderSubscriptionCard({ logo: "https://example.com/broken.svg", name: "OpenAI" });
+
+    fireEvent.error(screen.getByAltText("OpenAI"));
+
+    const initials = screen.getByText("OP");
+    expect(initials).toHaveClass("subscription-logo-fallback");
+    expect(initials.closest(".subscription-logo-tile")).not.toBeNull();
   });
 
   it("lets the badge group use the full header width before wrapping", () => {

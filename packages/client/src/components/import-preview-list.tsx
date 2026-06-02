@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Ban, Filter, Image as ImageIcon, RotateCcw } from "lucide-react";
+import { AlertTriangle, Ban, Filter, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { VirtualizedList } from "@/components/ui/virtualized-list";
-import { FaviconResultImage } from "@/components/favicon-result-image";
 import { ImportLogoEditor, type DeferredLogoAsset } from "@/components/import-logo-editor";
+import { SubscriptionLogo } from "@/components/subscription-logo";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { MessageKey } from "@/i18n/messages";
 import type { ImportConflictMode, ImportItemAction, ImportPreviewItem, ImportPreviewResponse, ImportSummary } from "@/lib/api/schemas/import-export";
@@ -235,13 +235,7 @@ function ImportPreviewLogo({ prepared, index, name }: { prepared: PreparedImport
   }, [asset, subscription?.logo]);
 
   return (
-    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-secondary/40 p-1">
-      {src ? (
-        <FaviconResultImage src={src} alt={`${name} Logo`} className="media-thumbnail-image" />
-      ) : (
-        <ImageIcon className="h-5 w-5 text-muted-foreground" />
-      )}
-    </div>
+    <SubscriptionLogo name={name} logo={src} size="sm" className="h-11 w-11" />
   );
 }
 

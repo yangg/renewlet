@@ -132,6 +132,32 @@ describe("ImportLogoEditor", () => {
     expect(screen.getByRole("button", { name: "清除 Logo" }).querySelector(".lucide-image-off")).not.toBeNull();
   });
 
+  it("renders the trigger and sheet preview on the unified subscription logo surface", async () => {
+    const user = userEvent.setup();
+    mockMatchMedia({ "(max-width: 767px)": true });
+
+    render(
+      <ImportLogoEditor
+        name="Apple"
+        value="https://example.com/apple.svg"
+        onChange={vi.fn()}
+      />,
+    );
+
+    const triggerLogo = screen.getByRole("button", { name: "修改 Logo" }).querySelector(".subscription-logo-tile");
+    expect(triggerLogo).not.toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "修改 Logo" }));
+
+    const logo = screen.getAllByAltText("Apple")[0];
+    const logoTile = logo.closest(".subscription-logo-tile");
+
+    expect(logo).toHaveClass("subscription-logo-image", "object-contain");
+    expect(logo).not.toHaveClass("media-thumbnail-image", "invert", "brightness-125", "mix-blend-screen");
+    expect(logoTile).not.toBeNull();
+    expect(logoTile).not.toHaveClass("media-thumbnail-canvas");
+  });
+
   it("applies a custom Logo link without carrying a deferred asset", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

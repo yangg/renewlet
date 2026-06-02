@@ -10,7 +10,7 @@
  * 需要把 label/color view model 从上层传入。
  */
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useState } from 'react';
 import {
   DEFAULT_NOTIFICATION_REMINDER_DAYS,
   INHERIT_REMINDER_DAYS,
@@ -37,8 +37,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { TruncatedTooltipText } from '@/components/ui/truncated-tooltip-text';
 import { AuthorizedImage } from '@/components/authorized-image';
+import { TruncatedTooltipText } from '@/components/ui/truncated-tooltip-text';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,6 +53,7 @@ import { useI18n } from '@/i18n/I18nProvider';
 import { localizedLabel } from '@/i18n/locales';
 import { useSettings } from '@/hooks/use-settings';
 import { AddToCalendarDialog } from '@/components/add-to-calendar-dialog';
+import { SubscriptionLogo } from '@/components/subscription-logo';
 
 interface SubscriptionCardProps {
   /** 订阅数据（前端 domain 类型）。 */
@@ -78,10 +79,6 @@ const statusStyles: Record<SubscriptionStatus, string> = {
 
 const DEFAULT_BADGE_COLOR = "hsl(var(--primary))";
 
-type LogoTileStyle = CSSProperties & {
-  "--subscription-logo-fallback": string;
-};
-
 /** 订阅卡片。 */
 export function SubscriptionCard({ subscription, viewMode = 'grid', onEdit, onDelete, timeZone }: SubscriptionCardProps) {
   const { config } = useCustomConfig();
@@ -95,13 +92,9 @@ export function SubscriptionCard({ subscription, viewMode = 'grid', onEdit, onDe
     borderColor: colorWithAlpha(categoryColor, 0.2) ?? undefined,
     color: categoryColor,
   };
-  const logoTileStyle: LogoTileStyle = {
-    "--subscription-logo-fallback": categoryColor,
-  };
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showAddToCalendarDialog, setShowAddToCalendarDialog] = useState(false);
-  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
   const today = todayDateOnlyInTimeZone(new Date(), timeZone);
   const daysUntilRenewal = daysBetweenDateOnly(today, subscription.nextBillingDate);
   const daysUntilTrialEnd = subscription.trialEndDate ? daysBetweenDateOnly(today, subscription.trialEndDate) : null;
@@ -114,11 +107,6 @@ export function SubscriptionCard({ subscription, viewMode = 'grid', onEdit, onDe
   const isTrialEndingSoon = !isExpired && subscription.status === 'trial' && daysUntilTrialEnd !== null &&
     daysUntilTrialEnd <= 3 && daysUntilTrialEnd >= 0;
   const inheritedReminderDays = settings?.notificationReminderDays ?? DEFAULT_NOTIFICATION_REMINDER_DAYS;
-
-  useEffect(() => {
-    // Logo URL 可能由外链切换为私有资产；错误态必须跟随字段重置，不能让旧坏图污染新图。
-    setLogoLoadFailed(false);
-  }, [subscription.logo]);
 
   const handleDeleteConfirm = () => {
     // 删除写入交给页面 mutation；卡片只关闭本地确认框，避免 mutation 失败后留下二次确认遮罩。
@@ -138,20 +126,7 @@ export function SubscriptionCard({ subscription, viewMode = 'grid', onEdit, onDe
       )}
     >
       <div className="flex items-start gap-4">
-        <div className={cn(
-          "subscription-logo-tile flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border text-lg font-bold",
-        )} style={logoTileStyle}>
-          {subscription.logo && !logoLoadFailed ? (
-            <AuthorizedImage
-              src={subscription.logo}
-              alt={subscription.name}
-              className="subscription-logo-image h-full w-full object-contain p-1"
-              onError={() => setLogoLoadFailed(true)}
-            />
-          ) : (
-            <span className="subscription-logo-fallback">{subscription.name.slice(0, 2).toUpperCase()}</span>
-          )}
-        </div>
+        <SubscriptionLogo name={subscription.name} logo={subscription.logo} fallbackColor={categoryColor} size="md" />
 
         <div className="min-w-0 flex-1 grid gap-3">
           <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-x-3 gap-y-2">

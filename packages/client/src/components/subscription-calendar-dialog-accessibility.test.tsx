@@ -136,7 +136,7 @@ describe("SubscriptionCalendar dialogs", () => {
     );
   });
 
-  it("renders the detail dialog logo on the shared neutral logo tile without cropping", async () => {
+  it("renders the detail dialog logo on the unified theme-aware logo surface without cropping", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-14T12:00:00Z"));
 
@@ -153,9 +153,11 @@ describe("SubscriptionCalendar dialogs", () => {
     const logoTile = logo.closest(".subscription-logo-tile");
 
     expect(logo).toHaveClass("subscription-logo-image", "object-contain");
+    expect(logo).not.toHaveClass("media-thumbnail-image", "invert", "brightness-125", "mix-blend-screen");
     expect(logo).not.toHaveClass("object-cover");
     expect(logoTile).not.toBeNull();
-    expect(logoTile).toHaveClass("subscription-logo-tile");
+    expect(logoTile).not.toHaveClass("media-thumbnail-canvas");
+    expect(logoTile).not.toHaveClass("bg-gradient-to-br");
   });
 
   it("uses the same detail dialog logo path for dark transparent logos", async () => {
@@ -177,7 +179,7 @@ describe("SubscriptionCalendar dialogs", () => {
     expect(logo.closest(".subscription-logo-tile")).not.toBeNull();
   });
 
-  it("keeps the detail dialog initials fallback inside the shared logo tile", async () => {
+  it("keeps the detail dialog initials fallback inside the unified logo surface", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-14T12:00:00Z"));
 
@@ -190,7 +192,7 @@ describe("SubscriptionCalendar dialogs", () => {
 
     expect(initials).toHaveClass("subscription-logo-fallback");
     expect(logoTile).not.toBeNull();
-    expect(logoTile).toHaveClass("subscription-logo-tile");
+    expect(logoTile).not.toHaveClass("bg-gradient-to-br");
   });
 
   it("renders inherited reminder days in the detail dialog", async () => {
@@ -244,7 +246,7 @@ describe("SubscriptionCalendar dialogs", () => {
     );
   });
 
-  it("renders day list logos on the shared neutral logo tile without cropping", async () => {
+  it("renders day list logos on the unified theme-aware logo surface without cropping", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-14T12:00:00Z"));
 
@@ -262,7 +264,8 @@ describe("SubscriptionCalendar dialogs", () => {
     expect(logo).toHaveClass("subscription-logo-image", "object-contain");
     expect(logo).not.toHaveClass("object-cover");
     expect(logoTile).not.toBeNull();
-    expect(logoTile).toHaveClass("subscription-logo-tile");
+    expect(logoTile).not.toHaveClass("media-thumbnail-canvas");
+    expect(logoTile).not.toHaveClass("bg-gradient-to-br");
   });
 
   it("renders the mobile agenda with only active and trial subscriptions", async () => {
