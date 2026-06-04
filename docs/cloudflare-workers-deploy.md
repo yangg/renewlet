@@ -30,8 +30,6 @@ Workflow:
 
 If any required secret is missing, the workflow still runs the Cloudflare checks and build, then skips the remote D1 migration and Worker deployment with a GitHub Actions notice.
 
-The repository `wrangler.jsonc` uses `0.0.0-dev` as the local placeholder version. Self-managed GitHub Actions deployments inject the root `package.json` version plus the commit, for example `0.1.0-dev+504c168`; official stable releases inject the release tag version, commit, and build time through the release workflow before deploying the production Worker.
-
 Add these 5 values to GitHub Secrets to enable remote deployment.
 
 ### 1. Fork The Repository

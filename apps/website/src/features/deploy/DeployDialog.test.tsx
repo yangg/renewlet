@@ -11,7 +11,10 @@ describe('DeployDialog', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /选择 Renewlet 部署方式/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Docker 单容器/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Cloudflare Workers/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Cloudflare Workers/i })).toHaveAttribute(
+      'href',
+      expect.stringContaining('docs/cloudflare-workers-deploy.zh-CN.md'),
+    )
     expect(screen.queryByRole('link', { name: /源码仓库/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /官网静态部署/i })).not.toBeInTheDocument()
   })

@@ -1,7 +1,7 @@
 import type { ComponentType, SVGProps } from 'react'
 import { Cloud, Container, ScrollText } from 'lucide-react'
 
-import { copy, links, text, type Locale } from '../content/site'
+import { copy, links, localizedUrl, text, type Locale } from '../content/site'
 
 type FooterProps = {
   locale: Locale
@@ -54,7 +54,7 @@ export function Footer({ locale }: FooterProps) {
         <div className="flex justify-center space-x-6 md:order-2">
           <FooterLink href={links.github} icon={GitHubLogo} label="GitHub" />
           <FooterLink href={links.docker} icon={Container} label="Docker" />
-          <FooterLink href={links.cloudflare} icon={Cloud} label="Cloudflare" />
+          <FooterLink href={localizedUrl(links.cloudflare, locale)} icon={Cloud} label="Cloudflare" />
           <FooterLink href={links.license} icon={ScrollText} label="License" />
         </div>
 

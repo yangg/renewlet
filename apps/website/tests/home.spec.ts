@@ -102,7 +102,10 @@ test('renders the Renewlet homepage and opens deployment dialog from both entry 
   const footer = page.locator('[data-section="footer"]')
   await expect(footer.getByRole('link', { name: /^GitHub$/i })).toBeVisible()
   await expect(footer.getByRole('link', { name: /^Docker$/i })).toBeVisible()
-  await expect(footer.getByRole('link', { name: /^Cloudflare$/i })).toBeVisible()
+  await expect(footer.getByRole('link', { name: /^Cloudflare$/i })).toHaveAttribute(
+    'href',
+    /docs\/cloudflare-workers-deploy\.zh-CN\.md/,
+  )
   await expect(footer.getByRole('link', { name: /^License$/i })).toBeVisible()
   await expect(footer.getByRole('link', { name: /中文 README|英文 README|MIT License/i })).toHaveCount(0)
 
@@ -120,7 +123,10 @@ test('renders the Renewlet homepage and opens deployment dialog from both entry 
   await page.getByRole('button', { name: /选择部署方式/i }).click()
   await expect(page.getByRole('heading', { name: /选择 Renewlet 部署方式/i })).toBeVisible()
   await expect(page.getByRole('link', { name: /Docker 单容器/i })).toBeVisible()
-  await expect(page.getByRole('link', { name: /Cloudflare Workers/i })).toBeVisible()
+  await expect(page.getByRole('link', { name: /Cloudflare Workers/i })).toHaveAttribute(
+    'href',
+    /docs\/cloudflare-workers-deploy\.zh-CN\.md/,
+  )
   await expect(page.getByRole('link', { name: /源码仓库/i })).toHaveCount(0)
   await expect(page.getByRole('link', { name: /官网静态部署/i })).toHaveCount(0)
   await page.getByRole('button', { name: /关闭/i }).click()

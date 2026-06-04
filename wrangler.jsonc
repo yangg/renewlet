@@ -32,9 +32,7 @@
     }
   ],
   "vars": {
-    "SETUP_ENABLED": "true",
-    "RENEWLET_VERSION": "0.0.0-dev",
-    "RENEWLET_COMMIT": "dev",
-    "RENEWLET_BUILD_TIME": ""
+    // Deploy Button 会把模板 vars 暴露给用户填写；构建元信息只允许 CI 写入生成配置。
+    "SETUP_ENABLED": "true"
   }
 }

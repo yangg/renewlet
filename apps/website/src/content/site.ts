@@ -12,6 +12,7 @@ import {
 export type Locale = 'zh' | 'en'
 
 export type LocalizedText = Record<Locale, string>
+export type LocalizedUrl = string | LocalizedText
 
 export const locales: Record<Locale, { label: string; ariaLabel: string }> = {
   zh: { label: '中', ariaLabel: '切换到中文' },
@@ -22,8 +23,10 @@ export const links = {
   github: 'https://github.com/zhiyingzzhou/renewlet',
   docs: 'https://github.com/zhiyingzzhou/renewlet#readme',
   docsZh: 'https://github.com/zhiyingzzhou/renewlet/blob/main/README.zh-CN.md',
-  cloudflare:
-    'https://deploy.workers.cloudflare.com/?url=https://github.com/zhiyingzzhou/renewlet',
+  cloudflare: {
+    zh: 'https://github.com/zhiyingzzhou/renewlet/blob/main/docs/cloudflare-workers-deploy.zh-CN.md',
+    en: 'https://github.com/zhiyingzzhou/renewlet/blob/main/docs/cloudflare-workers-deploy.md',
+  },
   docker: 'https://github.com/zhiyingzzhou/renewlet/blob/main/README.zh-CN.md#快速部署',
   license: 'https://github.com/zhiyingzzhou/renewlet/blob/main/LICENSE',
 }
@@ -241,7 +244,7 @@ export type DeployOption = {
   icon: LucideIcon
   title: LocalizedText
   body: LocalizedText
-  href: string
+  href: LocalizedUrl
   action: LocalizedText
 }
 
@@ -266,10 +269,14 @@ export const deployOptions: DeployOption[] = [
       en: 'Run with Worker API, D1, R2, and Cron Triggers.',
     },
     href: links.cloudflare,
-    action: { zh: '部署到 Cloudflare', en: 'Deploy to Cloudflare' },
+    action: { zh: '查看 Cloudflare 部署', en: 'Read Cloudflare deploy' },
   },
 ]
 
 export function text(value: LocalizedText, locale: Locale) {
   return value[locale]
+}
+
+export function localizedUrl(value: LocalizedUrl, locale: Locale) {
+  return typeof value === 'string' ? value : value[locale]
 }
