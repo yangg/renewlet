@@ -32,7 +32,7 @@ export const systemRestartBrowser = {
 };
 
 /**
- * 管理员版本弹窗。
+ * 系统更新弹窗。
  *
  * 状态链：检查 Release -> 下载替换二进制 -> needsRestart -> 显式重启 -> 轮询 health -> 刷新页面。
  * Cloudflare/source 运行面只展示版本信息和不支持原因，不提供执行入口。

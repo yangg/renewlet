@@ -106,7 +106,7 @@ docker compose up -d
 docker compose logs -f
 ```
 
-Official Docker release images with the current binary layout can also update from the version menu in Renewlet. This in-app path downloads the GitHub Release binary, verifies `checksums.txt`, replaces the runtime binary, and then asks an administrator to click **Restart now**. Older images must run `docker compose pull && docker compose up -d` once before the in-app updater becomes available.
+Official Docker release images with the current binary layout can also update from the version badge at the top of Renewlet, which opens System Update. This in-app path downloads the GitHub Release binary, verifies `checksums.txt`, replaces the runtime binary, and then asks an administrator to click **Restart now**. Older images must run `docker compose pull && docker compose up -d` once before the in-app updater becomes available.
 
 Cloudflare deployments update from your fork: click `Sync fork` / `Update branch`, wait for redeploy, and run `Cloudflare Worker` manually only if it does not start automatically. The deploy path must keep D1 migrations before Worker deploy.
 

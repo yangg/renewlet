@@ -113,7 +113,7 @@ git push origin v0.1.0
 
 - `/renewlet` is the stable Docker entrypoint and healthcheck path; do not remove it in later releases.
 - The real self-update target is `/opt/renewlet/current/renewlet`; the updater never replaces `/renewlet`.
-- Users on images older than this layout must still run `docker compose pull && docker compose up -d` once. Later stable releases can be installed from the admin version dialog.
+- Users on images older than this layout must still run `docker compose pull && docker compose up -d` once. Later stable releases can be installed from System Update, opened from the top version badge.
 - Release binary archives must be Linux `amd64` and `arm64` tarballs named `renewlet_<version>_linux_<arch>.tar.gz`, with matching SHA-256 entries in `checksums.txt`.
 - `/api/app/admin/system/version` reports `deployment` as `docker`, `cloudflare`, or `source`, and `updateMode` as `in-app-binary`, `docker-compose`, `cloudflare-deploy`, or `source-manual`. `updateSupported` only means the admin dialog may execute the in-app binary update.
 - Docker release images with the new layout return `deployment=docker`, `updateMode=in-app-binary`, and `updateSupported=true`. Disabled self-update, old bridge layouts, and non-release builds must return the correct manual mode and a single unsupported reason.
