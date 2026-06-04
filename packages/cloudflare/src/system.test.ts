@@ -1,6 +1,6 @@
 // Worker 系统更新测试保护 Cloudflare 只读升级契约，避免前端误暴露 Docker 页面内更新入口。
 import { describe, expect, it, vi } from "vitest";
-import { systemUpdate, systemVersion } from "./system";
+import { systemRestart, systemUpdate, systemVersion } from "./system";
 import type { Env } from "./types";
 
 vi.mock("./auth", () => ({
@@ -66,6 +66,16 @@ describe("Cloudflare system update contract", () => {
     }), envFixture())).rejects.toMatchObject({
       status: 400,
       code: "SYSTEM_UPDATE_UNSUPPORTED",
+    });
+  });
+
+  it("rejects executable restarts in the Worker runtime with a restart-specific code", async () => {
+    await expect(systemRestart(new Request("https://renewlet.example/api/app/admin/system/restart", {
+      headers: { "accept-language": "en-US" },
+      method: "POST",
+    }), envFixture())).rejects.toMatchObject({
+      status: 400,
+      code: "SYSTEM_RESTART_UNSUPPORTED",
     });
   });
 });

@@ -19,6 +19,7 @@ import { HttpError, json, ok, readOptionalJson, readJson, requestLocale, type Ap
 import { DEFAULT_SERVER_I18N_LOCALE, serverFormat, serverText } from "./server-i18n";
 import { requireAuth } from "./auth";
 import { notificationSmtpConfig, sendSmtpEmail } from "./smtp";
+import { assertSafeOutboundUrl } from "./outbound-url-policy";
 import type { Env, NotificationJobRow } from "./types";
 
 const CRON_USER_PAGE_SIZE = 50;
@@ -234,13 +235,13 @@ async function sendChannel(env: Env, channel: Channel, settings: ApiAppSettings,
       await sendWebhook(settings, message, locale);
       return;
     case "wechat":
-      await postJson(safeHttpsUrl(required(settings.wechatWebhookUrl, serverText(locale, "service.wechatWebhookURL"), locale), locale), {
+      await postJson(await safeHttpsUrl(required(settings.wechatWebhookUrl, serverText(locale, "service.wechatWebhookURL"), locale), locale), {
         msgtype: settings.wechatMessageType,
         [settings.wechatMessageType]: settings.wechatMessageType === "markdown" ? { content: textMessage(message) } : { content: textMessage(message), mentioned_mobile_list: settings.wechatAtAll ? ["@all"] : splitList(settings.wechatAtPhones) },
       }, "WeCom", locale);
       return;
     case "bark":
-      await fetchOk(barkUrl(settings, message, locale), { method: "GET" }, "Bark", locale);
+      await fetchOk(await barkUrl(settings, message, locale), { method: "GET" }, "Bark", locale);
       return;
     case "email":
       await sendEmail(env, settings, message, locale, appUrl);
@@ -249,7 +250,7 @@ async function sendChannel(env: Env, channel: Channel, settings: ApiAppSettings,
 }
 
 async function sendWebhook(settings: ApiAppSettings, message: NotificationMessage, locale: AppLocale): Promise<void> {
-  const endpoint = safeHttpsUrl(required(settings.webhookUrl, serverText(locale, "service.webhookURL"), locale), locale);
+  const endpoint = await safeHttpsUrl(required(settings.webhookUrl, serverText(locale, "service.webhookURL"), locale), locale);
   const headers = parseHeaders(settings.webhookHeaders);
   if (settings.webhookMethod === "GET") {
     // GET webhook 只能把模板字段放 query，避免对方服务忽略 body 导致测试“成功但无内容”。
@@ -430,7 +431,7 @@ function notificationBlockers(settings: ApiAppSettings): string[] {
   return blockers;
 }
 
-async function postJson(url: string, payload: unknown, channel: string, locale: AppLocale, headers?: Record<string, string>): Promise<void> {
+async function postJson(url: string | URL, payload: unknown, channel: string, locale: AppLocale, headers?: Record<string, string>): Promise<void> {
   await fetchOk(url, { method: "POST", headers: { "content-type": "application/json", ...(headers ?? {}) }, body: JSON.stringify(payload) }, channel, locale);
 }
 
@@ -451,23 +452,14 @@ async function externalHttpError(channel: string, response: Response, locale: Ap
   });
 }
 
-function safeHttpsUrl(raw: string, locale: AppLocale): string {
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    throw new Error(serverText(locale, "url.invalidGeneric"));
-  }
-  if (url.protocol !== "https:") throw new Error(serverText(locale, "url.mustUseHttpsGeneric"));
-  // 用户可配置 webhook/Bark 地址；禁止内网和本机目标，避免 Worker 变成 SSRF 跳板。
-  if (/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/i.test(url.hostname)) {
-    throw new Error(serverText(locale, "url.privateOrLocalNotAllowedGeneric"));
-  }
+async function safeHttpsUrl(raw: string, locale: AppLocale): Promise<string> {
+  // Worker 没有 Go 的 DialContext 钩子；发送前先解析并拒绝内网/本机地址，避免用户配置的通知 URL 变成 SSRF 跳板。
+  const url = await assertSafeOutboundUrl(raw, locale);
   return url.toString();
 }
 
-function barkUrl(settings: ApiAppSettings, message: NotificationMessage, locale: AppLocale): string {
-  const server = safeHttpsUrl(settings.barkServerUrl || "https://api.day.app", locale).replace(/\/+$/, "");
+async function barkUrl(settings: ApiAppSettings, message: NotificationMessage, locale: AppLocale): Promise<string> {
+  const server = (await safeHttpsUrl(settings.barkServerUrl || "https://api.day.app", locale)).replace(/\/+$/, "");
   const key = required(settings.barkDeviceKey, serverText(locale, "service.barkDeviceKey"), locale);
   const url = new URL(`${server}/${encodeURIComponent(key)}/${encodeURIComponent(message.title)}/${encodeURIComponent(message.content)}`);
   if (settings.barkSilentPush) url.searchParams.set("isArchive", "1");

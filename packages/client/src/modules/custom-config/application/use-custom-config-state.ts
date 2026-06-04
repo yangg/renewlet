@@ -18,6 +18,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { DEFAULT_CUSTOM_CONFIG, normalizePaymentMethods, type ConfigItem, type CustomConfig } from "@/types/config";
 import { normalizeCustomConfig } from "../domain/normalize-custom-config";
 import { customConfigService } from "@/services/custom-config-service";
+import { reportClientError } from "@/lib/report-client-error";
 
 const LOCAL_STORAGE_KEY = "renewlet_custom_config";
 
@@ -53,7 +54,7 @@ export function useCustomConfigState() {
         setConfig(normalizeCustomConfig(JSON.parse(saved)));
       }
     } catch (e) {
-      console.error("Failed to load custom config:", e);
+      reportClientError(e, { source: "custom-config.load-local" });
     }
   }, []);
 
@@ -66,7 +67,7 @@ export function useCustomConfigState() {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(config));
     } catch (e) {
-      console.error("Failed to save custom config:", e);
+      reportClientError(e, { source: "custom-config.save-local" });
     }
   }, [config]);
 

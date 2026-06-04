@@ -27,7 +27,7 @@ import { createSubscription, deleteSubscription, readSubscriptions, updateSubscr
 import { applyImport, previewImport } from "./import-export";
 import { mediaCandidates } from "./search";
 import { notificationHistory, notificationRun, notificationTest, runScheduledNotifications } from "./notifications";
-import { systemUpdate, systemVersion } from "./system";
+import { systemRestart, systemUpdate, systemVersion } from "./system";
 import { errorResponse, methodNotAllowed, pathSegments, requestLocale, toResponse } from "./http";
 import { serverText } from "./server-i18n";
 import type { Env } from "./types";
@@ -67,6 +67,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
   // wrangler assets 只把 /api/* 交给 Worker；这里再次拒绝非 API，避免静态资源请求误进产品 API。
   if (!url.pathname.startsWith("/api/")) return errorResponse(404, serverText(locale, "common.notFound"), "NOT_FOUND");
   if (url.pathname === "/api/app/health") return health();
+  if (url.pathname === "/api/app/ready") return ready(env);
   if (url.pathname === "/api/app/setup") return routeMethods(request, {
     GET: () => setupStatus(request, env),
     POST: () => createInitialAdmin(request, env),
@@ -108,7 +109,7 @@ async function routeApp(request: Request, env: Env, url: URL): Promise<Response>
     return routeMethods(request, { POST: () => systemUpdate(request, env) });
   }
   if (head === "admin" && second === "system" && third === "restart") {
-    return routeMethods(request, { POST: () => systemUpdate(request, env) });
+    return routeMethods(request, { POST: () => systemRestart(request, env) });
   }
 
   if (head === "settings") return routeMethods(request, {
@@ -175,4 +176,9 @@ function health(): Response {
   return Response.json(healthResponseSchema.parse({ ok: true, time: new Date().toISOString() }), {
     headers: { "x-content-type-options": "nosniff" },
   });
+}
+
+async function ready(env: Env): Promise<Response> {
+  await env.DB.prepare("SELECT 1").first();
+  return health();
 }

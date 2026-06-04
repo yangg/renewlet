@@ -13,6 +13,7 @@ import { useCallback, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
 import { okResponseSchema } from "@/lib/api/schemas/common";
 import { getDisplayErrorMessage } from "@/lib/display-error";
+import { reportClientError } from "@/lib/report-client-error";
 import { useToast } from "@/hooks/use-toast";
 import { useDeferredDialogCleanup } from "@/hooks/use-deferred-dialog-cleanup";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -91,7 +92,7 @@ export function usePasswordChange(): PasswordChangeController {
       setPasswordDialogOpenState(false);
       schedulePasswordCleanup();
     } catch (e: unknown) {
-      console.error("Failed to update password:", e);
+      reportClientError(e, { source: "settings.password-change" });
       toast({
         title: t("passwordReset.changeFailed"),
         description: getDisplayErrorMessage(e, t("passwordReset.changeFailedDescription")),

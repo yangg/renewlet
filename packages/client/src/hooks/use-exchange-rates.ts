@@ -24,6 +24,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { formatNumberMaxFractionDigits } from '@/lib/number-format';
 import { getApiLocale } from '@/i18n/api-locale';
 import { translate } from '@/i18n/messages';
+import { reportClientError } from "@/lib/report-client-error";
 import {
   cachedExchangeRateDataSchema,
   exchangeApiUsdResponseSchema,
@@ -385,7 +386,7 @@ export const useExchangeRates = (preferredProvider: ExchangeRateProvider = DEFAU
       } catch (e) {
         if (controller.signal.aborted) return;
         if (!mountedRef.current || inFlightRef.current?.controller !== controller) return;
-        console.error('Failed to fetch exchange rates:', e);
+        reportClientError(e, { source: "exchange-rates.fetch" });
         const kind = errorKindFromProviderError(e);
         setError(translate(
           getApiLocale(),

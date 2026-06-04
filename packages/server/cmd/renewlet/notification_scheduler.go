@@ -14,7 +14,7 @@ package main
 // 注意： 这里按用户时区检查 today/yesterday，是为了覆盖 UTC tick 与用户本地跨日的边界窗口。
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
@@ -35,18 +35,23 @@ func registerNotificationCron(app core.App) error {
 	expr := envString("NOTIFICATION_SCHEDULER_CRON", "* * * * *")
 	return app.Cron().Add("renewlet_notifications", expr, func() {
 		if !notificationCronMu.TryLock() {
-			log.Println("[notification-scheduler] previous run still active, skipping tick")
+			slog.Info("notification scheduler skipped overlapping tick")
 			return
 		}
 		defer notificationCronMu.Unlock()
 
 		result, err := runNotificationCron(app, notificationCronOptions{})
 		if err != nil {
-			log.Printf("[notification-scheduler] run failed: %v", err)
+			slog.Error("notification scheduler failed", "error", err)
 			return
 		}
 		if result.Failed > 0 {
-			log.Printf("[notification-scheduler] processed=%d sent=%d skipped=%d failed=%d", result.Processed, result.Sent, result.Skipped, result.Failed)
+			slog.Warn("notification scheduler completed with failures",
+				"processed", result.Processed,
+				"sent", result.Sent,
+				"skipped", result.Skipped,
+				"failed", result.Failed,
+			)
 		}
 	})
 }

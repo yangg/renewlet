@@ -13,6 +13,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "@/App";
 import Providers from "@/providers";
+import { AppErrorBoundary } from "@/components/app-error-boundary";
 import { getInitialLocale } from "@/i18n/locales";
 import { activateLinguiLocale } from "@/i18n/messages";
 import "@/index.css";
@@ -25,7 +26,9 @@ async function bootstrap() {
     <StrictMode>
       <BrowserRouter>
         <Providers>
-          <App />
+          <AppErrorBoundary>
+            <App />
+          </AppErrorBoundary>
         </Providers>
       </BrowserRouter>
     </StrictMode>,

@@ -65,6 +65,29 @@ function firstLogArg(args: unknown[]) {
   return typeof args[0] === "string" ? args[0] : "";
 }
 
+function isExchangeRateErrorLog(args: unknown[]) {
+  if (firstLogArg(args).startsWith(EXCHANGE_RATE_LOG_PREFIX)) return true;
+  const payload = args[1];
+  return firstLogArg(args) === "client error"
+    && typeof payload === "object"
+    && payload !== null
+    && "source" in payload
+    && payload.source === "exchange-rates.fetch";
+}
+
+function logText(args: unknown[]) {
+  return args.map((item) => {
+    if (typeof item === "string") return item;
+    if (item instanceof Error) return item.message;
+    if (typeof item === "object" && item !== null && "error" in item && item.error instanceof Error) return item.error.message;
+    return "";
+  }).join(" ");
+}
+
+function logPayload(args: unknown[]) {
+  return typeof args[1] === "object" && args[1] !== null ? args[1] as Record<string, unknown> : {};
+}
+
 function createExchangeRateLogCapture() {
   const warnings: unknown[][] = [];
   const errors: unknown[][] = [];
@@ -80,7 +103,7 @@ function createExchangeRateLogCapture() {
     originalWarn(...args);
   });
   vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-    if (firstLogArg(args).startsWith(EXCHANGE_RATE_LOG_PREFIX)) {
+    if (isExchangeRateErrorLog(args)) {
       errors.push(args);
       return;
     }
@@ -94,7 +117,10 @@ function createExchangeRateLogCapture() {
       expect(warnings.some((args) => firstLogArg(args).includes(message))).toBe(true);
     },
     expectError(message: string) {
-      expect(errors.some((args) => firstLogArg(args).includes(message))).toBe(true);
+      expect(errors.some((args) => logText(args).includes(message))).toBe(true);
+    },
+    expectErrorSource(source: string) {
+      expect(errors.some((args) => logPayload(args)["source"] === source)).toBe(true);
     },
   };
 }
@@ -373,7 +399,7 @@ describe("useExchangeRates", () => {
     expect(result.current.rates["USD"]).toBe(1);
     exchangeRateLogs.expectWarning("exchange rates from floatrates");
     exchangeRateLogs.expectWarning("exchange rates from exchange-api");
-    exchangeRateLogs.expectError("Failed to fetch exchange rates");
+    exchangeRateLogs.expectErrorSource("exchange-rates.fetch");
   });
 
   it("refresh skips cache and can use the new requested provider immediately", async () => {

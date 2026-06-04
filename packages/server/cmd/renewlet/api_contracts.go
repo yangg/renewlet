@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
 
@@ -403,6 +404,14 @@ func newHealthResponse() healthResponse {
 		OK:   true,
 		Time: time.Now().UTC().Format(time.RFC3339Nano),
 	}
+}
+
+// newReadyResponse 校验 PocketBase DB 可查询；部署平台 readiness 可用它区别进程存活和数据面就绪。
+func newReadyResponse(app core.App) (healthResponse, error) {
+	if _, err := app.DB().NewQuery("SELECT 1").Execute(); err != nil {
+		return healthResponse{}, err
+	}
+	return newHealthResponse(), nil
 }
 
 // invalidRequestBodyMessage 返回本地化请求体错误文案。

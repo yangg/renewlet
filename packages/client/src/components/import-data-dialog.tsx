@@ -1,13 +1,13 @@
 import { useRef, useState, type DragEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Archive, CheckCircle2, Database, FileJson, FileUp, Loader2, Upload, UploadCloud } from "lucide-react";
+import { AlertTriangle, Archive, CheckCircle2, Database, FileJson, FileUp, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ImportPreviewList, recomputePreviewForConflictMode, type PreviewFilter } from "@/components/import-preview-list";
+import { ImportFileDropZone, ImportPastePanel, ImportStep, SummaryBadge } from "@/components/import-data-dialog-parts";
 import { ImportWallosSourceGuide } from "@/components/import-wallos-source-guide";
 import type { DeferredLogoAsset } from "@/components/import-logo-editor";
 import { toast } from "@/hooks/use-toast";
@@ -42,7 +42,6 @@ import {
   type ImportPreviewResponse,
 } from "@/lib/api/schemas/import-export";
 import type { MediaCandidate } from "@/lib/api/schemas/media";
-import { cn } from "@/lib/utils";
 
 interface ImportDataDialogProps {
   open: boolean;
@@ -337,69 +336,29 @@ export function ImportDataDialog({ open, onOpenChange, settings, config }: Impor
             </TabsList>
 
             <TabsContent value="file" className="mt-0 space-y-3">
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                accept=".json,.zip,.db,.sqlite,application/json,application/zip"
-                onChange={(event) => void handleFileSelected(event.target.files?.[0] ?? null)}
+              <ImportFileDropZone
+                file={file}
+                dragActive={dragActive}
+                fileInputRef={fileInputRef}
+                uploadButtonRef={uploadButtonRef}
+                onFileSelected={(nextFile) => void handleFileSelected(nextFile)}
+                onFileDrop={(event) => void handleFileDrop(event)}
+                onDragActiveChange={setDragActive}
+                chooseFileLabel={t("import.chooseFile")}
+                fileEmptyLabel={t("import.fileEmpty")}
+                fileHintLabel={t("import.fileHint")}
               />
-              <button
-                ref={uploadButtonRef}
-                type="button"
-                className={cn(
-                  "group grid w-full gap-4 rounded-lg border border-dashed border-border bg-secondary/30 p-4 text-left transition-colors hover:border-primary/50 hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center",
-                  dragActive && "border-primary bg-secondary/60",
-                )}
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  setDragActive(true);
-                }}
-                onDragLeave={() => setDragActive(false)}
-                onDrop={(event) => void handleFileDrop(event)}
-                aria-label={t("import.chooseFile")}
-              >
-                <span className="flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-background text-primary transition-colors group-hover:border-primary/40">
-                  <UploadCloud className="h-5 w-5" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium text-foreground" title={file?.name}>
-                    {file?.name ?? t("import.fileEmpty")}
-                  </span>
-                  <span className="mt-1 block text-xs text-muted-foreground">
-                    {file ? formatFileSize(file.size) : t("import.fileHint")}
-                  </span>
-                  <span className="mt-3 flex flex-wrap gap-1.5">
-                    {["Renewlet ZIP", "Wallos JSON", "backup.zip", "wallos.db"].map((item) => (
-                      <span key={item} className="rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                        {item}
-                      </span>
-                    ))}
-                  </span>
-                </span>
-                <span className="inline-flex items-center justify-center rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors group-hover:border-primary/40">
-                  <Upload className="mr-2 h-4 w-4" />
-                  {t("import.chooseFile")}
-                </span>
-              </button>
             </TabsContent>
 
             <TabsContent value="paste" className="mt-0 space-y-3">
-              <div className="rounded-lg border border-border bg-secondary/30 p-3">
-                <Textarea
-                  value={pasteValue}
-                  onChange={(event) => setPasteValue(event.target.value)}
-                  placeholder={t("import.pastePlaceholder")}
-                  className="min-h-40 resize-y border-border bg-background font-mono text-xs"
-                />
-                <div className="mt-3 flex justify-end">
-                  <Button type="button" variant="outline" onClick={() => void handlePastePreview()} disabled={!pasteValue.trim() || parsing}>
-                    {parsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileJson className="mr-2 h-4 w-4" />}
-                    {t("import.preview")}
-                  </Button>
-                </div>
-              </div>
+              <ImportPastePanel
+                value={pasteValue}
+                parsing={parsing}
+                onChange={setPasteValue}
+                onPreview={() => void handlePastePreview()}
+                placeholder={t("import.pastePlaceholder")}
+                previewLabel={t("import.preview")}
+              />
             </TabsContent>
           </Tabs>
 
@@ -520,31 +479,4 @@ function isAutoAssignableImportLogo(candidate: MediaCandidate | null | undefined
       && candidate.source === "builtIn"
       && (candidate.confidence === "exact" || candidate.confidence === "strong"),
   );
-}
-
-function ImportStep({ active, done, label }: { active: boolean; done?: boolean; label: string }) {
-  return (
-    <div className={cn(
-      "flex items-center justify-center gap-1.5 border-r border-border px-2 py-2 text-muted-foreground last:border-r-0",
-      active && "bg-secondary text-foreground",
-    )}>
-      {done ? <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> : <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />}
-      <span className="truncate">{label}</span>
-    </div>
-  );
-}
-
-function SummaryBadge({ label, value, danger = false }: { label: string; value: number; danger?: boolean }) {
-  return (
-    <div className="rounded-lg border border-border bg-secondary/30 p-3">
-      <div className={cn("text-lg font-semibold text-foreground", danger && "text-destructive")}>{value}</div>
-      <div className="mt-1 text-xs text-muted-foreground">{label}</div>
-    </div>
-  );
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

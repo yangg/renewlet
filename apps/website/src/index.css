@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "@fontsource-variable/noto-sans-sc";
 
 @font-face {
   font-family: "Inter";
@@ -71,8 +70,8 @@
 
 @theme {
   --color-blackA9: rgba(0, 0, 0, 0.6);
-  /* Inter 只覆盖拉丁字符，Noto Sans SC 接管中文；删掉 CJK fallback 会让 macOS/Windows 字形重新分裂。 */
-  --font-sans: "Inter", "Noto Sans SC Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+  /* Inter 只覆盖拉丁字符，中文交给系统 CJK 字体，避免静态官网首屏下载整套 Noto Sans SC 分片。 */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
   /* 主 CTA 和局部高光共用这条品牌阴影，避免页面出现多套绿色光效。 */
   --shadow-glow: 0px 1px 20px rgba(16, 185, 129, 0.28);

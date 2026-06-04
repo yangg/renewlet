@@ -3,6 +3,9 @@ import { msg } from "@lingui/core/macro";
 
 export const messages = [
   msg({ id: "app.tagline", message: "订阅管理助手" }),
+  msg({ id: "appError.title", message: "页面暂时无法显示" }),
+  msg({ id: "appError.description", message: "发生了一个未预期的界面错误。你可以刷新页面重新加载，已保存的数据不会受到影响。" }),
+  msg({ id: "appError.reload", message: "刷新页面" }),
   msg({ id: "common.cancel", message: "取消" }),
   msg({ id: "common.close", message: "关闭" }),
   msg({ id: "common.delete", message: "删除" }),

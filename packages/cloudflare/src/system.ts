@@ -55,6 +55,17 @@ export async function systemUpdate(request: Request, env: Env): Promise<Response
   throw new HttpError(400, serverText(locale, "system.cloudflareUpdateUnsupported"), "SYSTEM_UPDATE_UNSUPPORTED");
 }
 
+/**
+ * systemRestart 明确拒绝 Cloudflare 页面内重启。
+ *
+ * Worker 发布由 Cloudflare 平台接管，没有 Docker restart pending 状态；错误码必须和 update 拆开，前端才能区分动作。
+ */
+export async function systemRestart(request: Request, env: Env): Promise<Response> {
+  await requireAdmin(request, env);
+  const locale = requestLocale(request);
+  throw new HttpError(400, serverText(locale, "system.cloudflareRestartUnsupported"), "SYSTEM_RESTART_UNSUPPORTED");
+}
+
 function cloudflareBuildValue(value: string | undefined, fallback: string): string {
   const trimmed = value?.trim();
   if (!trimmed) return fallback;

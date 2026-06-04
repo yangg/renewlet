@@ -26,6 +26,7 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { RotateCcw, ZoomIn } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nProvider';
+import { reportClientError } from "@/lib/report-client-error";
 
 const ReactCrop = ReactCropComponent as unknown as ComponentType<ReactCropProps>;
 
@@ -238,7 +239,7 @@ export function ImageCropDialog({
       onOpenChange(false);
     } catch (error) {
       if (controller.signal.aborted) return;
-      console.error('Error cropping image:', error);
+      reportClientError(error, { source: "image-crop" });
     } finally {
       if (cropAbortRef.current === controller) cropAbortRef.current = null;
     }

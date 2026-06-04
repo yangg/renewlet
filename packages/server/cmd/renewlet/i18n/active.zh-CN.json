@@ -153,6 +153,7 @@
   "subscription.notFound": "订阅不存在",
   "system.alreadyLatest": "当前已经是最新版本",
   "system.checkVersionFailed": "检查版本失败",
+  "system.cloudflareRestartUnsupported": "Cloudflare 部署不支持页面内重启，请使用 Cloudflare 部署流程重新发布。",
   "system.cloudflareUpdateUnsupported": "Cloudflare 部署不支持页面内一键更新",
   "system.cloudflareVersionUnsupportedReason": "Cloudflare 部署不支持页面内一键更新，请在 GitHub Release 或 Cloudflare 部署流程中升级。",
   "system.restartNotPending": "没有待应用的系统更新",

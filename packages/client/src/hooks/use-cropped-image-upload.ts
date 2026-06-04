@@ -24,6 +24,7 @@ import { getDisplayErrorMessage } from "@/lib/display-error";
 import type { UploadKind } from "@/lib/api/schemas/media";
 import { getApiLocale } from "@/i18n/api-locale";
 import { translate } from "@/i18n/messages";
+import { reportClientError } from "@/lib/report-client-error";
 
 export type UploadStatus = "idle" | "uploading" | "error";
 
@@ -110,7 +111,7 @@ export function useCroppedImageUpload(options: UseCroppedImageUploadOptions): Us
         reportUploadStatus("idle");
         onChange(result.url);
       } catch (err: unknown) {
-        console.error("Image upload failed:", err);
+        reportClientError(err, { source: "image-upload.file" });
         if (uploadTokenRef.current !== token) return;
         setUploadError(getDisplayErrorMessage(err, translate(getApiLocale(), "media.uploadFailedRetry")));
         reportUploadStatus("error");
@@ -197,7 +198,7 @@ export function useCroppedImageUpload(options: UseCroppedImageUploadOptions): Us
         reportUploadStatus("idle");
         onChange(result.url);
       } catch (err: unknown) {
-        console.error("Image upload failed:", err);
+        reportClientError(err, { source: "image-upload.data-url" });
         if (uploadTokenRef.current !== token) return;
         // 上传失败时保留预览但不推进 onChange，避免用户把本地 data URL 当成已持久化资产保存。
         setUploadError(getDisplayErrorMessage(err, translate(getApiLocale(), "media.uploadFailedRetry")));

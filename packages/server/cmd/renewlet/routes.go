@@ -26,6 +26,13 @@ func registerRoutes(app core.App, router *router.Router[*core.RequestEvent]) {
 	router.GET("/api/app/health", func(e *core.RequestEvent) error {
 		return e.JSON(http.StatusOK, newHealthResponse())
 	})
+	router.GET("/api/app/ready", func(e *core.RequestEvent) error {
+		ready, err := newReadyResponse(app)
+		if err != nil {
+			return e.InternalServerError(serverText(requestLocale(e.Request), "common.internalError"), err)
+		}
+		return e.JSON(http.StatusOK, ready)
+	})
 
 	router.GET("/api/app/setup", func(e *core.RequestEvent) error {
 		return e.JSON(http.StatusOK, setupStatusResponse{

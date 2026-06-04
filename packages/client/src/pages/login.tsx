@@ -23,6 +23,7 @@ import { toast } from '@/components/ui/sonner';
 import { authClient } from '@/lib/auth-client';
 import { getAuthDisplayMessage } from '@/lib/display-error';
 import { sanitizeNextPath } from '@/lib/redirect';
+import { reportClientError } from "@/lib/report-client-error";
 import { usePasswordResetAvailability } from '@/hooks/use-password-reset-availability';
 import { useSetupStatus } from '@/hooks/use-setup-status';
 import { useI18n } from '@/i18n/I18nProvider';
@@ -99,7 +100,7 @@ const Login = () => {
     try {
       const { error } = await authClient.signIn.email({ email: trimmedEmail, password });
       if (error) {
-        console.error('Login error:', error);
+        reportClientError(error, { source: "login" });
         toast.error(t("auth.loginFailed"), {
           description: getAuthDisplayMessage(error),
         });
@@ -109,7 +110,7 @@ const Login = () => {
       // 登录成功后只跳转 sanitize 后的站内路径，避免 next 参数把 token/session 状态带到外站。
       router.push(getNextPath());
     } catch (err: unknown) {
-      console.error('Login error:', err);
+      reportClientError(err, { source: "login" });
       toast.error(t("auth.loginFailed"), {
         description: getAuthDisplayMessage(err),
       });

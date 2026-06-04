@@ -14,6 +14,21 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. js-lingui-explicit-id
+#: src/i18n/descriptors/common.ts:5
+msgid "appError.title"
+msgstr "页面暂时无法显示"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/common.ts:6
+msgid "appError.description"
+msgstr "发生了一个未预期的界面错误。你可以刷新页面重新加载，已保存的数据不会受到影响。"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/common.ts:7
+msgid "appError.reload"
+msgstr "刷新页面"
+
+#. js-lingui-explicit-id
 #: src/i18n/descriptors/common.ts:32
 msgid "common.options"
 msgstr "{count} 个选项"

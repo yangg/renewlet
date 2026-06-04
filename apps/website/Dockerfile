@@ -17,5 +17,12 @@ RUN pnpm --filter @renewlet/website build
 
 FROM nginx:1.29-alpine
 
+RUN addgroup -S -g 1000 renewlet \
+  && adduser -S -D -H -u 1000 -G renewlet renewlet \
+  && mkdir -p /tmp/nginx \
+  && chown -R renewlet:renewlet /var/cache/nginx /var/run /tmp/nginx /usr/share/nginx/html
+
 COPY apps/website/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /repo/apps/website/dist /usr/share/nginx/html
+COPY --from=build --chown=renewlet:renewlet /repo/apps/website/dist /usr/share/nginx/html
+
+USER renewlet

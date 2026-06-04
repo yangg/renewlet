@@ -153,6 +153,7 @@
   "subscription.notFound": "Subscription not found",
   "system.alreadyLatest": "Renewlet is already up to date",
   "system.checkVersionFailed": "Failed to check version",
+  "system.cloudflareRestartUnsupported": "Cloudflare deployments do not support in-app restarts. Redeploy from the Cloudflare deployment workflow.",
   "system.cloudflareUpdateUnsupported": "Cloudflare deployments do not support in-app updates",
   "system.cloudflareVersionUnsupportedReason": "Cloudflare deployments do not support in-app updates. Upgrade from GitHub Releases or the Cloudflare deployment workflow.",
   "system.restartNotPending": "There is no completed update waiting to restart",

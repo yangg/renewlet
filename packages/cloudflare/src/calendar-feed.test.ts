@@ -24,6 +24,10 @@ function expectCalendarIcsLineEndings(value: string) {
   }
 }
 
+function unfoldIcsText(value: string): string {
+  return value.replace(/\r\n[ \t]/g, "");
+}
+
 describe("calendar feed worker handlers", () => {
   it("creates a reusable global feed, returns the URL on status, renders filtered ICS by token, and revokes the URL", async () => {
     const env = await createCalendarFeedTestEnv();
@@ -52,20 +56,21 @@ describe("calendar feed worker handlers", () => {
     const icsResponse = await calendarFeedIcs(new Request(created.calendarFeed.feedUrl), env);
     expect(icsResponse.status).toBe(200);
     const ics = await icsResponse.text();
+    const unfoldedIcs = unfoldIcsText(ics);
     expectCalendarIcsLineEndings(ics);
-    expect(ics).toContain("BEGIN:VCALENDAR");
-    expect(ics).toContain("SUMMARY:Active Plan");
-    expect(ics).toContain("DTSTART;VALUE=DATE:20990602");
-    expect(ics).toContain("Category: Developer Tools");
-    expect(ics).toContain("Payment method: Credit Card");
-    expect(ics).toContain("CATEGORIES:Developer Tools");
-    expect(ics).toContain("TRIGGER:-P5D");
-    expect(ics).not.toContain("developer_tools");
-    expect(ics).not.toContain("credit_card");
-    expect(ics).not.toContain("Paused Plan");
-    expect(ics).not.toContain("Cancelled Plan");
-    expect(ics).not.toContain("Expired Plan");
-    expect(ics).not.toContain("One Time Plan");
+    expect(unfoldedIcs).toContain("BEGIN:VCALENDAR");
+    expect(unfoldedIcs).toContain("SUMMARY:Active Plan");
+    expect(unfoldedIcs).toContain("DTSTART;VALUE=DATE:20990602");
+    expect(unfoldedIcs).toContain("Category: Developer Tools");
+    expect(unfoldedIcs).toContain("Payment method: Credit Card");
+    expect(unfoldedIcs).toContain("CATEGORIES:Developer Tools");
+    expect(unfoldedIcs).toContain("TRIGGER:-P5D");
+    expect(unfoldedIcs).not.toContain("developer_tools");
+    expect(unfoldedIcs).not.toContain("credit_card");
+    expect(unfoldedIcs).not.toContain("Paused Plan");
+    expect(unfoldedIcs).not.toContain("Cancelled Plan");
+    expect(unfoldedIcs).not.toContain("Expired Plan");
+    expect(unfoldedIcs).not.toContain("One Time Plan");
 
     const rotateResponse = await createCalendarFeed(authorizedRequest("https://renewlet.example/api/app/calendar-feed", {
       body: "{}",
@@ -98,17 +103,19 @@ describe("calendar feed worker handlers", () => {
 
     const firstIcs = await (await calendarFeedIcs(new Request(first.calendarFeed.feedUrl), env)).text();
     const secondIcs = await (await calendarFeedIcs(new Request(second.calendarFeed.feedUrl), env)).text();
+    const unfoldedFirstIcs = unfoldIcsText(firstIcs);
+    const unfoldedSecondIcs = unfoldIcsText(secondIcs);
     expectCalendarIcsLineEndings(firstIcs);
     expectCalendarIcsLineEndings(secondIcs);
-    expect(firstIcs).toContain("NAME:Renewlet - Paused Plan");
-    expect(firstIcs).toContain("SUMMARY:Paused Plan");
-    expect(firstIcs).toContain("Category: Developer Tools");
-    expect(firstIcs).toContain("Payment method: Credit Card");
-    expect(firstIcs).toContain("CATEGORIES:Developer Tools");
-    expect(firstIcs).not.toContain("developer_tools");
-    expect(firstIcs).not.toContain("credit_card");
-    expect(firstIcs).not.toContain("Active Plan");
-    expect(secondIcs).toContain("SUMMARY:Paused Plan");
+    expect(unfoldedFirstIcs).toContain("NAME:Renewlet - Paused Plan");
+    expect(unfoldedFirstIcs).toContain("SUMMARY:Paused Plan");
+    expect(unfoldedFirstIcs).toContain("Category: Developer Tools");
+    expect(unfoldedFirstIcs).toContain("Payment method: Credit Card");
+    expect(unfoldedFirstIcs).toContain("CATEGORIES:Developer Tools");
+    expect(unfoldedFirstIcs).not.toContain("developer_tools");
+    expect(unfoldedFirstIcs).not.toContain("credit_card");
+    expect(unfoldedFirstIcs).not.toContain("Active Plan");
+    expect(unfoldedSecondIcs).toContain("SUMMARY:Paused Plan");
 
     const deleteResponse = await deleteSubscriptionCalendarFeed(authorizedRequest("https://renewlet.example/api/app/subscriptions/sub_paused/calendar-feed", { method: "DELETE" }), env, "sub_paused");
     expect(deleteResponse.status).toBe(200);
@@ -217,12 +224,13 @@ describe("calendar feed worker handlers", () => {
     const created = await response.json() as { calendarFeed: { feedUrl: string } };
 
     const ics = await (await calendarFeedIcs(new Request(created.calendarFeed.feedUrl), env)).text();
+    const unfoldedIcs = unfoldIcsText(ics);
 
-    expect(ics).toContain("Category: developer_tools");
-    expect(ics).toContain("Payment method: credit_card");
-    expect(ics).toContain("CATEGORIES:developer_tools");
-    expect(ics).not.toContain("Developer Tools");
-    expect(ics).not.toContain("Credit Card");
+    expect(unfoldedIcs).toContain("Category: developer_tools");
+    expect(unfoldedIcs).toContain("Payment method: credit_card");
+    expect(unfoldedIcs).toContain("CATEGORIES:developer_tools");
+    expect(unfoldedIcs).not.toContain("Developer Tools");
+    expect(unfoldedIcs).not.toContain("Credit Card");
   });
 });
 
