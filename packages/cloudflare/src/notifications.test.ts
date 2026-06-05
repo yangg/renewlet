@@ -1,9 +1,11 @@
 // Worker 通知测试保护 Cron/手动运行共享的内容收集口径，避免 D1 reminder_days 哨兵和 Go 后端分叉。
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDefaultAppSettings } from "@renewlet/shared/settings-defaults";
+import type { ApiAppSettings } from "@renewlet/shared/schemas/settings";
 import type { ApiSubscription } from "@renewlet/shared/schemas/subscriptions";
-import { collectNotificationItemsForLocalDate } from "./notifications";
+import { collectNotificationItemsForLocalDate, runScheduledNotifications } from "./notifications";
 import { sendServerChan, serverChanEndpoint } from "./notification-serverchan";
+import type { Env, SubscriptionRow } from "./types";
 
 vi.mock("./smtp", () => ({
   notificationSmtpConfig: () => {
@@ -11,6 +13,48 @@ vi.mock("./smtp", () => ({
   },
   sendSmtpEmail: async () => undefined,
 }));
+
+type FakeD1Query = {
+  sql: string;
+  params: unknown[];
+  method: "all" | "first" | "run";
+};
+
+function fakeEnv(handler: (query: FakeD1Query) => unknown | Promise<unknown>): Env {
+  return {
+    DB: {
+      prepare(sql: string) {
+        return {
+          bind(...params: unknown[]) {
+            return {
+              all: async () => await handler({ sql, params, method: "all" }),
+              first: async () => await handler({ sql, params, method: "first" }),
+              run: async () => await handler({ sql, params, method: "run" }),
+            } as D1PreparedStatement;
+          },
+        } as D1PreparedStatement;
+      },
+    } as unknown as D1Database,
+    ASSETS_BUCKET: {} as R2Bucket,
+  };
+}
+
+function d1All<T>(results: T[]): D1Result<T> {
+  return { results, success: true, meta: {} as D1Meta } as D1Result<T>;
+}
+
+function d1Run(changes = 0): D1Result {
+  return { results: [], success: true, meta: { changes } } as unknown as D1Result;
+}
+
+function settings(overrides: Partial<ApiAppSettings> = {}): ApiAppSettings {
+  return {
+    ...createDefaultAppSettings(),
+    timezone: "UTC",
+    notificationTimeLocal: "08:00" as ApiAppSettings["notificationTimeLocal"],
+    ...overrides,
+  };
+}
 
 function subscription(overrides: Partial<ApiSubscription> = {}): ApiSubscription {
   return {
@@ -34,6 +78,47 @@ function subscription(overrides: Partial<ApiSubscription> = {}): ApiSubscription
   };
 }
 
+function subscriptionRow(overrides: Partial<SubscriptionRow> = {}): SubscriptionRow {
+  return {
+    id: "sub_due",
+    user_id: "usr_due",
+    name: "Apple",
+    logo: null,
+    price: 10,
+    currency: "USD",
+    billing_cycle: "monthly",
+    custom_days: null,
+    custom_cycle_unit: null,
+    one_time_term_count: null,
+    one_time_term_unit: null,
+    category: "productivity",
+    status: "active",
+    pinned: 0,
+    payment_method: null,
+    start_date: "2026-01-01",
+    next_billing_date: "2026-01-10",
+    auto_calculate_next_billing_date: 1,
+    trial_end_date: null,
+    website: null,
+    notes: null,
+    tags_json: "[]",
+    reminder_days: 1,
+    repeat_reminder_enabled: 0,
+    repeat_reminder_interval: "1h",
+    repeat_reminder_window: "72h",
+    extra_json: "{}",
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
 describe("Cloudflare notifications", () => {
   it("skips subscriptions with disabled reminders", () => {
     const items = collectNotificationItemsForLocalDate(
@@ -43,6 +128,101 @@ describe("Cloudflare notifications", () => {
     );
 
     expect(items).toEqual([]);
+  });
+
+  it("logs and rejects top-level scheduled failures without leaking secrets", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const env = fakeEnv(({ sql }) => {
+      if (sql.includes("SELECT id FROM users WHERE banned = 0")) {
+        throw new Error("database is locked SCTsecret Bearer abc.def");
+      }
+      throw new Error(`unexpected query: ${sql}`);
+    });
+
+    await expect(runScheduledNotifications(env)).rejects.toThrow("database is locked [redacted] Bearer [redacted]");
+
+    expect(errorSpy).toHaveBeenCalledWith("scheduled_notifications_failed", expect.objectContaining({
+      event: "scheduled_notifications_failed",
+      phase: "list_users",
+      offset: 0,
+      error: { name: "Error", message: "database is locked [redacted] Bearer [redacted]" },
+    }));
+  });
+
+  it("continues scheduled cron after one user fails", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-09T08:00:00.000Z"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const seenSettingsUsers: string[] = [];
+    const env = fakeEnv(({ sql, params, method }) => {
+      if (method === "all" && sql.includes("SELECT id FROM users WHERE banned = 0")) {
+        return d1All([{ id: "usr_bad" }, { id: "usr_ok" }]);
+      }
+      if (method === "first" && sql.includes("SELECT settings_json FROM settings")) {
+        const userId = String(params[0]);
+        seenSettingsUsers.push(userId);
+        if (userId === "usr_bad") throw new Error("settings broken SCTsecret");
+        return { settings_json: JSON.stringify(settings({ notificationTimeLocal: "09:59" as ApiAppSettings["notificationTimeLocal"] })) };
+      }
+      throw new Error(`unexpected ${method} query: ${sql}`);
+    });
+
+    await expect(runScheduledNotifications(env)).resolves.toBeUndefined();
+
+    expect(seenSettingsUsers).toEqual(expect.arrayContaining(["usr_bad", "usr_ok"]));
+    expect(errorSpy).toHaveBeenCalledWith("scheduled_notifications_failed", expect.objectContaining({
+      event: "scheduled_notifications_failed",
+      phase: "run_user",
+      userId: "usr_bad",
+      error: { name: "Error", message: "settings broken [redacted]" },
+    }));
+  });
+
+  it("keeps ServerChan business failures inside the cron job summary", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-09T08:00:00.000Z"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      code: 40001,
+      message: "SCTsecret disabled",
+    }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    let finalizeParams: unknown[] | null = null;
+    const env = fakeEnv(({ sql, params, method }) => {
+      if (method === "all" && sql.includes("SELECT id FROM users WHERE banned = 0")) {
+        return d1All([{ id: "usr_due" }]);
+      }
+      if (method === "first" && sql.includes("SELECT settings_json FROM settings")) {
+        return { settings_json: JSON.stringify(settings({ enabledChannels: ["serverchan"], serverchanSendKey: "SCTsecret" })) };
+      }
+      if (method === "all" && sql.includes("FROM subscriptions")) {
+        return d1All([subscriptionRow()]);
+      }
+      if (method === "run" && sql.includes("INSERT OR IGNORE INTO notification_jobs")) {
+        return d1Run(1);
+      }
+      if (method === "run" && sql.includes("UPDATE notification_jobs SET status")) {
+        finalizeParams = params;
+        return d1Run(1);
+      }
+      throw new Error(`unexpected ${method} query: ${sql}`);
+    });
+
+    await expect(runScheduledNotifications(env)).resolves.toBeUndefined();
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(finalizeParams?.[0]).toBe("failed");
+    expect(finalizeParams?.[1]).toBe(1);
+    expect(String(finalizeParams?.[2])).toContain("[redacted] disabled");
+    expect(String(finalizeParams?.[2])).not.toContain("SCTsecret");
+    const result = JSON.parse(String(finalizeParams?.[3])) as { channels: { failed: Array<{ channel: string; error: string }> } };
+    expect(result.channels.failed[0]?.channel).toBe("serverchan");
+    expect(result.channels.failed[0]?.error).toContain("[redacted] disabled");
+    expect(result.channels.failed[0]?.error).not.toContain("SCTsecret");
   });
 
   it("builds ServerChan endpoints for Turbo and ServerChan 3 SendKeys", () => {

@@ -47,9 +47,9 @@ const worker: ExportedHandler<Env> = {
     }
   },
 
-  async scheduled(_controller, env, ctx) {
-    // Cron 只负责触发；每个用户的幂等窗口在 notification_jobs 唯一键里兑现。
-    ctx.waitUntil(runScheduledNotifications(env));
+  async scheduled(_controller, env) {
+    // Cron 顶层失败必须交回平台记录；本地调试通过 `--test-scheduled` 的 `/__scheduled` 绕过 Wrangler Static Assets bug。
+    await runScheduledNotifications(env);
   },
 };
 

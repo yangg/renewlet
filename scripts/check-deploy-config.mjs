@@ -229,6 +229,7 @@ function checkDockerSelfUpdateLayout() {
 function checkCloudflareDeployMigrationScript() {
   const packageJson = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
   const deployScript = packageJson.scripts?.deploy;
+  const devScript = packageJson.scripts?.["dev:cloudflare"];
   const migrationScript = packageJson.scripts?.["cloudflare:migrations:apply"];
 
   // Deploy Button 和自管 Wrangler 部署都依赖这个顺序，避免 Worker 已更新但 D1 表结构仍停在旧版本。
@@ -237,6 +238,19 @@ function checkCloudflareDeployMigrationScript() {
   }
   if (migrationScript !== "wrangler d1 migrations apply DB --remote") {
     throw new Error("package.json cloudflare:migrations:apply must target the DB binding with remote D1 migrations.");
+  }
+  if (devScript !== "pnpm build:cloudflare && pnpm cloudflare:migrations:apply:local && node scripts/cloudflare-dev-hint.mjs && wrangler dev --test-scheduled") {
+    throw new Error("package.json dev:cloudflare must print the local Cron hint and enable Wrangler scheduled middleware with --test-scheduled.");
+  }
+}
+
+function checkCloudflareScheduledLocalRoute() {
+  const wranglerConfig = readFileSync(join(repoRoot, "wrangler.jsonc"), "utf8");
+  const runWorkerFirst = /"run_worker_first"\s*:\s*\[([^\]]*)\]/s.exec(wranglerConfig)?.[1] ?? "";
+
+  // Wrangler 的 /cdn-cgi scheduled 测试入口在 Workers Static Assets 下会先打到 asset proxy；Renewlet 本地 Cron 固定走 /__scheduled。
+  if (!runWorkerFirst.includes('"/__scheduled"')) {
+    throw new Error('wrangler.jsonc assets.run_worker_first must include "/__scheduled" for local Cron testing.');
   }
 }
 
@@ -306,6 +320,7 @@ checkGeneratedSecrets();
 checkInvalidExistingPBKeyIsRejected();
 checkDockerSelfUpdateLayout();
 checkCloudflareDeployMigrationScript();
+checkCloudflareScheduledLocalRoute();
 checkCloudflareFreshD1Migrations();
 checkCloudflareDeployButtonVars();
 checkCloudflareWorkflowBuildMetadata();

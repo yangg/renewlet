@@ -43,7 +43,7 @@
     "check:cloudflare": "pnpm check:media-resolver-config && pnpm check:built-in-config-labels && pnpm check:server-i18n && pnpm --filter @renewlet/shared typecheck && pnpm --filter @renewlet/cloudflare typecheck && pnpm --filter @renewlet/cloudflare test:run && VITE_RENEWLET_RUNTIME=cloudflare pnpm --filter @renewlet/client typecheck && pnpm --filter @renewlet/client typecheck:all",
     "check:file-lines": "node scripts/check-file-lines.mjs",
     "cloudflare:config:ci": "node scripts/generate-cloudflare-wrangler-config.mjs",
-    "dev:cloudflare": "pnpm build:cloudflare && pnpm cloudflare:migrations:apply:local && wrangler dev",
+    "dev:cloudflare": "pnpm build:cloudflare && pnpm cloudflare:migrations:apply:local && node scripts/cloudflare-dev-hint.mjs && wrangler dev --test-scheduled",
     "cloudflare:migrations:apply:local": "CI=1 wrangler d1 migrations apply DB --local",
     "cloudflare:migrations:apply": "wrangler d1 migrations apply DB --remote",
     "deploy:cloudflare": "pnpm build:cloudflare && pnpm deploy",
@@ -71,11 +71,11 @@
     ]
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260521.1",
+    "@cloudflare/workers-types": "^4.20260603.1",
     "@lingui/format-po": "6.1.0",
     "@playwright/test": "^1.60.0",
     "@types/node": "^25.8.0",
     "typescript": "^6.0.3",
-    "wrangler": "^4.94.0"
+    "wrangler": "^4.98.0"
   }
 }

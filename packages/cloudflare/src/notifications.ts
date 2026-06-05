@@ -90,13 +90,57 @@ export async function notificationHistory(request: Request, env: Env): Promise<R
 /** Cloudflare Cron 入口按用户分页并发执行，避免一次 Worker tick 放大 D1 与外部通知 provider 压力。 */
 export async function runScheduledNotifications(env: Env): Promise<void> {
   for (let offset = 0; ; offset += CRON_USER_PAGE_SIZE) {
-    const users = await env.DB.prepare("SELECT id FROM users WHERE banned = 0 ORDER BY id LIMIT ? OFFSET ?")
-      .bind(CRON_USER_PAGE_SIZE, offset)
-      .all<{ id: string }>();
+    let users: D1Result<{ id: string }>;
+    try {
+      users = await env.DB.prepare("SELECT id FROM users WHERE banned = 0 ORDER BY id LIMIT ? OFFSET ?")
+        .bind(CRON_USER_PAGE_SIZE, offset)
+        .all<{ id: string }>();
+    } catch (error) {
+      logScheduledNotificationError({ phase: "list_users", offset, error });
+      throw scheduledRuntimeError(error);
+    }
     // Cron 运行在 Worker 平台限额内；分页加固定并发避免一次 tick 把 D1/通知 provider 打满。
-    await runBounded(users.results, CRON_USER_CONCURRENCY, (user) => runScheduledForUser(env, user.id).catch(() => undefined));
+    await runBounded(users.results, CRON_USER_CONCURRENCY, async (user) => {
+      try {
+        await runScheduledForUser(env, user.id);
+      } catch (error) {
+        logScheduledNotificationError({ phase: "run_user", userId: user.id, error });
+      }
+    });
     if (users.results.length < CRON_USER_PAGE_SIZE) break;
   }
+}
+
+function logScheduledNotificationError(context: { phase: "list_users" | "run_user"; offset?: number; userId?: string; error: unknown }): void {
+  console.error("scheduled_notifications_failed", {
+    event: "scheduled_notifications_failed",
+    phase: context.phase,
+    ...(context.offset === undefined ? {} : { offset: context.offset }),
+    ...(context.userId ? { userId: context.userId } : {}),
+    error: safeScheduledError(context.error),
+  });
+}
+
+function scheduledRuntimeError(error: unknown): Error {
+  const safe = safeScheduledError(error);
+  // 平台会记录 rejected scheduled handler；抛出前复用脱敏口径，避免 provider token 进入 Cron 事件日志。
+  return new Error(safe.message);
+}
+
+function safeScheduledError(error: unknown): { name: string; message: string } {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    name: error instanceof Error ? error.name || "Error" : typeof error,
+    message: redactScheduledError(message).slice(0, 300),
+  };
+}
+
+function redactScheduledError(message: string): string {
+  // scheduled 日志覆盖 D1/通知异常，必须先粗粒度遮掉常见渠道密钥和 bearer，避免本地排查把 secret 打进终端。
+  return message
+    .replace(/sctp\d+t[A-Za-z0-9_-]+/g, "[redacted]")
+    .replace(/SCT[A-Za-z0-9_-]+/g, "[redacted]")
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [redacted]");
 }
 
 /** 简单有界并发执行器；Worker 单次 Cron 不能为每个用户同时打开外部通知请求。 */
