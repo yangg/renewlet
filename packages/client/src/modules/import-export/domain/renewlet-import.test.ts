@@ -31,6 +31,7 @@ const currentExportSubscription = {
   paymentMethod: undefined,
   startDate: assertDateOnly("2026-05-01"),
   nextBillingDate: assertDateOnly("2026-06-01"),
+  autoRenew: true,
   autoCalculateNextBillingDate: true,
   trialEndDate: undefined,
   website: undefined,
@@ -122,8 +123,42 @@ describe("renewlet import", () => {
     expect(subscription?.repeatReminderEnabled).toBe(false);
     expect(subscription?.repeatReminderInterval).toBe("1h");
     expect(subscription?.repeatReminderWindow).toBe("72h");
+    expect(subscription?.autoRenew).toBe(false);
     expect(prepared.payload.settings).toBeUndefined();
     expect(prepared.payload.customConfig).toBeUndefined();
+  });
+
+  it("preserves explicit legacy Renewlet autoRenew values", async () => {
+    const prepared = await parseJsonText(JSON.stringify({
+      subscriptions: [
+        {
+          id: "legacy-auto",
+          name: "Legacy Auto",
+          price: 10,
+          currency: "USD",
+          billingCycle: "monthly",
+          category: "productivity",
+          status: "active",
+          startDate: "2026-01-01",
+          nextBillingDate: "2026-02-01",
+          autoRenew: true,
+        },
+        {
+          id: "legacy-manual",
+          name: "Legacy Manual",
+          price: 10,
+          currency: "USD",
+          billingCycle: "monthly",
+          category: "productivity",
+          status: "active",
+          startDate: "2026-01-01",
+          nextBillingDate: "2026-02-01",
+          autoRenew: false,
+        },
+      ],
+    }), context);
+
+    expect(prepared.payload.subscriptions.map((subscription) => subscription.autoRenew)).toEqual([true, false]);
   });
 
   it("supports legacy Renewlet data nested under data", async () => {

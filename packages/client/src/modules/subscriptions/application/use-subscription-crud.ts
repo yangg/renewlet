@@ -9,6 +9,7 @@ import { useState } from "react";
 import {
   useCreateSubscription,
   useDeleteSubscription,
+  useRenewSubscription,
   useUpdateSubscription,
 } from "@/hooks/use-subscriptions";
 import { useDeferredDialogCleanup } from "@/hooks/use-deferred-dialog-cleanup";
@@ -18,6 +19,7 @@ import type { Subscription, SubscriptionDraft } from "@/types/subscription";
 export function useSubscriptionCrud(subscriptions: readonly Subscription[]) {
   const createSubscription = useCreateSubscription();
   const updateSubscription = useUpdateSubscription();
+  const renewSubscription = useRenewSubscription();
   const deleteSubscription = useDeleteSubscription();
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -44,6 +46,10 @@ export function useSubscriptionCrud(subscriptions: readonly Subscription[]) {
     const subscription = subscriptions.find((item) => item.id === id);
     if (!subscription) return;
     updateSubscription.mutate({ ...subscription, publicHidden: !subscription.publicHidden });
+  };
+
+  const handleRenewSubscription = (id: string) => {
+    renewSubscription.mutate(id);
   };
 
   const handleEditSubscription = (id: string) => {
@@ -77,6 +83,7 @@ export function useSubscriptionCrud(subscriptions: readonly Subscription[]) {
     handleDeleteSubscription,
     handleTogglePinnedSubscription,
     handleTogglePublicHiddenSubscription,
+    handleRenewSubscription,
     handleEditSubscription,
     handleSaveSubscription,
     handleEditDialogOpenChange,

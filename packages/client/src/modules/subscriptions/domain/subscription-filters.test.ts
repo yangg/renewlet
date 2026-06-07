@@ -38,6 +38,7 @@ function subscription(overrides: SubscriptionOverrides = {}): Subscription {
     paymentMethod: undefined,
     startDate: assertDateOnly("2026-01-01"),
     nextBillingDate: assertDateOnly("2026-02-01"),
+    autoRenew: true,
     autoCalculateNextBillingDate: true,
     trialEndDate: undefined,
     website: undefined,
@@ -193,6 +194,7 @@ describe("subscription filter state", () => {
     searchQuery: "",
     categoryFilter: "all",
     statusFilter: "all",
+    renewalFilter: "all",
     selectedTags: [],
   };
 
@@ -225,5 +227,18 @@ describe("subscription filter state", () => {
 
     expect(expired.map((item) => item.id)).toEqual(["legacy-overdue", "stored-expired"]);
     expect(active.map((item) => item.id)).toEqual(["active-future"]);
+  });
+
+  it("filters by renewal type without relying on color-only status", () => {
+    const subscriptions = [
+      subscription({ id: "auto", billingCycle: "monthly", autoRenew: true }),
+      subscription({ id: "manual", billingCycle: "monthly", autoRenew: false }),
+      subscription({ id: "one-time", billingCycle: "one-time", autoRenew: false }),
+    ];
+    const context = { today: assertDateOnly("2026-05-18") };
+
+    expect(filterSubscriptions(subscriptions, { ...emptyFilters, renewalFilter: "auto" }, context).map((item) => item.id)).toEqual(["auto"]);
+    expect(filterSubscriptions(subscriptions, { ...emptyFilters, renewalFilter: "manual" }, context).map((item) => item.id)).toEqual(["manual"]);
+    expect(filterSubscriptions(subscriptions, { ...emptyFilters, renewalFilter: "one-time" }, context).map((item) => item.id)).toEqual(["one-time"]);
   });
 });

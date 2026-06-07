@@ -15,6 +15,7 @@ const validSubscriptionCreateBody = {
   paymentMethod: null,
   startDate: "2026-05-15",
   nextBillingDate: "2026-06-15",
+  autoRenew: true,
   autoCalculateNextBillingDate: true,
   trialEndDate: null,
   website: null,
@@ -43,6 +44,7 @@ const validSubscriptionResponseBody = {
   publicHidden: validSubscriptionCreateBody.publicHidden,
   startDate: validSubscriptionCreateBody.startDate,
   nextBillingDate: validSubscriptionCreateBody.nextBillingDate,
+  autoRenew: validSubscriptionCreateBody.autoRenew,
   autoCalculateNextBillingDate: validSubscriptionCreateBody.autoCalculateNextBillingDate,
   tags: validSubscriptionCreateBody.tags,
   reminderDays: validSubscriptionCreateBody.reminderDays,
@@ -155,6 +157,18 @@ describe("subscription API schemas", () => {
     }).publicHidden).toBe(true);
   });
 
+  it("defaults recurring writes to manual renewal while preserving response explicitness", () => {
+    expect(subscriptionCreateBodySchema.parse({
+      ...validSubscriptionCreateBody,
+      autoRenew: undefined,
+    }).autoRenew).toBe(false);
+
+    expect(apiSubscriptionSchema.safeParse({
+      ...validSubscriptionResponseBody,
+      autoRenew: false,
+    }).success).toBe(true);
+  });
+
   it("keeps subscription response logos on the same persistent contract", () => {
     expect(apiSubscriptionSchema.safeParse({
       ...validSubscriptionResponseBody,
@@ -174,6 +188,7 @@ describe("subscription API schemas", () => {
       customDays: null,
       oneTimeTermCount: null,
       oneTimeTermUnit: null,
+      autoRenew: false,
       autoCalculateNextBillingDate: false,
     }).success).toBe(true);
   });

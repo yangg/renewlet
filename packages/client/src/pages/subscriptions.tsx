@@ -43,7 +43,7 @@ import { useSettings } from '@/hooks/use-settings';
 import { useSubscriptionCrud } from '@/modules/subscriptions/application/use-subscription-crud';
 import { useSubscriptionExport } from '@/modules/subscriptions/application/use-subscription-export';
 import { useSubscriptionFilters } from '@/modules/subscriptions/application/use-subscription-filters';
-import type { SubscriptionSortOption } from '@/modules/subscriptions/domain/subscription-filters';
+import type { SubscriptionRenewalFilter, SubscriptionSortOption } from '@/modules/subscriptions/domain/subscription-filters';
 import { useExchangeRates } from '@/hooks/use-exchange-rates';
 import { useI18n } from '@/i18n/I18nProvider';
 import type { MessageKey } from '@/i18n/messages';
@@ -73,6 +73,13 @@ const SORT_OPTION_LABEL_KEYS: Record<SubscriptionSortOption, MessageKey> = {
   price_asc: "subscriptions.sort.priceAsc",
   name_asc: "subscriptions.sort.nameAsc",
   name_desc: "subscriptions.sort.nameDesc",
+};
+
+const RENEWAL_FILTER_LABEL_KEYS: Record<SubscriptionRenewalFilter, MessageKey> = {
+  all: "subscriptions.renewalFilter.all",
+  auto: "subscriptions.renewalFilter.auto",
+  manual: "subscriptions.renewalFilter.manual",
+  "one-time": "subscriptions.renewalFilter.oneTime",
 };
 
 function getRootScrollElement() {
@@ -105,6 +112,7 @@ type SubscriptionGridProps = {
   onDelete: (id: string) => void;
   onTogglePinned: (id: string) => void;
   onTogglePublicHidden: (id: string) => void;
+  onRenew: (id: string) => void;
   onViewDetails: (id: string) => void;
 };
 
@@ -119,6 +127,7 @@ function SubscriptionGrid({
   onDelete,
   onTogglePinned,
   onTogglePublicHidden,
+  onRenew,
   onViewDetails,
 }: SubscriptionGridProps) {
   const isTwoColumnGrid = useMediaQuery("(min-width: 640px)");
@@ -156,6 +165,7 @@ function SubscriptionGrid({
               onDelete={onDelete}
               onTogglePinned={onTogglePinned}
               onTogglePublicHidden={onTogglePublicHidden}
+              onRenew={onRenew}
               onViewDetails={onViewDetails}
             />
           </div>
@@ -194,6 +204,7 @@ function SubscriptionGrid({
     handleEditSubscription,
     handleTogglePinnedSubscription,
     handleTogglePublicHiddenSubscription,
+    handleRenewSubscription,
     handleSaveSubscription,
     handleEditDialogOpenChange,
   } = useSubscriptionCrud(subscriptions);
@@ -204,6 +215,8 @@ function SubscriptionGrid({
     setCategoryFilter,
     statusFilter,
     setStatusFilter,
+    renewalFilter,
+    setRenewalFilter,
     sortOption,
     setSortOption,
     selectedTags,
@@ -241,6 +254,7 @@ function SubscriptionGrid({
       : config.statuses.find((status) => status.value === statusFilter)?.labels
         ? label(config.statuses.find((status) => status.value === statusFilter)!.labels)
         : statusFilter;
+  const renewalFilterLabel = t(RENEWAL_FILTER_LABEL_KEYS[renewalFilter]);
   const sortOptionLabel = t(SORT_OPTION_LABEL_KEYS[sortOption]);
   const removeSelectedTag = useCallback((tag: string) => {
     setSelectedTags((current) => current.filter((item) => item !== tag));
@@ -403,6 +417,18 @@ function SubscriptionGrid({
                 </Select>
               </div>
 
+              <Select value={renewalFilter} onValueChange={(v) => setRenewalFilter(v as SubscriptionRenewalFilter)}>
+                <SelectTrigger className="h-11 min-w-0 border-border bg-secondary" tooltipContent={renewalFilterLabel}>
+                  <SelectValue placeholder={t("subscriptions.renewalFilter.label")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("subscriptions.renewalFilter.all")}</SelectItem>
+                  <SelectItem value="auto">{t("subscriptions.renewalFilter.auto")}</SelectItem>
+                  <SelectItem value="manual">{t("subscriptions.renewalFilter.manual")}</SelectItem>
+                  <SelectItem value="one-time">{t("subscriptions.renewalFilter.oneTime")}</SelectItem>
+                </SelectContent>
+              </Select>
+
               <div className="flex min-w-0 items-center gap-3" data-testid="mobile-sort-tag-row">
                 <div className="min-w-0 flex-1">
                   <Select value={sortOption} onValueChange={(v) => setSortOption(v as SubscriptionSortOption)}>
@@ -488,6 +514,18 @@ function SubscriptionGrid({
                   </SelectContent>
                 </Select>
 
+                <Select value={renewalFilter} onValueChange={(v) => setRenewalFilter(v as SubscriptionRenewalFilter)}>
+                  <SelectTrigger className="w-[150px] border-border bg-secondary" tooltipContent={renewalFilterLabel}>
+                    <SelectValue placeholder={t("subscriptions.renewalFilter.label")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("subscriptions.renewalFilter.all")}</SelectItem>
+                    <SelectItem value="auto">{t("subscriptions.renewalFilter.auto")}</SelectItem>
+                    <SelectItem value="manual">{t("subscriptions.renewalFilter.manual")}</SelectItem>
+                    <SelectItem value="one-time">{t("subscriptions.renewalFilter.oneTime")}</SelectItem>
+                  </SelectContent>
+                </Select>
+
                 <Select value={sortOption} onValueChange={(v) => setSortOption(v as SubscriptionSortOption)}>
                   <SelectTrigger
                     aria-label={t("subscriptions.sort.label")}
@@ -569,6 +607,7 @@ function SubscriptionGrid({
               onDelete={handleDeleteSubscription}
               onTogglePinned={handleTogglePinnedSubscription}
               onTogglePublicHidden={handleTogglePublicHiddenSubscription}
+              onRenew={handleRenewSubscription}
               onViewDetails={handleViewDetails}
             />
             {subscriptionsQuery.hasNextPage && (
@@ -602,6 +641,7 @@ function SubscriptionGrid({
         onOpenChange={handleDetailDialogOpenChange}
         subscription={selectedDetailSubscription}
         onEditSubscription={handleEditFromDetail}
+        onRenewSubscription={handleRenewSubscription}
         today={today}
       />
       <ImportDataDialog

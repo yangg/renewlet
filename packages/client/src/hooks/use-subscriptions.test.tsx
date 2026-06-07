@@ -32,6 +32,7 @@ type SubscriptionWritePayload = {
   paymentMethod: string | null;
   startDate: string;
   nextBillingDate: string;
+  autoRenew: boolean;
   autoCalculateNextBillingDate: boolean;
   trialEndDate: string | null;
   website: string | null;
@@ -100,6 +101,7 @@ function apiSubscriptionFromPayload(id: string, payload: SubscriptionWritePayloa
     ...(payload.paymentMethod !== null ? { paymentMethod: payload.paymentMethod } : {}),
     startDate: payload.startDate,
     nextBillingDate: payload.nextBillingDate,
+    autoRenew: payload.autoRenew,
     autoCalculateNextBillingDate: payload.autoCalculateNextBillingDate,
     ...(payload.trialEndDate !== null ? { trialEndDate: payload.trialEndDate } : {}),
     ...(payload.website !== null ? { website: payload.website } : {}),
@@ -130,6 +132,7 @@ function apiSubscriptionFromDraft(id: string, draft: RecurringSubscriptionDraft)
     paymentMethod: draft.paymentMethod ?? null,
     startDate: draft.startDate,
     nextBillingDate: draft.nextBillingDate,
+    autoRenew: draft.autoRenew,
     autoCalculateNextBillingDate: draft.autoCalculateNextBillingDate,
     trialEndDate: draft.trialEndDate ?? null,
     website: draft.website ?? null,
@@ -158,6 +161,7 @@ function subscriptionDraft(overrides: Partial<RecurringSubscriptionDraft> = {}):
     paymentMethod: undefined,
     startDate: assertDateOnly("2026-05-14"),
     nextBillingDate: assertDateOnly("2026-06-14"),
+    autoRenew: false,
     autoCalculateNextBillingDate: true,
     trialEndDate: undefined,
     website: undefined,
@@ -203,6 +207,7 @@ describe("use-subscriptions mutations", () => {
       repeatReminderEnabled: false,
       repeatReminderInterval: "1h",
       repeatReminderWindow: "72h",
+      autoRenew: false,
       user: "user-1",
     }));
   });

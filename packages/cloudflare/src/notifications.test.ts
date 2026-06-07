@@ -69,6 +69,7 @@ function subscription(overrides: Partial<ApiSubscription> = {}): ApiSubscription
     publicHidden: false,
     startDate: "2026-01-01",
     nextBillingDate: "2026-01-10",
+    autoRenew: true,
     autoCalculateNextBillingDate: true,
     tags: [],
     reminderDays: 0,
@@ -99,6 +100,7 @@ function subscriptionRow(overrides: Partial<SubscriptionRow> = {}): Subscription
     payment_method: null,
     start_date: "2026-01-01",
     next_billing_date: "2026-01-10",
+    auto_renew: 1,
     auto_calculate_next_billing_date: 1,
     trial_end_date: null,
     website: null,
@@ -225,6 +227,56 @@ describe("Cloudflare notifications", () => {
     expect(result.channels.failed[0]?.channel).toBe("serverchan");
     expect(result.channels.failed[0]?.error).toContain("[redacted] disabled");
     expect(result.channels.failed[0]?.error).not.toContain("SCTsecret");
+  });
+
+  it("renews automatic subscriptions before building scheduled notification content", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-09T08:00:00.000Z"));
+    const events: string[] = [];
+    let renewalUpdateParams: unknown[] | null = null;
+    let finalizeParams: unknown[] | null = null;
+    const env = fakeEnv(({ sql, params, method }) => {
+      if (method === "all" && sql.includes("SELECT id FROM users WHERE banned = 0")) {
+        return d1All([{ id: "usr_due" }]);
+      }
+      if (method === "first" && sql.includes("SELECT settings_json FROM settings")) {
+        return { settings_json: JSON.stringify(settings({ enabledChannels: [], showExpired: true })) };
+      }
+      if (method === "run" && sql.includes("INSERT OR IGNORE INTO notification_jobs")) {
+        return d1Run(1);
+      }
+      if (method === "all" && sql.includes("auto_renew = 1")) {
+        events.push("renewal-maintenance");
+        return d1All([subscriptionRow({
+          start_date: "2026-01-08",
+          next_billing_date: "2026-01-08",
+          auto_renew: 1,
+        })]);
+      }
+      if (method === "run" && sql.includes("UPDATE subscriptions SET next_billing_date")) {
+        renewalUpdateParams = params;
+        return d1Run(1);
+      }
+      if (method === "all" && sql.includes("FROM subscriptions")) {
+        events.push("notification-content");
+        return d1All([subscriptionRow({
+          start_date: "2026-01-08",
+          next_billing_date: "2026-02-08",
+          auto_renew: 1,
+        })]);
+      }
+      if (method === "run" && sql.includes("UPDATE notification_jobs SET status")) {
+        finalizeParams = params;
+        return d1Run(1);
+      }
+      throw new Error(`unexpected ${method} query: ${sql}`);
+    });
+
+    await expect(runScheduledNotifications(env)).resolves.toBeUndefined();
+
+    expect(events).toEqual(["renewal-maintenance", "notification-content"]);
+    expect(renewalUpdateParams?.[0]).toBe("2026-02-08");
+    expect(finalizeParams?.[0]).toBe("skipped");
   });
 
   it("builds ServerChan endpoints for Turbo and ServerChan 3 SendKeys", () => {

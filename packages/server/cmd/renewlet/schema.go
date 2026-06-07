@@ -206,6 +206,14 @@ func backfillAutodates(app core.App, names ...string) error {
 	return nil
 }
 
+func backfillSubscriptionAutoRenew(app core.App) error {
+	// autoRenew 默认关闭；迁移只修正 one-time 约束，不把历史缺省周期订阅解释成自动续订授权。
+	_, err := app.DB().NewQuery(
+		"UPDATE `subscriptions` SET `autoRenew` = 0 WHERE `billingCycle` = 'one-time'",
+	).Execute()
+	return err
+}
+
 func cleanupInvalidSubscriptionLogos(app core.App) error {
 	for offset := 0; ; offset += subscriptionCleanupPageSize {
 		rows, err := app.FindRecordsByFilter("subscriptions", "id != ''", "created", subscriptionCleanupPageSize, offset)
@@ -278,6 +286,7 @@ func ensureSubscriptionsCollection(app core.App, users *core.Collection) error {
 			&core.TextField{Name: "paymentMethod", Max: 80},
 			&core.TextField{Name: "startDate", Required: true, Max: 10, Pattern: `^\d{4}-\d{2}-\d{2}$`},
 			&core.TextField{Name: "nextBillingDate", Required: true, Max: 10, Pattern: `^\d{4}-\d{2}-\d{2}$`},
+			&core.BoolField{Name: "autoRenew"},
 			&core.BoolField{Name: "autoCalculateNextBillingDate"},
 			&core.TextField{Name: "trialEndDate", Max: 10, Pattern: `^$|^\d{4}-\d{2}-\d{2}$`},
 			&core.URLField{Name: "website"},

@@ -68,7 +68,8 @@ export const SubscriptionFormFields = memo(function SubscriptionFormFields({
           oneTimeMode: nextBillingCycle === "one-time" ? "term" : prev.oneTimeMode,
           oneTimeTermCount: nextBillingCycle === "one-time" ? prev.oneTimeTermCount || "1" : prev.oneTimeTermCount,
           oneTimeTermUnit: nextBillingCycle === "one-time" ? prev.oneTimeTermUnit || "month" : prev.oneTimeTermUnit,
-          // 一次性购买不会自动滚动续费；固定服务期的到期日由弹窗 effect 按服务时长计算。
+          // autoRenew 默认关闭；从 one-time 切回周期时保留用户当前选择，不把沉默状态改成自动续订。
+          autoRenew: nextBillingCycle === "one-time" ? false : prev.autoRenew,
           autoCalculate: nextBillingCycle === "one-time" ? false : prev.autoCalculate,
           nextBillingDate: nextBillingCycle === "one-time" ? prev.startDate : prev.nextBillingDate,
         };
@@ -396,6 +397,23 @@ export const SubscriptionFormFields = memo(function SubscriptionFormFields({
           />
         </div>
       )}
+
+      {formData.billingCycle !== "one-time" ? (
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-secondary/30 p-3">
+          <div className="min-w-0">
+            <Label htmlFor={id("autoRenew")} className="cursor-pointer text-sm font-medium">
+              {t("subscription.autoRenew")}
+            </Label>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{t("subscription.autoRenewHelp")}</p>
+          </div>
+          <Switch
+            id={id("autoRenew")}
+            checked={formData.autoRenew}
+            onCheckedChange={(checked) => update("autoRenew", checked)}
+            aria-label={t("subscription.autoRenew")}
+          />
+        </div>
+      ) : null}
 
       <SubscriptionFormDateFields id={id} formData={formData} update={update} errors={errors} />
 

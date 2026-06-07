@@ -93,6 +93,19 @@ export function useUpdateSubscription() {
   });
 }
 
+/** useRenewSubscription 只触发手动续订 API；成功后由统一订阅前缀刷新统计、列表和详情快照。 */
+export function useRenewSubscription() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return await subscriptionService.renew(id);
+    },
+    onSuccess: () => {
+      invalidateSubscriptionsQueries(queryClient);
+    },
+  });
+}
+
 /** useDeleteSubscription 删除后统一失效订阅前缀，保证统计和日历入口不读旧列表。 */
 export function useDeleteSubscription() {
   const queryClient = useQueryClient();

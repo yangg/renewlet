@@ -28,6 +28,12 @@ func init() {
 	core.AppMigrations.Register(func(app core.App) error {
 		return ensureSchema(app)
 	}, nil, "20260514000000_renewlet_schema.go")
+	core.AppMigrations.Register(func(app core.App) error {
+		if err := ensureSchema(app); err != nil {
+			return err
+		}
+		return backfillSubscriptionAutoRenew(app)
+	}, nil, "20260608000000_subscription_auto_renew.go")
 }
 
 func main() {
@@ -48,6 +54,9 @@ func main() {
 	}
 
 	app := pocketbase.New()
+	if err := registerSubscriptionRenewalCron(app); err != nil {
+		log.Fatal(err)
+	}
 	if err := registerNotificationCron(app); err != nil {
 		log.Fatal(err)
 	}

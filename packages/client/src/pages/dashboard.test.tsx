@@ -151,6 +151,7 @@ function subscription(overrides: Partial<RecurringCycleSubscription> = {}): Recu
     paymentMethod: undefined,
     startDate: assertDateOnly("2026-04-18"),
     nextBillingDate: assertDateOnly("2026-05-18"),
+    autoRenew: false,
     autoCalculateNextBillingDate: true,
     trialEndDate: undefined,
     website: undefined,

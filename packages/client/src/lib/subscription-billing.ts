@@ -8,10 +8,14 @@
  * 注意： 这里不做汇率换算；金额币种归一化由统计模型处理。
  */
 import type { BillingCycle, CustomCycleUnit, Subscription } from "@/types/subscription";
-import { addDateOnly, compareDateOnly, type DateOnly } from "@/lib/time/date-only";
+import type { DateOnly } from "@/lib/time/date-only";
 import { localizedLabel, type Locale } from "@/i18n/locales";
 import { translate } from "@/i18n/messages";
 import { CYCLE_LABELS } from "@/types/subscription";
+import {
+  addBillingCycles,
+  calculateNextBillingDate as calculateSharedNextBillingDate,
+} from "@renewlet/shared/subscription-renewal";
 
 /**
  * 根据开始日期 + 周期计算“下一次扣费日期”。
@@ -33,64 +37,7 @@ export function calculateNextBillingDate(
   referenceDate?: DateOnly,
   customCycleUnit: CustomCycleUnit = "day",
 ): DateOnly {
-  if (cycle === "one-time") return startDate;
-  if (referenceDate) {
-    let cycleCount = 1;
-    let candidate = addBillingCycles(startDate, cycle, cycleCount, customDays, customCycleUnit);
-    while (compareDateOnly(candidate, referenceDate) < 0) {
-      cycleCount += 1;
-      candidate = addBillingCycles(startDate, cycle, cycleCount, customDays, customCycleUnit);
-    }
-    return candidate;
-  }
-
-  return addBillingCycles(startDate, cycle, 1, customDays, customCycleUnit);
-}
-
-function addBillingCycles(
-  startDate: DateOnly,
-  cycle: BillingCycle,
-  cycleCount: number,
-  customDays?: number,
-  customCycleUnit: CustomCycleUnit = "day",
-): DateOnly {
-  const customCount = (customDays || 30) * cycleCount;
-  switch (cycle) {
-    case "weekly":
-      return addDateOnly(startDate, { weeks: cycleCount });
-    case "monthly":
-      return addDateOnly(startDate, { months: cycleCount });
-    case "quarterly":
-      return addDateOnly(startDate, { months: 3 * cycleCount });
-    case "semi-annual":
-      return addDateOnly(startDate, { months: 6 * cycleCount });
-    case "annual":
-      return addDateOnly(startDate, { years: cycleCount });
-    case "custom":
-      return addCustomBillingCycles(startDate, customCount, customCycleUnit);
-    case "one-time":
-      return startDate;
-    default:
-      return addDateOnly(startDate, { months: cycleCount });
-  }
-}
-
-function addCustomBillingCycles(
-  startDate: DateOnly,
-  count: number,
-  unit: CustomCycleUnit,
-): DateOnly {
-  switch (unit) {
-    case "week":
-      return addDateOnly(startDate, { weeks: count });
-    case "month":
-      return addDateOnly(startDate, { months: count });
-    case "year":
-      return addDateOnly(startDate, { years: count });
-    case "day":
-    default:
-      return addDateOnly(startDate, { days: count });
-  }
+  return calculateSharedNextBillingDate(startDate, cycle, customDays, referenceDate, customCycleUnit) as DateOnly;
 }
 
 /**
@@ -158,7 +105,7 @@ export function calculateOneTimeTermEndDate(
   count: number,
   unit: CustomCycleUnit,
 ): DateOnly {
-  return addCustomBillingCycles(startDate, count, unit);
+  return addBillingCycles(startDate, "custom", 1, count, unit) as DateOnly;
 }
 
 export function customCycleUnitLabelKey(unit: CustomCycleUnit): `subscription.customCycleUnit.${CustomCycleUnit}` {

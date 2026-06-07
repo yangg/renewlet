@@ -15,6 +15,7 @@ import { appSettingsSchema, settingsUpdateBodySchema, type ApiAppSettings } from
 import type { ApiSubscription } from "@renewlet/shared/schemas/subscriptions";
 import { cleanBuiltInIconSourceSettingsPatch, mergeBuiltInIconSourceSettings } from "@renewlet/shared/built-in-icons";
 import { getSettings, listSubscriptions, newId, nowIso, NOTIFICATION_JOB_COLUMNS, parseJobResult, toApiSubscription } from "./db";
+import { renewAutoSubscriptionsForUserInTimezone } from "./subscription-renewal";
 import { HttpError, json, ok, readOptionalJson, readJson, requestLocale, type AppLocale } from "./http";
 import { DEFAULT_SERVER_I18N_LOCALE, serverFormat, serverText } from "./server-i18n";
 import { requireAuth } from "./auth";
@@ -60,6 +61,7 @@ export async function notificationHistory(request: Request, env: Env): Promise<R
   const limit = clamp(parseIntOr(url.searchParams.get("limit"), 20), 1, 50);
   const offset = Math.max(0, parseIntOr(url.searchParams.get("offset"), 0));
   const settings = await getSettings(env, auth.user.id);
+  await renewAutoSubscriptionsForUserInTimezone(env, auth.user.id, settings.timezone, new Date());
   const subscriptions = (await listSubscriptions(env, auth.user.id)).map(toApiSubscription);
   const overview = buildOverview(new Date(), settings, subscriptions);
   const params: unknown[] = [auth.user.id];
@@ -188,8 +190,10 @@ async function runForUser(
   options: { occurrence?: ScheduleOccurrence; appUrl?: string } = {},
 ): Promise<{ sent: boolean; summary: SendSummary }> {
   const settings = await effectiveSettings(env, userId, settingsPatch);
-  const subscriptions = (await listSubscriptions(env, userId)).map(toApiSubscription);
   const now = new Date();
+  // 通知正文生成前先幂等推进自动续订，避免已自动续订的旧日期继续进入 expired/renewal 内容。
+  await renewAutoSubscriptionsForUserInTimezone(env, userId, settings.timezone, now);
+  const subscriptions = (await listSubscriptions(env, userId)).map(toApiSubscription);
   const schedule = options.occurrence ?? scheduleOccurrence(dateOnlyInZone(now, settings.timezone), settings.notificationTimeLocal, settings.timezone);
   const message = buildDueMessage(now, settings, subscriptions, true);
   if (!message.hasPayload && !force) {

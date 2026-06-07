@@ -93,6 +93,9 @@ func handleNotificationRun(app core.App, e *core.RequestEvent) error {
 		return e.BadRequestError(serverText(locale, "notification.settingsInvalid"), err)
 	}
 	settings.Locale = string(locale)
+	if _, err := renewAutoSubscriptionsForUser(app, e.Auth.Id, settings.Timezone, time.Now()); err != nil {
+		return e.InternalServerError(serverText(locale, "notification.loadSubscriptionsFailed"), err)
+	}
 	subscriptions, err := listNotificationSubscriptions(app, e.Auth.Id)
 	if err != nil {
 		return e.InternalServerError(serverText(locale, "notification.loadSubscriptionsFailed"), err)
@@ -128,6 +131,9 @@ func handleNotificationHistory(app core.App, e *core.RequestEvent) error {
 	settings, err := currentUserSettings(app, e.Auth, nil)
 	if err != nil {
 		return e.BadRequestError(serverText(locale, "notification.settingsInvalid"), err)
+	}
+	if _, err := renewAutoSubscriptionsForUser(app, e.Auth.Id, settings.Timezone, time.Now()); err != nil {
+		return e.InternalServerError(serverText(locale, "notification.loadSubscriptionsFailed"), err)
 	}
 	subscriptions, err := listNotificationSubscriptions(app, e.Auth.Id)
 	if err != nil {

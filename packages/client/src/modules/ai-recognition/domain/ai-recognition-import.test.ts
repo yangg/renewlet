@@ -54,6 +54,7 @@ describe("AI recognition import mapping", () => {
     expect(subscription?.extra.import.confidence).toBe("high");
     expect(subscription?.website).toBe("https://netflix.com/");
     expect(subscription?.reminderDays).toBe(5);
+    expect(subscription?.autoRenew).toBe(false);
     expect(prepared.assets).toEqual([]);
   });
 

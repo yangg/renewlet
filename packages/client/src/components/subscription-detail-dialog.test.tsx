@@ -71,6 +71,7 @@ const baseSubscription: Subscription = {
   paymentMethod: "credit_card",
   startDate: assertDateOnly("2026-05-15"),
   nextBillingDate: assertDateOnly("2026-06-15"),
+  autoRenew: false,
   autoCalculateNextBillingDate: true,
   trialEndDate: undefined,
   website: "https://fastmail.example/billing",
@@ -170,7 +171,7 @@ describe("SubscriptionDetailDialog", () => {
         billingCycle: "custom",
         customDays: 2,
         customCycleUnit: "week",
-      },
+      } as Subscription,
     });
 
     const dialog = screen.getByRole("dialog", { name: "Fastmail" });

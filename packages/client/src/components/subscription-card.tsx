@@ -22,7 +22,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { colorWithAlpha } from '@/lib/color';
-import { Calendar, MoreHorizontal, CalendarClock, Bell, CreditCard, CalendarPlus, Eye, EyeOff, Pencil, Pin, PinOff, Trash2 } from 'lucide-react';
+import { Calendar, MoreHorizontal, CalendarClock, Bell, CreditCard, CalendarPlus, Eye, EyeOff, Pencil, Pin, PinOff, RotateCw, Trash2 } from 'lucide-react';
 import {
   daysBetweenDateOnly,
   todayDateOnlyInTimeZone,
@@ -54,6 +54,7 @@ import { AddToCalendarDialog } from '@/components/add-to-calendar-dialog';
 import { SubscriptionLogo } from '@/components/subscription-logo';
 import { SubscriptionStatusBadge } from '@/components/subscription-status-badge';
 import { formatBillingCycleLabel, isOneTimeBuyout, isOneTimeFixedTerm } from '@/lib/subscription-billing';
+import { isManualRenewEligible } from '@renewlet/shared/subscription-renewal';
 
 export type SubscriptionCardLookup = ReadonlyMap<string, ConfigItem>;
 
@@ -70,6 +71,8 @@ interface SubscriptionCardProps {
   onTogglePinned?: (id: string) => void;
   /** 公开页隐藏切换由页面持有 mutation，卡片只负责菜单入口。 */
   onTogglePublicHidden?: (id: string) => void;
+  /** 手动续订动作由页面持有 mutation，卡片只负责可见入口。 */
+  onRenew?: (id: string) => void;
   /** 卡片主体 primary action：打开只读详情；菜单内动作保持独立。 */
   onViewDetails?: (id: string) => void;
   /** 用户 IANA 时区，用于续费/试用提示窗口。 */
@@ -92,6 +95,7 @@ export function SubscriptionCard({
   onDelete,
   onTogglePinned,
   onTogglePublicHidden,
+  onRenew,
   onViewDetails,
   timeZone,
   categoryByValue,
@@ -117,7 +121,13 @@ export function SubscriptionCard({
   const isBuyout = isOneTimeBuyout(subscription);
   const isFixedTermOneTime = isOneTimeFixedTerm(subscription);
   const hasCalendarEvent = !isBuyout;
+  const canManualRenew = Boolean(onRenew) && isManualRenewEligible(subscription);
   const billingCycleLabel = formatBillingCycleLabel(subscription, locale);
+  const renewalBadgeLabel = isOneTime
+    ? localizedLabel(CYCLE_LABELS["one-time"], locale)
+    : subscription.autoRenew
+      ? t("subscription.renewal.auto")
+      : t("subscription.renewal.manual");
   // 卡片是用户最先看到的状态入口，必须用有效状态，避免旧 active/trial 过期数据同时显示“活跃”和“即将续费”。
   const effectiveStatus = getEffectiveSubscriptionStatus(subscription, today);
   const isExpired = effectiveStatus === "expired";
@@ -206,6 +216,12 @@ export function SubscriptionCard({
                     {t("subscription.addToCalendar")}
                   </DropdownMenuItem>
                 ) : null}
+                {canManualRenew ? (
+                  <DropdownMenuItem className="gap-2.5 px-2.5 py-2 text-sm" onClick={() => onRenew?.(subscription.id)}>
+                    <RotateCw className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    {t("subscription.renew")}
+                  </DropdownMenuItem>
+                ) : null}
                 {onTogglePinned ? (
                   <DropdownMenuItem className="gap-2.5 px-2.5 py-2 text-sm" onClick={() => onTogglePinned(subscription.id)}>
                     {subscription.pinned ? (
@@ -246,11 +262,9 @@ export function SubscriptionCard({
                 <TruncatedTooltipText text={categoryLabel} className="block max-w-full" />
               </Badge>
               <SubscriptionStatusBadge status={effectiveStatus} />
-              {isOneTime && (
-                <Badge variant="secondary" className="shrink-0 whitespace-nowrap text-xs">
-                  {localizedLabel(CYCLE_LABELS["one-time"], locale)}
-                </Badge>
-              )}
+              <Badge variant={isOneTime ? "secondary" : subscription.autoRenew ? "outline" : "secondary"} className="shrink-0 whitespace-nowrap text-xs">
+                {renewalBadgeLabel}
+              </Badge>
             </div>
           </div>
 

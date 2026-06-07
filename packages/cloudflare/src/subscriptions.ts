@@ -1,6 +1,7 @@
 import { subscriptionCreateBodySchema, subscriptionsListQuerySchema, subscriptionUpdateBodySchema } from "@renewlet/shared/schemas/subscriptions";
-import { boolToInt, countSubscriptions, getSubscription, listSubscriptionsPage, newId, nowIso, parseJsonObject, parseSubscriptionCursor, subscriptionCursor, toApiSubscription } from "./db";
-import { HttpError, json, ok, readJson, requestLocale } from "./http";
+import { boolToInt, countSubscriptions, getSettings, getSubscription, listSubscriptionsPage, newId, nowIso, parseJsonObject, parseSubscriptionCursor, subscriptionCursor, toApiSubscription } from "./db";
+import { advanceSubscriptionRenewal, dateOnlyInZone } from "./subscription-renewal";
+import { HttpError, json, ok, readJson, readOptionalJson, requestLocale } from "./http";
 import { serverText } from "./server-i18n";
 import { requireAuth } from "./auth";
 import type { Env, SubscriptionRow } from "./types";
@@ -10,6 +11,7 @@ const subscriptionStorageBodySchema = subscriptionCreateBodySchema.refine((body)
   path: ["nextBillingDate"],
   message: "NEXT_BILLING_DATE_BEFORE_START_DATE",
 });
+const emptyBodySchema = z.object({}).strict();
 
 /** 读取当前用户订阅页；cursor 只决定分页位置，权限始终来自 Worker session。 */
 export async function readSubscriptions(request: Request, env: Env): Promise<Response> {
@@ -43,9 +45,9 @@ export async function createSubscription(request: Request, env: Env): Promise<Re
     INSERT INTO subscriptions (
       id, user_id, name, logo, price, currency, billing_cycle, custom_days, custom_cycle_unit, one_time_term_count, one_time_term_unit,
       category, status, pinned, public_hidden, payment_method,
-      start_date, next_billing_date, auto_calculate_next_billing_date, trial_end_date, website, notes, tags_json,
+      start_date, next_billing_date, auto_renew, auto_calculate_next_billing_date, trial_end_date, website, notes, tags_json,
       reminder_days, repeat_reminder_enabled, repeat_reminder_interval, repeat_reminder_window, extra_json, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(...subscriptionRowValues(row)).run();
   return json({ subscription: toApiSubscription(row) }, { status: 201 });
 }
@@ -65,7 +67,7 @@ export async function updateSubscription(request: Request, env: Env, id: string)
     UPDATE subscriptions SET
       name = ?, logo = ?, price = ?, currency = ?, billing_cycle = ?, custom_days = ?, custom_cycle_unit = ?,
       one_time_term_count = ?, one_time_term_unit = ?, category = ?, status = ?,
-      pinned = ?, public_hidden = ?, payment_method = ?, start_date = ?, next_billing_date = ?, auto_calculate_next_billing_date = ?,
+      pinned = ?, public_hidden = ?, payment_method = ?, start_date = ?, next_billing_date = ?, auto_renew = ?, auto_calculate_next_billing_date = ?,
       trial_end_date = ?, website = ?, notes = ?, tags_json = ?, reminder_days = ?, repeat_reminder_enabled = ?,
       repeat_reminder_interval = ?, repeat_reminder_window = ?, extra_json = ?, updated_at = ?
     WHERE user_id = ? AND id = ?
@@ -86,6 +88,7 @@ export async function updateSubscription(request: Request, env: Env, id: string)
     merged.payment_method,
     merged.start_date,
     merged.next_billing_date,
+    merged.auto_renew,
     merged.auto_calculate_next_billing_date,
     merged.trial_end_date,
     merged.website,
@@ -111,6 +114,27 @@ export async function deleteSubscription(request: Request, env: Env, id: string)
   return ok();
 }
 
+/** 手动续订只允许当前 owner 的手动周期订阅；id 与 user_id 同查，避免通过续订错误枚举他人数据。 */
+export async function renewSubscription(request: Request, env: Env, id: string): Promise<Response> {
+  const locale = requestLocale(request);
+  const auth = await requireAuth(request, env);
+  await readOptionalJson(request, emptyBodySchema, locale);
+  const existing = await getSubscription(env, auth.user.id, id);
+  if (!existing) throw new HttpError(404, serverText(locale, "subscription.notFound"), "NOT_FOUND");
+
+  const settings = await getSettings(env, auth.user.id);
+  const result = advanceSubscriptionRenewal(existing, dateOnlyInZone(new Date(), settings.timezone), "manual");
+  if (!result) throw new HttpError(400, serverText(locale, "common.invalidPayload"), "SUBSCRIPTION_RENEW_NOT_ALLOWED");
+
+  const timestamp = nowIso();
+  const merged = { ...existing, next_billing_date: result.nextBillingDate, status: result.status, updated_at: timestamp } satisfies SubscriptionRow;
+  await env.DB.prepare(`
+    UPDATE subscriptions SET next_billing_date = ?, status = ?, updated_at = ?
+    WHERE user_id = ? AND id = ?
+  `).bind(merged.next_billing_date, merged.status, timestamp, auth.user.id, id).run();
+  return json({ subscription: toApiSubscription(merged) });
+}
+
 export type SubscriptionBody = ReturnType<typeof subscriptionCreateBodySchema.parse>;
 
 export function normalizeSubscriptionBodyForStorage(body: unknown): SubscriptionBody {
@@ -133,6 +157,7 @@ export function normalizeSubscriptionBodyForStorage(body: unknown): Subscription
       customCycleUnit: null,
       oneTimeTermCount: hasTerm ? parsed.oneTimeTermCount : null,
       oneTimeTermUnit: hasTerm ? parsed.oneTimeTermUnit ?? "month" : null,
+      autoRenew: false,
       autoCalculateNextBillingDate: false,
     };
   }
@@ -175,6 +200,7 @@ function toBody(row: SubscriptionRow): SubscriptionBody {
     paymentMethod: row.payment_method,
     startDate: row.start_date,
     nextBillingDate: row.next_billing_date,
+    autoRenew: row.billing_cycle === "one-time" ? false : row.auto_renew === 1,
     autoCalculateNextBillingDate: row.auto_calculate_next_billing_date === 1,
     trialEndDate: row.trial_end_date,
     website: row.website,
@@ -218,6 +244,8 @@ export function toSubscriptionRow(
     payment_method: body.paymentMethod ?? null,
     start_date: body.startDate,
     next_billing_date: body.nextBillingDate,
+    // auto_renew 与 auto_calculate_next_billing_date 是两个独立契约：前者驱动后台续订，后者只影响日期锚点计算。
+    auto_renew: boolToInt(body.billingCycle === "one-time" ? false : body.autoRenew),
     // Worker 没有 PocketBase hook；one-time 不自动滚动日期，固定服务期只发到期提醒。
     auto_calculate_next_billing_date: boolToInt(body.billingCycle === "one-time" ? false : body.autoCalculateNextBillingDate),
     trial_end_date: body.trialEndDate ?? null,
@@ -240,7 +268,7 @@ export function subscriptionRowValues(row: SubscriptionRow): unknown[] {
     row.id, row.user_id, row.name, row.logo, row.price, row.currency, row.billing_cycle, row.custom_days, row.custom_cycle_unit,
     row.one_time_term_count, row.one_time_term_unit,
     row.category, row.status, row.pinned, row.public_hidden, row.payment_method, row.start_date, row.next_billing_date,
-    row.auto_calculate_next_billing_date, row.trial_end_date, row.website, row.notes, row.tags_json,
+    row.auto_renew, row.auto_calculate_next_billing_date, row.trial_end_date, row.website, row.notes, row.tags_json,
     row.reminder_days, row.repeat_reminder_enabled, row.repeat_reminder_interval, row.repeat_reminder_window,
     row.extra_json, row.created_at, row.updated_at,
   ];
@@ -259,6 +287,7 @@ function mergeSubscriptionPatchForStorage(base: SubscriptionBody, patch: Record<
   } else if (billingCycle === "one-time") {
     normalizedPatch["customDays"] = null;
     normalizedPatch["customCycleUnit"] = null;
+    normalizedPatch["autoRenew"] = false;
     normalizedPatch["autoCalculateNextBillingDate"] = false;
   } else if (billingCycle) {
     normalizedPatch["customDays"] = null;

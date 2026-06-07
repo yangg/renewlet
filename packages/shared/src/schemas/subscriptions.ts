@@ -109,6 +109,8 @@ const subscriptionWriteBodyShape = {
   paymentMethod: z.string().trim().min(1).max(80).nullable().optional(),
   startDate: dateInputSchema,
   nextBillingDate: dateInputSchema,
+  // autoRenew 默认关闭；缺省数据不能被解释成用户同意后台自动推进下一期。
+  autoRenew: z.boolean().default(false),
   autoCalculateNextBillingDate: z.boolean(),
   trialEndDate: dateInputSchema.nullable().optional(),
   website: optionalUrlSchema,
@@ -167,6 +169,7 @@ export const apiSubscriptionSchema = z.object({
   paymentMethod: z.string().min(1).optional(),
   startDate: z.string(),
   nextBillingDate: z.string(),
+  autoRenew: z.boolean(),
   autoCalculateNextBillingDate: z.boolean(),
   trialEndDate: z.string().optional(),
   website: z.string().optional(),

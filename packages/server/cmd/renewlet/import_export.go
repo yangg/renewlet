@@ -64,6 +64,7 @@ type importSubscription struct {
 	PaymentMethod                *string                `json:"paymentMethod,omitempty"`
 	StartDate                    string                 `json:"startDate"`
 	NextBillingDate              string                 `json:"nextBillingDate"`
+	AutoRenew                    bool                   `json:"autoRenew"`
 	AutoCalculateNextBillingDate bool                   `json:"autoCalculateNextBillingDate"`
 	TrialEndDate                 *string                `json:"trialEndDate,omitempty"`
 	Website                      *string                `json:"website,omitempty"`
@@ -383,6 +384,7 @@ func setImportSubscriptionRecord(record *core.Record, userID string, subscriptio
 	record.Set("paymentMethod", optionalString(subscription.PaymentMethod))
 	record.Set("startDate", subscription.StartDate)
 	record.Set("nextBillingDate", subscription.NextBillingDate)
+	record.Set("autoRenew", subscription.BillingCycle != "one-time" && subscription.AutoRenew)
 	record.Set("autoCalculateNextBillingDate", subscription.AutoCalculateNextBillingDate)
 	record.Set("trialEndDate", optionalString(subscription.TrialEndDate))
 	record.Set("website", optionalString(subscription.Website))

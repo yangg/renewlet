@@ -19,6 +19,7 @@ import {
   sortSubscriptions,
   type SubscriptionSortOption,
   type SubscriptionFilterState,
+  type SubscriptionRenewalFilter,
 } from "../domain/subscription-filters";
 
 interface UseSubscriptionFiltersOptions {
@@ -43,12 +44,13 @@ export function useSubscriptionFilters(
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<Category | "all">("all");
   const [statusFilter, setStatusFilter] = useState<SubscriptionStatus | "all">("all");
+  const [renewalFilter, setRenewalFilter] = useState<SubscriptionRenewalFilter>("all");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [sortOption, setSortOption] = useState<SubscriptionSortOption>("default");
 
   const filters: SubscriptionFilterState = useMemo(
-    () => ({ searchQuery, categoryFilter, statusFilter, selectedTags }),
-    [categoryFilter, searchQuery, selectedTags, statusFilter],
+    () => ({ searchQuery, categoryFilter, statusFilter, renewalFilter, selectedTags }),
+    [categoryFilter, renewalFilter, searchQuery, selectedTags, statusFilter],
   );
   const today = useMemo(() => todayDateOnlyInTimeZone(new Date(), timeZone), [timeZone]);
   const allTags = useMemo(() => collectSubscriptionTags(subscriptions), [subscriptions]);
@@ -73,6 +75,7 @@ export function useSubscriptionFilters(
     setSearchQuery("");
     setCategoryFilter("all");
     setStatusFilter("all");
+    setRenewalFilter("all");
     setSelectedTags([]);
     setSortOption("default");
   };
@@ -84,6 +87,8 @@ export function useSubscriptionFilters(
     setCategoryFilter,
     statusFilter,
     setStatusFilter,
+    renewalFilter,
+    setRenewalFilter,
     sortOption,
     setSortOption,
     selectedTags,

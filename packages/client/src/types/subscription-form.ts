@@ -53,6 +53,7 @@ export type SubscriptionFormState = {
   /** date-only 在表单内保持字符串，只有日历控件边界才临时转 Date。 */
   startDate: DateOnly | undefined;
   nextBillingDate: DateOnly | undefined;
+  autoRenew: boolean;
   autoCalculate: boolean;
   reminderType: SubscriptionFormReminderType;
   /** `-2/-1` 是 UI 对“不提醒/继承全局提醒”的哨兵值，提交层会转回订阅存储契约。 */
@@ -86,6 +87,7 @@ export function createSubscriptionFormState(
     paymentMethod: "",
     startDate: undefined,
     nextBillingDate: undefined,
+    autoRenew: false,
     autoCalculate: true,
     reminderType: "inherit",
     reminderDays: "-1",

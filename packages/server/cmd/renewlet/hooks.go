@@ -174,6 +174,7 @@ func normalizeSubscriptionRecord(record *core.Record) error {
 			return errors.New("ONE_TIME_TERM_COUNT_REQUIRED")
 		}
 		// one-time 有服务期时只表达预付权益到期，不自动推进下一期；买断记录则继续保持长期有效。
+		record.Set("autoRenew", false)
 		record.Set("autoCalculateNextBillingDate", false)
 	} else if oneTimeTermCount != 0 || oneTimeTermUnit != "" {
 		// one-time 服务期是统计摊销和到期提醒专用字段，切回周期订阅必须清空，避免历史服务期继续影响月均支出。

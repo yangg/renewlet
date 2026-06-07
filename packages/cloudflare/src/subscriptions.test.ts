@@ -23,6 +23,7 @@ function subscriptionBody(overrides: Partial<SubscriptionBody> = {}): Subscripti
     paymentMethod: null,
     startDate: "2026-05-14",
     nextBillingDate: "2029-05-14",
+    autoRenew: false,
     autoCalculateNextBillingDate: true,
     trialEndDate: null,
     website: null,
@@ -83,12 +84,30 @@ describe("Cloudflare subscription mapper", () => {
     expect(row.custom_cycle_unit).toBeNull();
     expect(row.one_time_term_count).toBe(6);
     expect(row.one_time_term_unit).toBe("month");
+    expect(row.auto_renew).toBe(0);
     expect(row.auto_calculate_next_billing_date).toBe(0);
     expect(toApiSubscription(row)).toMatchObject({
       billingCycle: "one-time",
       oneTimeTermCount: 6,
       oneTimeTermUnit: "month",
+      autoRenew: false,
       autoCalculateNextBillingDate: false,
+    });
+  });
+
+  it("defaults D1 rows to manual renewal while preserving explicit auto renewal", () => {
+    const manual = toSubscriptionRow("sub_manual", "usr_custom", subscriptionBody(), "2026-06-05T00:00:00.000Z", "2026-06-05T00:00:00.000Z");
+    const auto = toSubscriptionRow("sub_auto", "usr_custom", subscriptionBody({
+      autoRenew: true,
+    }), "2026-06-05T00:00:00.000Z", "2026-06-05T00:00:00.000Z");
+
+    expect(manual.auto_renew).toBe(0);
+    expect(toApiSubscription(manual)).toMatchObject({
+      autoRenew: false,
+    });
+    expect(auto.auto_renew).toBe(1);
+    expect(toApiSubscription(auto)).toMatchObject({
+      autoRenew: true,
     });
   });
 
@@ -134,11 +153,13 @@ describe("Cloudflare subscription mapper", () => {
     const customUnitMigration = readFileSync(resolve("migrations/0007_subscription_custom_cycle_unit.sql"), "utf8");
     const oneTimeTermMigration = readFileSync(resolve("migrations/0008_subscription_one_time_term.sql"), "utf8");
     const publicStatusMigration = readFileSync(resolve("migrations/0009_public_status.sql"), "utf8");
+    const autoRenewMigration = readFileSync(resolve("migrations/0010_subscription_auto_renew.sql"), "utf8");
 
     expect(initialMigration).not.toContain("custom_cycle_unit");
     expect(initialMigration).not.toContain("one_time_term");
     expect(initialMigration).not.toContain("public_hidden");
     expect(initialMigration).not.toContain("public_status_pages");
+    expect(initialMigration).not.toContain("auto_renew");
     expect(customUnitMigration.trim()).toBe("ALTER TABLE subscriptions ADD COLUMN custom_cycle_unit TEXT;");
     expect(oneTimeTermMigration.trim()).toBe([
       "ALTER TABLE subscriptions ADD COLUMN one_time_term_count INTEGER;",
@@ -146,5 +167,7 @@ describe("Cloudflare subscription mapper", () => {
     ].join("\n"));
     expect(publicStatusMigration).toContain("ALTER TABLE subscriptions ADD COLUMN public_hidden INTEGER NOT NULL DEFAULT 0;");
     expect(publicStatusMigration).toContain("CREATE TABLE IF NOT EXISTS public_status_pages");
+    expect(autoRenewMigration).toContain("ALTER TABLE subscriptions ADD COLUMN auto_renew INTEGER NOT NULL DEFAULT 0;");
+    expect(autoRenewMigration).toContain("UPDATE subscriptions SET auto_renew = 0 WHERE billing_cycle = 'one-time';");
   });
 });

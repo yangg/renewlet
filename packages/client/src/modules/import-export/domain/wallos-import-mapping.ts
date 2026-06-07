@@ -121,6 +121,7 @@ export function buildFromRenewletExport(
       paymentMethod: subscription.paymentMethod ?? null,
       startDate: subscription.startDate,
       nextBillingDate: subscription.nextBillingDate,
+      autoRenew: subscription.billingCycle === "one-time" ? false : subscription.autoRenew,
       autoCalculateNextBillingDate: subscription.autoCalculateNextBillingDate,
       trialEndDate: subscription.trialEndDate ?? null,
       website: subscription.website ?? null,
@@ -319,7 +320,9 @@ function mapWallosRow(
     status: wallosStatus(row),
     billing,
     reminderDays: wallosReminderDays(row, localWarnings),
-    autoCalculateNextBillingDate: Number(row["auto_renew"] ?? 1) === 1 && Number(row["cycle"] ?? 3) !== 5,
+    // Wallos auto_renew 是真实续订语义；字段缺失时遵循 Renewlet 默认关闭，不从 cycle 推断 consent。
+    autoRenew: row["auto_renew"] !== undefined && Number(row["auto_renew"]) === 1 && Number(row["cycle"] ?? 3) !== 5,
+    autoCalculateNextBillingDate: Number(row["cycle"] ?? 3) !== 5,
     sourceId: `${String(row["user_id"] ?? "1")}:${String(row["id"] ?? stableHash(JSON.stringify(row)))}`,
     confidence: row["id"] === undefined ? "low" : "high",
     oneTime,
@@ -343,6 +346,7 @@ function makeImportSubscription(input: {
   status: "trial" | "active" | "expired" | "paused" | "cancelled";
   billing: ImportBillingCycle;
   reminderDays?: number | undefined;
+  autoRenew?: boolean | undefined;
   autoCalculateNextBillingDate?: boolean | undefined;
   logo?: string | undefined;
   sourceId: string;
@@ -367,6 +371,7 @@ function makeImportSubscription(input: {
     paymentMethod: input.paymentMethod ?? null,
     startDate: input.startDate as DateOnly,
     nextBillingDate: input.nextBillingDate as DateOnly,
+    autoRenew: input.oneTime ? false : input.autoRenew ?? false,
     autoCalculateNextBillingDate: input.oneTime ? false : input.autoCalculateNextBillingDate ?? true,
     trialEndDate: null,
     website: input.website ?? null,

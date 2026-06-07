@@ -170,23 +170,25 @@ func TestNormalizeSubscriptionRecordDefaultsAndValidatesContract(t *testing.T) {
 	record.Set("customCycleUnit", "week")
 	record.Set("oneTimeTermCount", 0)
 	record.Set("oneTimeTermUnit", "")
+	record.Set("autoRenew", true)
 	record.Set("autoCalculateNextBillingDate", true)
 	if err := normalizeSubscriptionRecord(record); err != nil {
 		t.Fatalf("expected one-time billing cycle to be accepted: %v", err)
 	}
-	if record.GetInt("customDays") != 0 || record.GetString("customCycleUnit") != "" || record.GetInt("oneTimeTermCount") != 0 || record.GetString("oneTimeTermUnit") != "" || record.GetBool("autoCalculateNextBillingDate") {
-		t.Fatalf("expected one-time buyout to clear custom fields and auto calculation, got customDays=%d customCycleUnit=%q oneTimeTermCount=%d oneTimeTermUnit=%q auto=%v", record.GetInt("customDays"), record.GetString("customCycleUnit"), record.GetInt("oneTimeTermCount"), record.GetString("oneTimeTermUnit"), record.GetBool("autoCalculateNextBillingDate"))
+	if record.GetInt("customDays") != 0 || record.GetString("customCycleUnit") != "" || record.GetInt("oneTimeTermCount") != 0 || record.GetString("oneTimeTermUnit") != "" || record.GetBool("autoRenew") || record.GetBool("autoCalculateNextBillingDate") {
+		t.Fatalf("expected one-time buyout to clear custom fields and renewal flags, got customDays=%d customCycleUnit=%q oneTimeTermCount=%d oneTimeTermUnit=%q autoRenew=%v auto=%v", record.GetInt("customDays"), record.GetString("customCycleUnit"), record.GetInt("oneTimeTermCount"), record.GetString("oneTimeTermUnit"), record.GetBool("autoRenew"), record.GetBool("autoCalculateNextBillingDate"))
 	}
 
 	record.Set("billingCycle", "one-time")
 	record.Set("oneTimeTermCount", 6)
 	record.Set("oneTimeTermUnit", "month")
+	record.Set("autoRenew", true)
 	record.Set("autoCalculateNextBillingDate", true)
 	if err := normalizeSubscriptionRecord(record); err != nil {
 		t.Fatalf("expected one-time fixed term to be accepted: %v", err)
 	}
-	if record.GetInt("oneTimeTermCount") != 6 || record.GetString("oneTimeTermUnit") != "month" || record.GetBool("autoCalculateNextBillingDate") {
-		t.Fatalf("expected one-time fixed term to preserve term and disable auto calculation, got count=%d unit=%q auto=%v", record.GetInt("oneTimeTermCount"), record.GetString("oneTimeTermUnit"), record.GetBool("autoCalculateNextBillingDate"))
+	if record.GetInt("oneTimeTermCount") != 6 || record.GetString("oneTimeTermUnit") != "month" || record.GetBool("autoRenew") || record.GetBool("autoCalculateNextBillingDate") {
+		t.Fatalf("expected one-time fixed term to preserve term and disable renewal flags, got count=%d unit=%q autoRenew=%v auto=%v", record.GetInt("oneTimeTermCount"), record.GetString("oneTimeTermUnit"), record.GetBool("autoRenew"), record.GetBool("autoCalculateNextBillingDate"))
 	}
 
 	record.Set("oneTimeTermUnit", "")
@@ -464,6 +466,7 @@ func newSubscriptionRecord(t *testing.T, app core.App, userID string, tags inter
 		"paymentMethod":                "",
 		"startDate":                    "2026-05-14",
 		"nextBillingDate":              "2026-06-14",
+		"autoRenew":                    true,
 		"autoCalculateNextBillingDate": true,
 		"trialEndDate":                 "",
 		"website":                      "",

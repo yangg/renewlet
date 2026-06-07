@@ -465,6 +465,7 @@ function subscriptionRow(id: string, name: string, status: string, billingCycle:
     payment_method: "credit_card",
     start_date: "2099-01-01",
     next_billing_date: nextBillingDate,
+    auto_renew: billingCycle === "one-time" ? 0 : 1,
     auto_calculate_next_billing_date: 1,
     trial_end_date: null,
     website: "https://example.com",

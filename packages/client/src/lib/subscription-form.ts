@@ -18,7 +18,7 @@ import {
   DISABLED_REMINDER_DAYS,
   INHERIT_REMINDER_DAYS,
   MAX_REMINDER_DAYS,
-} from "@/types/subscription";
+} from "@renewlet/shared/runtime";
 import { getApiLocale } from "@/i18n/api-locale";
 import { translate } from "@/i18n/messages";
 import { compareDateOnly } from "@/lib/time/date-only";
@@ -27,6 +27,10 @@ import { calculateOneTimeTermEndDate } from "@/lib/subscription-billing";
 const MAX_PRICE = 1_000_000_000;
 const MAX_DAYS = MAX_REMINDER_DAYS;
 const TAG_SEPARATOR_PATTERN = /[、，,;；\n]+/g;
+type SubscriptionDraftBase = Omit<
+  SubscriptionDraft,
+  "billingCycle" | "customDays" | "customCycleUnit" | "oneTimeTermCount" | "oneTimeTermUnit"
+>;
 
 /** 严格解析非负有限数，拒绝 `1e3` 等浏览器/后端口径可能不一致的写法。 */
 export function parseNonNegativeFiniteNumberInput(input: string, max = MAX_PRICE): number | null {
@@ -224,6 +228,7 @@ export function toSubscriptionDraft(formData: SubscriptionFormState): Subscripti
     paymentMethod: formData.paymentMethod || undefined,
     startDate,
     nextBillingDate,
+    autoRenew: formData.billingCycle === "one-time" ? false : formData.autoRenew,
     autoCalculateNextBillingDate: formData.billingCycle === "one-time" ? false : formData.autoCalculate,
     trialEndDate: undefined,
     reminderDays,
@@ -233,7 +238,7 @@ export function toSubscriptionDraft(formData: SubscriptionFormState): Subscripti
     website: formData.website || undefined,
     notes: formData.notes || undefined,
     tags: normalizeTagsArray(formData.tags),
-  };
+  } satisfies SubscriptionDraftBase;
   if (formData.billingCycle === "custom") {
     return {
       ...base,
@@ -252,6 +257,7 @@ export function toSubscriptionDraft(formData: SubscriptionFormState): Subscripti
       customCycleUnit: undefined,
       oneTimeTermCount: formData.oneTimeMode === "term" ? oneTimeTermCount ?? 1 : undefined,
       oneTimeTermUnit: formData.oneTimeMode === "term" ? formData.oneTimeTermUnit : undefined,
+      autoRenew: false,
       autoCalculateNextBillingDate: false,
     };
   }

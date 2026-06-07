@@ -111,9 +111,30 @@ describe("wallos import", () => {
     expect(prepared.payload.subscriptions[0]?.customDays).toBe(2);
     expect(prepared.payload.subscriptions[0]?.customCycleUnit).toBe("week");
     expect(prepared.payload.subscriptions[0]?.reminderDays).toBe(-1);
+    expect(prepared.payload.subscriptions[0]?.autoRenew).toBe(true);
     expect(prepared.payload.subscriptions[0]?.extra.import.sourceId).toBe("7:12");
     expect(prepared.payload.subscriptions[0]?.logo).toBeNull();
     expect(prepared.payload.customConfig?.categories.some((item) => item.labels["en-US"] === "Developer")).toBe(true);
+  });
+
+  it("defaults Wallos rows without auto_renew to manual renewal", async () => {
+    const prepared = await parseJsonText(JSON.stringify({
+      success: true,
+      subscriptions: [{
+        id: 44,
+        user_id: 7,
+        name: "Missing Auto Renew",
+        price: 4,
+        currency_id: 1,
+        start_date: "2026-01-01",
+        next_payment: "2026-06-01",
+        cycle: 3,
+        frequency: 1,
+        inactive: 0,
+      }],
+    }), context);
+
+    expect(prepared.payload.subscriptions[0]?.autoRenew).toBe(false);
   });
 
   it("keeps Wallos audit metadata bounded and trims notes to the write schema limit", async () => {

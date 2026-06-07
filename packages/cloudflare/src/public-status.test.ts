@@ -217,6 +217,7 @@ function subscriptionRow(overrides: Partial<SubscriptionRow> = {}): Subscription
     payment_method: "credit_card",
     start_date: "2026-05-01",
     next_billing_date: "2099-06-01",
+    auto_renew: 1,
     auto_calculate_next_billing_date: 1,
     trial_end_date: null,
     website: "https://billing.example.test",

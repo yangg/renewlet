@@ -108,6 +108,7 @@ function buildLegacySubscription(
     paymentMethod: normalizeOptionalText(row["paymentMethod"]),
     startDate,
     nextBillingDate,
+    autoRenew: billingCycle === "one-time" ? false : normalizeBoolean(row["autoRenew"], false),
     autoCalculateNextBillingDate: billingCycle === "one-time" ? false : normalizeBoolean(row["autoCalculateNextBillingDate"], true),
     trialEndDate: normalizeNullableDateOnly(row["trialEndDate"], localWarnings),
     website,

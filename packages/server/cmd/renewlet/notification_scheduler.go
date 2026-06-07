@@ -307,6 +307,10 @@ func processNotificationCronUser(app core.App, options notificationCronOptions, 
 		return notificationCronUserResult{Action: "skipped", Reason: "missing_user"}, nil
 	}
 	settings := settingsFromRecord(row)
+	// 通知内容生成前先做一次幂等续订维护，避免自动续订项刚过期就被同一轮 cron 当成 expired 通知。
+	if _, err := renewAutoSubscriptionsForUser(app, userID, settings.Timezone, options.Now); err != nil {
+		return notificationCronUserResult{}, err
+	}
 	subscriptions, err := listNotificationSubscriptions(app, userID)
 	if err != nil {
 		return notificationCronUserResult{}, err

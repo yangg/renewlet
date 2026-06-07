@@ -74,6 +74,7 @@ describe("AI recognition form mapping", () => {
       paymentMethod: "crypto",
       startDate: "2026-06-01",
       nextBillingDate: "2026-07-01",
+      autoRenew: false,
       autoCalculate: false,
       reminderType: "custom",
       reminderDays: "5",

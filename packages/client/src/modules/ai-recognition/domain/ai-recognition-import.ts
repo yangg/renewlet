@@ -81,6 +81,7 @@ function buildAIImportSubscription(draft: AiRecognizedSubscriptionDraft, state: 
     paymentMethod,
     startDate: startDate as DateOnly,
     nextBillingDate: nextBillingDate as DateOnly,
+    autoRenew: false,
     autoCalculateNextBillingDate: billingCycle === "one-time" ? false : draft.autoCalculateNextBillingDate ?? true,
     trialEndDate: draft.status === "trial" ? draft.trialEndDate : null,
     website: website ?? null,

@@ -15,6 +15,7 @@ export interface SubscriptionFilterState {
   searchQuery: string;
   categoryFilter: Category | "all";
   statusFilter: SubscriptionStatus | "all";
+  renewalFilter: SubscriptionRenewalFilter;
   selectedTags: string[];
 }
 
@@ -36,6 +37,9 @@ export const SUBSCRIPTION_SORT_OPTIONS = [
 
 /** 订阅列表排序选项。 */
 export type SubscriptionSortOption = (typeof SUBSCRIPTION_SORT_OPTIONS)[number];
+
+export const SUBSCRIPTION_RENEWAL_FILTERS = ["all", "auto", "manual", "one-time"] as const;
+export type SubscriptionRenewalFilter = (typeof SUBSCRIPTION_RENEWAL_FILTERS)[number];
 
 export interface SubscriptionSortContext {
   sortOption: SubscriptionSortOption;
@@ -80,6 +84,16 @@ export function filterSubscriptions(
 
     // 状态筛选必须走“有效状态”，否则旧 active/trial 过期记录无法被“已过期”筛出，也会继续出现在“活跃/试用中”。
     if (filters.statusFilter !== "all" && getEffectiveSubscriptionStatus(subscription, today) !== filters.statusFilter) {
+      return false;
+    }
+
+    if (filters.renewalFilter === "one-time" && subscription.billingCycle !== "one-time") {
+      return false;
+    }
+    if (filters.renewalFilter === "auto" && (subscription.billingCycle === "one-time" || !subscription.autoRenew)) {
+      return false;
+    }
+    if (filters.renewalFilter === "manual" && (subscription.billingCycle === "one-time" || subscription.autoRenew)) {
       return false;
     }
 
@@ -178,6 +192,7 @@ export function hasActiveSubscriptionFilters(filters: SubscriptionFilterState): 
     filters.searchQuery ||
       filters.categoryFilter !== "all" ||
       filters.statusFilter !== "all" ||
+      filters.renewalFilter !== "all" ||
       filters.selectedTags.length > 0,
   );
 }

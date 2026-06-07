@@ -73,6 +73,7 @@ export interface SubscriptionRow {
   payment_method: string | null;
   start_date: string;
   next_billing_date: string;
+  auto_renew: number;
   auto_calculate_next_billing_date: number;
   trial_end_date: string | null;
   website: string | null;

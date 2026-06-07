@@ -10,7 +10,7 @@ import {
   subscriptionResponseSchema,
   subscriptionDeleteResponseSchema,
   type ApiSubscription,
-} from "@/lib/api/schemas/subscriptions";
+} from "@renewlet/shared/schemas/subscriptions";
 import { isCloudflareRuntime } from "./runtime";
 import {
   REPEAT_REMINDER_INTERVALS,
@@ -25,6 +25,32 @@ import {
 
 const SUBSCRIPTION_PAGE_SIZE = 50;
 const SUBSCRIPTION_AGGREGATE_LIMIT = 5000;
+type SubscriptionBaseForService = Pick<
+  Subscription,
+  | "id"
+  | "name"
+  | "logo"
+  | "price"
+  | "currency"
+  | "category"
+  | "status"
+  | "paymentMethod"
+  | "startDate"
+  | "nextBillingDate"
+  | "autoRenew"
+  | "autoCalculateNextBillingDate"
+  | "pinned"
+  | "publicHidden"
+  | "trialEndDate"
+  | "website"
+  | "notes"
+  | "tags"
+  | "reminderDays"
+  | "repeatReminderEnabled"
+  | "repeatReminderInterval"
+  | "repeatReminderWindow"
+  | "extra"
+>;
 
 export interface SubscriptionPage {
   subscriptions: Subscription[];
@@ -76,6 +102,8 @@ function normalizeSubscriptionRecord(row: unknown): unknown {
     status: row["status"],
     startDate: row["startDate"],
     nextBillingDate: row["nextBillingDate"],
+    // 旧 PocketBase 行可能没有 autoRenew；缺字段按手动续订读取，避免把历史沉默数据当作自动续订授权。
+    autoRenew: row["billingCycle"] === "one-time" ? false : row["autoRenew"] === true,
     autoCalculateNextBillingDate: row["autoCalculateNextBillingDate"],
     pinned: row["pinned"] === true,
     publicHidden: row["publicHidden"] === true,
@@ -117,7 +145,10 @@ function normalizeSubscriptionRecord(row: unknown): unknown {
  * React 层只看到 `Subscription` union，避免表单和统计逻辑按运行面分叉。
  */
 export function fromApiSubscription(row: ApiSubscription | RecordModel): Subscription {
-  const parsedRow = apiSubscriptionSchema.parse(normalizeSubscriptionRecord(row));
+  const parsedRow: ApiSubscription = apiSubscriptionSchema.parse(normalizeSubscriptionRecord(row));
+  const startDate = assertDateOnly(parsedRow.startDate);
+  const nextBillingDate = assertDateOnly(parsedRow.nextBillingDate);
+  const trialEndDate = parsedRow.trialEndDate ? assertDateOnly(parsedRow.trialEndDate) : undefined;
   const base = {
     id: parsedRow.id,
     name: parsedRow.name,
@@ -127,12 +158,13 @@ export function fromApiSubscription(row: ApiSubscription | RecordModel): Subscri
     category: parsedRow.category,
     status: parsedRow.status,
     paymentMethod: parsedRow.paymentMethod,
-    startDate: assertDateOnly(parsedRow.startDate),
-    nextBillingDate: assertDateOnly(parsedRow.nextBillingDate),
+    startDate,
+    nextBillingDate,
+    autoRenew: parsedRow.billingCycle === "one-time" ? false : parsedRow.autoRenew,
     autoCalculateNextBillingDate: parsedRow.autoCalculateNextBillingDate,
     pinned: parsedRow.pinned,
     publicHidden: parsedRow.publicHidden,
-    trialEndDate: parsedRow.trialEndDate ? assertDateOnly(parsedRow.trialEndDate) : undefined,
+    trialEndDate,
     website: parsedRow.website,
     notes: parsedRow.notes,
     tags: parsedRow.tags ?? [],
@@ -141,7 +173,7 @@ export function fromApiSubscription(row: ApiSubscription | RecordModel): Subscri
     repeatReminderInterval: parsedRow.repeatReminderInterval,
     repeatReminderWindow: parsedRow.repeatReminderWindow,
     extra: parsedRow.extra,
-  };
+  } satisfies SubscriptionBaseForService;
   if (parsedRow.billingCycle === "custom") {
     // 旧 custom 记录没有单位字段；读边界统一按 day 解释，避免统计和自动推算把历史含义改成月/年。
     return {
@@ -196,6 +228,7 @@ export function toSubscriptionWritePayload(sub: SubscriptionDraft | Subscription
     paymentMethod: sub.paymentMethod ?? null,
     startDate: sub.startDate,
     nextBillingDate: sub.nextBillingDate,
+    autoRenew: sub.billingCycle === "one-time" ? false : sub.autoRenew,
     autoCalculateNextBillingDate: sub.autoCalculateNextBillingDate,
     pinned: sub.pinned,
     publicHidden: sub.publicHidden,
@@ -279,6 +312,13 @@ export const subscriptionService = {
     }
     const row = await withPocketBaseAuthGuard(pb.collection("subscriptions").update<ApiSubscription>(sub.id, payload));
     return fromApiSubscription(row);
+  },
+
+  async renew(id: string): Promise<Subscription> {
+    const data = await apiFetch(`/api/app/subscriptions/${id}/renew`, subscriptionResponseSchema, {
+      method: "POST",
+    });
+    return fromApiSubscription(data.subscription);
   },
 
   async delete(id: string): Promise<void> {

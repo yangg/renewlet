@@ -23,6 +23,7 @@ const payload = {
       paymentMethod: undefined,
       startDate: "2026-05-01",
       nextBillingDate: "2026-06-01",
+      autoRenew: false,
       autoCalculateNextBillingDate: true,
       trialEndDate: undefined,
       billingCycle: "monthly",

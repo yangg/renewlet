@@ -45,6 +45,7 @@ export function aiDraftToSubscriptionFormState(
     paymentMethod: draft.paymentMethod ?? "",
     startDate: toFormDate(draft.startDate),
     nextBillingDate: toFormDate(draft.nextBillingDate),
+    autoRenew: false,
     autoCalculate: draft.autoCalculateNextBillingDate ?? true,
     reminderType: reminderState.reminderType,
     reminderDays: reminderState.reminderDays,

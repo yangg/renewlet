@@ -190,6 +190,64 @@ describe("SubscriptionDialog", () => {
     expect(screen.getByRole("combobox", { name: "到期提醒" })).toHaveTextContent("默认值从设置中获取（提前 5 天）");
   });
 
+  it("defaults new subscriptions to manual renewal and submits explicit auto-renew opt-in", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(
+      <TooltipProvider delayDuration={0}>
+        <SubscriptionDialog
+          mode="create"
+          open
+          onOpenChange={vi.fn()}
+          onSubmit={onSubmit}
+        />
+      </TooltipProvider>,
+    );
+
+    const autoRenewSwitch = screen.getByRole("switch", { name: "自动续订" });
+    expect(autoRenewSwitch).not.toBeChecked();
+
+    await user.click(autoRenewSwitch);
+    await user.type(screen.getByLabelText("服务名称"), "Opt-in SaaS");
+    await user.type(screen.getByLabelText("价格"), "10");
+    await user.click(screen.getByRole("button", { name: /开始日期.*选择日期/ }));
+    await user.click(await screen.findByRole("button", { name: /2026年6月8日/ }));
+    await user.click(screen.getByRole("button", { name: "添加订阅" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      name: "Opt-in SaaS",
+      autoRenew: true,
+    }));
+  });
+
+  it("keeps auto renewal off when switching from one-time back to a recurring cycle", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <TooltipProvider delayDuration={0}>
+        <SubscriptionDialog
+          mode="create"
+          open
+          onOpenChange={vi.fn()}
+          onSubmit={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    const billingCycleSelect = screen.getByRole("combobox", { name: "扣费周期" });
+    expect(screen.getByRole("switch", { name: "自动续订" })).not.toBeChecked();
+
+    await user.click(billingCycleSelect);
+    await user.click(await screen.findByRole("option", { name: "一次性购买" }));
+    expect(screen.queryByRole("switch", { name: "自动续订" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("combobox", { name: "扣费周期" }));
+    await user.click(await screen.findByRole("option", { name: "每年" }));
+
+    expect(screen.getByRole("switch", { name: "自动续订" })).not.toBeChecked();
+  });
+
   it("submits custom billing cycles with selectable units", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
@@ -376,6 +434,7 @@ describe("SubscriptionDialog", () => {
       paymentMethod: "alipay",
       startDate: assertDateOnly("2026-04-16"),
       nextBillingDate: assertDateOnly("2026-05-16"),
+      autoRenew: false,
       autoCalculateNextBillingDate: false,
       trialEndDate: undefined,
       website: undefined,
@@ -614,6 +673,7 @@ describe("SubscriptionDialog", () => {
       paymentMethod: "alipay",
       startDate: assertDateOnly("2026-05-14"),
       nextBillingDate: assertDateOnly("2026-05-17"),
+      autoRenew: false,
       autoCalculateNextBillingDate: false,
       trialEndDate: undefined,
       website: undefined,

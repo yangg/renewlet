@@ -23,16 +23,16 @@ const INSERT_SUBSCRIPTION_SQL = `
   INSERT INTO subscriptions (
     id, user_id, name, logo, price, currency, billing_cycle, custom_days, custom_cycle_unit, one_time_term_count, one_time_term_unit,
     category, status, pinned, public_hidden, payment_method,
-    start_date, next_billing_date, auto_calculate_next_billing_date, trial_end_date, website, notes, tags_json,
+    start_date, next_billing_date, auto_renew, auto_calculate_next_billing_date, trial_end_date, website, notes, tags_json,
     reminder_days, repeat_reminder_enabled, repeat_reminder_interval, repeat_reminder_window, extra_json, created_at, updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
 
 const UPDATE_SUBSCRIPTION_SQL = `
   UPDATE subscriptions SET
     name = ?, logo = ?, price = ?, currency = ?, billing_cycle = ?, custom_days = ?, custom_cycle_unit = ?,
     one_time_term_count = ?, one_time_term_unit = ?, category = ?, status = ?,
-    pinned = ?, public_hidden = ?, payment_method = ?, start_date = ?, next_billing_date = ?, auto_calculate_next_billing_date = ?,
+    pinned = ?, public_hidden = ?, payment_method = ?, start_date = ?, next_billing_date = ?, auto_renew = ?, auto_calculate_next_billing_date = ?,
     trial_end_date = ?, website = ?, notes = ?, tags_json = ?, reminder_days = ?, repeat_reminder_enabled = ?,
     repeat_reminder_interval = ?, repeat_reminder_window = ?, extra_json = ?, updated_at = ?
   WHERE user_id = ? AND id = ?
@@ -101,6 +101,7 @@ export async function applyImport(request: Request, env: Env): Promise<Response>
         row.payment_method,
         row.start_date,
         row.next_billing_date,
+        row.auto_renew,
         row.auto_calculate_next_billing_date,
         row.trial_end_date,
         row.website,

@@ -94,6 +94,7 @@ function importSubscription(overrides: Record<string, unknown> = {}) {
     paymentMethod: null,
     startDate: "2026-05-21",
     nextBillingDate: "2026-06-21",
+    autoRenew: false,
     autoCalculateNextBillingDate: true,
     trialEndDate: null,
     website: null,
@@ -179,6 +180,7 @@ describe("Cloudflare import", () => {
     expect(insert?.values[9]).toBeNull();
     expect(insert?.values[10]).toBeNull();
     expect(insert?.values[18]).toBe(0);
+    expect(insert?.values[19]).toBe(0);
   });
 
   it("preserves one-time fixed term fields before binding D1 statements", async () => {
@@ -203,6 +205,7 @@ describe("Cloudflare import", () => {
     expect(insert?.values[9]).toBe(6);
     expect(insert?.values[10]).toBe("month");
     expect(insert?.values[18]).toBe(0);
+    expect(insert?.values[19]).toBe(0);
   });
 
   it("preserves disabled reminder days before binding D1 statements", async () => {
@@ -216,7 +219,19 @@ describe("Cloudflare import", () => {
     expect(response.status).toBe(200);
     expect(db.batch).toHaveBeenCalledTimes(1);
     const insert = statements.find((statement) => statement.sql.includes("INSERT INTO subscriptions"));
-    expect(insert?.values[23]).toBe(-2);
+    expect(insert?.values[24]).toBe(-2);
+  });
+
+  it("defaults missing import autoRenew to manual renewal before binding D1 statements", async () => {
+    const { env, db, statements } = envFixture();
+    const subscription = { ...importSubscription() } as Record<string, unknown>;
+    delete subscription["autoRenew"];
+    const response = await applyImport(requestFor("/api/app/import/apply", importPayload([subscription])), env);
+
+    expect(response.status).toBe(200);
+    expect(db.batch).toHaveBeenCalledTimes(1);
+    const insert = statements.find((statement) => statement.sql.includes("INSERT INTO subscriptions"));
+    expect(insert?.values[18]).toBe(0);
   });
 
   it("skips existing import keys unless replace is selected", async () => {
@@ -240,6 +255,7 @@ describe("Cloudflare import", () => {
         payment_method: null,
         start_date: "2026-05-21",
         next_billing_date: "2026-06-21",
+        auto_renew: 1,
         auto_calculate_next_billing_date: 1,
         trial_end_date: null,
         website: null,

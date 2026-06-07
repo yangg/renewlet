@@ -120,6 +120,7 @@ const baseSubscription: Subscription = {
   paymentMethod: undefined,
   startDate: assertDateOnly("2026-05-15"),
   nextBillingDate: assertDateOnly("2026-06-15"),
+  autoRenew: false,
   autoCalculateNextBillingDate: true,
   trialEndDate: undefined,
   website: undefined,

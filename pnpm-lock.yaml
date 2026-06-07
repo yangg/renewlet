@@ -421,6 +421,9 @@ importers:
 
   packages/shared:
     dependencies:
+      '@js-temporal/polyfill':
+        specifier: ^0.5.1
+        version: 0.5.1
       ical-generator:
         specifier: 10.2.0
         version: 10.2.0(@types/node@25.8.0)(dayjs@1.11.21)

@@ -6,7 +6,7 @@
  */
 import { useState, type ReactNode } from "react";
 import { Drawer } from "vaul";
-import { CalendarPlus, Edit2, ExternalLink, X } from "lucide-react";
+import { CalendarPlus, Edit2, ExternalLink, RotateCw, X } from "lucide-react";
 import type { Subscription } from "@/types/subscription";
 import {
   DEFAULT_NOTIFICATION_REMINDER_DAYS,
@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import type { DateOnly } from "@/lib/time/date-only";
 import { formatBillingCycleLabel, isOneTimeBuyout, isOneTimeFixedTerm } from "@/lib/subscription-billing";
 import { getEffectiveSubscriptionStatus } from "@/modules/subscriptions/domain/subscription-status";
+import { isManualRenewEligible } from "@renewlet/shared/subscription-renewal";
 
 const DEFAULT_LOGO_FALLBACK_COLOR = "hsl(var(--primary))";
 
@@ -35,6 +36,7 @@ interface SubscriptionDetailDialogProps {
   onOpenChange: (open: boolean) => void;
   subscription: Subscription | null;
   onEditSubscription?: (subscription: Subscription) => void;
+  onRenewSubscription?: (id: string) => void;
   today: DateOnly | string;
 }
 
@@ -43,6 +45,7 @@ interface SubscriptionDetailContentProps {
   today: DateOnly | string;
   onClose: () => void;
   onEditSubscription?: (subscription: Subscription) => void;
+  onRenewSubscription?: (id: string) => void;
   onAddToCalendar: () => void;
 }
 
@@ -68,6 +71,7 @@ function SubscriptionDetailContent({
   today,
   onClose,
   onEditSubscription,
+  onRenewSubscription,
   onAddToCalendar,
 }: SubscriptionDetailContentProps) {
   const { config } = useCustomConfig();
@@ -82,6 +86,14 @@ function SubscriptionDetailContent({
   const inheritedReminderDays = settings?.notificationReminderDays ?? DEFAULT_NOTIFICATION_REMINDER_DAYS;
   const isBuyout = isOneTimeBuyout(subscription);
   const isFixedTermOneTime = isOneTimeFixedTerm(subscription);
+  const isOneTime = subscription.billingCycle === "one-time";
+  const canManualRenew = Boolean(onRenewSubscription) && isManualRenewEligible(subscription);
+  const hasMultipleActions = !isBuyout || canManualRenew || Boolean(onEditSubscription);
+  const renewalLabel = isOneTime
+    ? t("subscription.renewal.oneTime")
+    : subscription.autoRenew
+      ? t("subscription.renewal.auto")
+      : t("subscription.renewal.manual");
   const nextBillingLabel =
     isBuyout
       ? t("subscription.detail.purchaseDate")
@@ -153,6 +165,11 @@ function SubscriptionDetailContent({
         <DetailRow label={t("subscription.detail.reminder")}>
           {reminderLabel}
         </DetailRow>
+        <DetailRow label={t("subscription.detail.renewalType")}>
+          <Badge variant={isOneTime ? "secondary" : subscription.autoRenew ? "outline" : "secondary"} className="w-fit sm:ml-auto">
+            {renewalLabel}
+          </Badge>
+        </DetailRow>
         <DetailRow label={t("subscription.detail.publicVisibility")}>
           <Badge variant={subscription.publicHidden ? "secondary" : "outline"} className="w-fit sm:ml-auto">
             {subscription.publicHidden ? t("subscription.publicVisibilityHidden") : t("subscription.publicVisibilityVisible")}
@@ -192,7 +209,7 @@ function SubscriptionDetailContent({
         ) : null}
       </div>
 
-      <div className={cn("grid gap-2 pt-1", onEditSubscription && !isBuyout ? "sm:grid-cols-[1fr_1.35fr_1fr]" : "sm:grid-cols-2")}>
+      <div className={cn("grid gap-2 pt-1", hasMultipleActions && "sm:grid-cols-2")}>
         <Button variant="outline" className="border-border" onClick={onClose}>
           {t("common.close")}
         </Button>
@@ -200,6 +217,12 @@ function SubscriptionDetailContent({
           <Button variant="outline" className="border-border" onClick={onAddToCalendar}>
             <CalendarPlus className="h-4 w-4" />
             {t("subscription.addToCalendar")}
+          </Button>
+        ) : null}
+        {canManualRenew ? (
+          <Button variant="outline" className="border-border" onClick={() => onRenewSubscription?.(subscription.id)}>
+            <RotateCw className="h-4 w-4" />
+            {t("subscription.renew")}
           </Button>
         ) : null}
         {onEditSubscription ? (
@@ -218,6 +241,7 @@ export function SubscriptionDetailDialog({
   onOpenChange,
   subscription,
   onEditSubscription,
+  onRenewSubscription,
   today,
 }: SubscriptionDetailDialogProps) {
   const isMobile = useMediaQuery("(max-width: 639px)");
@@ -273,6 +297,7 @@ export function SubscriptionDetailDialog({
                       onClose={closeDetail}
                       onAddToCalendar={openAddToCalendar}
                       {...(onEditSubscription ? { onEditSubscription } : {})}
+                      {...(onRenewSubscription ? { onRenewSubscription } : {})}
                     />
                   </div>
                 ) : null}
@@ -297,6 +322,7 @@ export function SubscriptionDetailDialog({
                   onClose={closeDetail}
                   onAddToCalendar={openAddToCalendar}
                   {...(onEditSubscription ? { onEditSubscription } : {})}
+                  {...(onRenewSubscription ? { onRenewSubscription } : {})}
                 />
               ) : null}
             </div>

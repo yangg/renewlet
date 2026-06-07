@@ -164,6 +164,8 @@ interface SubscriptionBase {
   paymentMethod: PaymentMethod | undefined;
   /** 下次扣费日期（用于提醒与日历）。 */
   nextBillingDate: DateOnly;
+  /** 到期后是否由后台自动推进下一期；one-time 写入层必须强制为 false。 */
+  autoRenew: boolean;
   /** 是否自动根据开始日期和扣费周期计算下次扣费日期。 */
   autoCalculateNextBillingDate: boolean;
   /** 开始日期。 */

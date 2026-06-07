@@ -45,6 +45,12 @@ describe("subscription service normalization", () => {
     });
   });
 
+  it("defaults legacy PocketBase rows without autoRenew to manual renewal", () => {
+    expect(fromApiSubscription(legacyPocketBaseRow).autoRenew).toBe(false);
+    expect(fromApiSubscription({ ...legacyPocketBaseRow, autoRenew: true }).autoRenew).toBe(true);
+    expect(fromApiSubscription({ ...legacyPocketBaseRow, autoRenew: false }).autoRenew).toBe(false);
+  });
+
   it("defaults legacy custom PocketBase rows without a unit to day", () => {
     const subscription = fromApiSubscription({
       ...legacyPocketBaseRow,

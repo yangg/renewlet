@@ -113,6 +113,43 @@ func createRouteTestUser(t *testing.T, app core.App, role string) (*core.Record,
 	return user, token
 }
 
+func createRouteTestSubscription(t *testing.T, app core.App, userID string, overrides map[string]interface{}) *core.Record {
+	t.Helper()
+	collection, err := app.FindCollectionByNameOrId("subscriptions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := core.NewRecord(collection)
+	record.Load(map[string]interface{}{
+		"user":                         userID,
+		"name":                         "Route Subscription",
+		"price":                        12,
+		"currency":                     "USD",
+		"billingCycle":                 "monthly",
+		"category":                     "productivity",
+		"status":                       "active",
+		"pinned":                       false,
+		"publicHidden":                 false,
+		"startDate":                    "2026-01-01",
+		"nextBillingDate":              "2026-02-01",
+		"autoRenew":                    true,
+		"autoCalculateNextBillingDate": true,
+		"tags":                         []string{},
+		"extra":                        emptyJSONPayload{},
+		"reminderDays":                 3,
+		"repeatReminderEnabled":        false,
+		"repeatReminderInterval":       defaultRepeatReminderInterval,
+		"repeatReminderWindow":         defaultRepeatReminderWindow,
+	})
+	for key, value := range overrides {
+		record.Set(key, value)
+	}
+	if err := app.Save(record); err != nil {
+		t.Fatal(err)
+	}
+	return record
+}
+
 func createRouteTestSuperuser(t *testing.T, app core.App, email string, password string) *core.Record {
 	t.Helper()
 	superusers, err := app.FindCollectionByNameOrId(core.CollectionNameSuperusers)
@@ -126,6 +163,90 @@ func createRouteTestSuperuser(t *testing.T, app core.App, email string, password
 		t.Fatal(err)
 	}
 	return superuser
+}
+
+func TestSubscriptionRenewRouteAdvancesManualSubscription(t *testing.T) {
+	app := newSchemaTestApp(t)
+	if err := ensureSchema(app); err != nil {
+		t.Fatal(err)
+	}
+	registerRecordHooks(app)
+	user, token := createRouteTestUser(t, app, "renew")
+	record := createRouteTestSubscription(t, app, user.Id, map[string]interface{}{
+		"name":            "Manual Renew",
+		"status":          "expired",
+		"nextBillingDate": "2026-01-01",
+		"autoRenew":       false,
+	})
+
+	res := serveTestRequest(t, app, http.MethodPost, "/api/app/subscriptions/"+record.Id+"/renew", "", token)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected renew 200, got %d: %s", res.Code, res.Body.String())
+	}
+	var body map[string]map[string]interface{}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	subscription := body["subscription"]
+	if subscription["status"] != "active" {
+		t.Fatalf("expected expired manual subscription to become active, got %#v", subscription["status"])
+	}
+	if subscription["nextBillingDate"] == "2026-01-01" {
+		t.Fatalf("expected nextBillingDate to advance, got %#v", subscription)
+	}
+	if subscription["autoRenew"] != false {
+		t.Fatalf("expected manual renewal to keep autoRenew=false, got %#v", subscription["autoRenew"])
+	}
+	if _, ok := subscription["user"]; ok {
+		t.Fatalf("renew response must not expose owner field: %#v", subscription)
+	}
+	reloaded, err := app.FindRecordById("subscriptions", record.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.GetString("status") != "active" || reloaded.GetString("nextBillingDate") == "2026-01-01" {
+		t.Fatalf("expected record to be renewed, status=%s next=%s", reloaded.GetString("status"), reloaded.GetString("nextBillingDate"))
+	}
+}
+
+func TestSubscriptionRenewRouteRejectsDisallowedSubscriptions(t *testing.T) {
+	app := newSchemaTestApp(t)
+	if err := ensureSchema(app); err != nil {
+		t.Fatal(err)
+	}
+	registerRecordHooks(app)
+	user, token := createRouteTestUser(t, app, "renew-reject")
+	otherUser, _ := createRouteTestUser(t, app, "renew-other")
+
+	paused := createRouteTestSubscription(t, app, user.Id, map[string]interface{}{
+		"name":      "Paused Manual",
+		"status":    "paused",
+		"autoRenew": false,
+	})
+	automatic := createRouteTestSubscription(t, app, user.Id, map[string]interface{}{
+		"name":      "Automatic",
+		"autoRenew": true,
+	})
+	oneTime := createRouteTestSubscription(t, app, user.Id, map[string]interface{}{
+		"name":         "One Time",
+		"billingCycle": "one-time",
+		"autoRenew":    false,
+	})
+	foreign := createRouteTestSubscription(t, app, otherUser.Id, map[string]interface{}{
+		"name":      "Foreign",
+		"autoRenew": false,
+	})
+
+	for _, record := range []*core.Record{paused, automatic, oneTime} {
+		res := serveTestRequest(t, app, http.MethodPost, "/api/app/subscriptions/"+record.Id+"/renew", `{}`, token)
+		if res.Code != http.StatusBadRequest {
+			t.Fatalf("expected disallowed subscription %s to return 400, got %d: %s", record.GetString("name"), res.Code, res.Body.String())
+		}
+	}
+	foreignRes := serveTestRequest(t, app, http.MethodPost, "/api/app/subscriptions/"+foreign.Id+"/renew", `{}`, token)
+	if foreignRes.Code != http.StatusNotFound {
+		t.Fatalf("expected foreign subscription to return 404, got %d: %s", foreignRes.Code, foreignRes.Body.String())
+	}
 }
 
 func TestPocketBaseInstallerIsDisabled(t *testing.T) {

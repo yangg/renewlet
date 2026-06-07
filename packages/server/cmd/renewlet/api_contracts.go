@@ -172,6 +172,9 @@ type systemRestartRequest struct{}
 // calendarFeedCreateRequest 只允许空对象，用于显式拒绝前端/客户端误传 token 等敏感字段。
 type calendarFeedCreateRequest struct{}
 
+// subscriptionRenewRequest 只允许空对象；手动续订的对象由 URL id 和当前登录用户共同确定。
+type subscriptionRenewRequest struct{}
+
 // systemBuildInfo 是前端版本弹窗展示的构建元数据；发布构建由 CI ldflags 注入。
 type systemBuildInfo struct {
 	Version   string `json:"version"`

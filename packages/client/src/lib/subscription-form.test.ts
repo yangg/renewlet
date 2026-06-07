@@ -162,6 +162,19 @@ describe("subscription-form", () => {
     });
   });
 
+  it("keeps auto renewal disabled by default but preserves explicit user opt-in", () => {
+    const base = createSubscriptionFormState({
+      name: "Manual Renewal",
+      price: "10",
+      startDate: assertDateOnly("2026-01-01"),
+      nextBillingDate: assertDateOnly("2026-02-01"),
+    });
+
+    expect(base.autoRenew).toBe(false);
+    expect(toSubscriptionDraft(base)).toMatchObject({ autoRenew: false });
+    expect(toSubscriptionDraft({ ...base, autoRenew: true })).toMatchObject({ autoRenew: true });
+  });
+
   it("saves disabled reminders and turns off repeat reminders in drafts", () => {
     const form = createSubscriptionFormState({
       name: "Quiet Reminder",

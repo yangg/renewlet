@@ -23,12 +23,13 @@ import {
   readSubscriptionCalendarFeed,
 } from "./calendar-feed";
 import { readCustomConfig, readSettings, updateCustomConfig, updateSettings } from "./settings";
-import { createSubscription, deleteSubscription, readSubscriptions, updateSubscription } from "./subscriptions";
+import { createSubscription, deleteSubscription, readSubscriptions, renewSubscription, updateSubscription } from "./subscriptions";
 import { applyImport, previewImport } from "./import-export";
 import { recognizeSubscriptions, testAIRecognitionConnection } from "./ai-recognition";
 import { listAIModels } from "./ai-models";
 import { mediaCandidates } from "./search";
 import { notificationHistory, notificationRun, notificationTest, runScheduledNotifications } from "./notifications";
+import { renewAutoSubscriptionsForAllUsers } from "./subscription-renewal";
 import {
   createPublicStatusPage,
   deletePublicStatusPage,
@@ -58,6 +59,8 @@ const worker: ExportedHandler<Env> = {
   },
 
   async scheduled(_controller, env) {
+    // Cron 先推进自动续订再生成通知；否则后台续订项会用旧日期进入本轮提醒内容。
+    await renewAutoSubscriptionsForAllUsers(env);
     // Cron 顶层失败必须交回平台记录；本地调试通过 `--test-scheduled` 的 `/__scheduled` 绕过 Wrangler Static Assets bug。
     await runScheduledNotifications(env);
   },
@@ -154,6 +157,9 @@ async function routeApp(request: Request, env: Env, url: URL): Promise<Response>
       POST: () => createSubscriptionCalendarFeed(request, env, second),
       DELETE: () => deleteSubscriptionCalendarFeed(request, env, second),
     });
+  }
+  if (head === "subscriptions" && second && third === "renew") {
+    return routeMethods(request, { POST: () => renewSubscription(request, env, second) });
   }
   if (head === "subscriptions" && second) return routeMethods(request, {
     PATCH: () => updateSubscription(request, env, second),

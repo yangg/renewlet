@@ -194,6 +194,7 @@ export function SubscriptionDialog(props: SubscriptionDialogProps) {
       paymentMethod: subscription.paymentMethod || "",
       startDate: subscription.startDate,
       nextBillingDate: subscription.nextBillingDate,
+      autoRenew: subscription.billingCycle === "one-time" ? false : subscription.autoRenew,
       autoCalculate: subscription.autoCalculateNextBillingDate,
       reminderType: isDisabledReminder ? "disabled" : isInheritReminder ? "inherit" : isPresetReminder ? "preset" : "custom",
       reminderDays: isDisabledReminder ? String(DISABLED_REMINDER_DAYS) : isInheritReminder ? String(INHERIT_REMINDER_DAYS) : isPresetReminder ? subscription.reminderDays.toString() : "3",

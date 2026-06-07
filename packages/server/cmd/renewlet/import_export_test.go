@@ -206,6 +206,46 @@ func TestImportApplyPreservesDisabledReminderDays(t *testing.T) {
 	}
 }
 
+func TestImportApplyDefaultsMissingAutoRenewToManualButPreservesExplicitTrue(t *testing.T) {
+	app := newSchemaTestApp(t)
+	if err := ensureSchema(app); err != nil {
+		t.Fatal(err)
+	}
+	registerRecordHooks(app)
+	user, token := createRouteTestUser(t, app, "user")
+
+	if res := serveTestRequest(t, app, http.MethodPost, "/api/app/import/apply", importRequestBody("skip", 12), token); res.Code != http.StatusOK {
+		t.Fatalf("expected missing autoRenew import apply 200, got %d: %s", res.Code, res.Body.String())
+	}
+	rows, err := app.FindAllRecords("subscriptions", dbx.HashExp{"user": user.Id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].GetBool("autoRenew") {
+		t.Fatalf("expected missing autoRenew to default false, got rows=%d autoRenew=%v", len(rows), rows[0].GetBool("autoRenew"))
+	}
+
+	if res := serveTestRequest(t, app, http.MethodPost, "/api/app/import/apply", importRequestBodyWithAutoRenew("skip", "1:43", true, 13), token); res.Code != http.StatusOK {
+		t.Fatalf("expected explicit autoRenew import apply 200, got %d: %s", res.Code, res.Body.String())
+	}
+	rows, err = app.FindAllRecords("subscriptions", dbx.HashExp{"user": user.Id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected two imported rows, got %d", len(rows))
+	}
+	foundExplicitAuto := false
+	for _, row := range rows {
+		if row.GetFloat("price") == 13 {
+			foundExplicitAuto = row.GetBool("autoRenew")
+		}
+	}
+	if !foundExplicitAuto {
+		t.Fatalf("expected explicit autoRenew=true to be preserved")
+	}
+}
+
 func TestImportPreviewMarksDuplicateSourceId(t *testing.T) {
 	app := newSchemaTestApp(t)
 	if err := ensureSchema(app); err != nil {
@@ -429,6 +469,20 @@ func importRequestBodyWithReminderDays(conflictMode string, source string, sourc
 	for _, item := range subscriptions {
 		subscription := item.(map[string]interface{})
 		subscription["reminderDays"] = reminderDays
+	}
+	data, _ := json.Marshal(decoded)
+	return string(data)
+}
+
+func importRequestBodyWithAutoRenew(conflictMode string, sourceID string, autoRenew bool, prices ...int) string {
+	body := importRequestBodyWithOptions(conflictMode, "wallos", sourceID, "high", nil, prices...)
+	var decoded map[string]interface{}
+	_ = json.Unmarshal([]byte(body), &decoded)
+	payload := decoded["payload"].(map[string]interface{})
+	subscriptions := payload["subscriptions"].([]interface{})
+	for _, item := range subscriptions {
+		subscription := item.(map[string]interface{})
+		subscription["autoRenew"] = autoRenew
 	}
 	data, _ := json.Marshal(decoded)
 	return string(data)
