@@ -389,7 +389,8 @@ func defaultAppSettings() appSettings {
 		ExchangeRateProvider: "floatrates",
 		BuiltInIconSources:   defaultBuiltInIconSourceSettings(),
 		AIRecognition: aiRecognitionSettings{
-			Provider:               "openai",
+			ProviderType:           aiProviderTypeOpenAI,
+			TransportProtocol:      aiProtocolOpenAIChat,
 			Model:                  "",
 			ModelInputMode:         "select",
 			BaseURL:                "",

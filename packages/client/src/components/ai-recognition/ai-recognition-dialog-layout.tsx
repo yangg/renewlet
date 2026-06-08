@@ -8,7 +8,7 @@ import type { ImportPreviewResponse } from "@/lib/api/schemas/import-export";
 import {
   AI_RECOGNITION_MAX_IMAGES,
   AI_RECOGNITION_MAX_TEXT_CHARS,
-  type AiRecognitionProvider,
+  type AiRecognitionProviderType,
 } from "@/lib/api/schemas/ai-recognition";
 import { cn } from "@/lib/utils";
 import type { AIThinkingOption } from "@/modules/ai-recognition/domain/model-capabilities";
@@ -17,11 +17,11 @@ export const NO_THINKING_CONTROL_ID = "no-explicit-thinking";
 
 export type AIRecognitionStep = { label: string; active: boolean; done: boolean };
 
-const AI_PROVIDER_LABEL_KEYS: Record<AiRecognitionProvider, MessageKey> = {
-  openai: "aiRecognition.provider.openai",
-  gemini: "aiRecognition.provider.gemini",
-  anthropic: "aiRecognition.provider.anthropic",
-  "openai-compatible": "aiRecognition.provider.openaiCompatible",
+const AI_PROVIDER_TYPE_LABEL_KEYS: Record<AiRecognitionProviderType, MessageKey> = {
+  openai: "aiRecognition.providerType.openai",
+  anthropic: "aiRecognition.providerType.anthropic",
+  gemini: "aiRecognition.providerType.gemini",
+  "openai-compatible": "aiRecognition.providerType.openaiCompatible",
 };
 
 export function AIRecognitionFooterActions({
@@ -222,7 +222,7 @@ export function AIRecognitionCompactStepper({
 }
 
 export function AIRecognitionRunSettingsPanel({
-  provider,
+  providerType,
   model,
   mode,
   textLength,
@@ -233,7 +233,7 @@ export function AIRecognitionRunSettingsPanel({
   layout = "default",
   onThinkingChange,
 }: {
-  provider: AiRecognitionProvider;
+  providerType: AiRecognitionProviderType;
   model: string;
   mode: "text" | "image";
   textLength: number;
@@ -251,7 +251,7 @@ export function AIRecognitionRunSettingsPanel({
     : t("aiRecognition.imageCount", { count: imageCount, max: AI_RECOGNITION_MAX_IMAGES });
   const thinkingHelp = thinkingOptions.length > 0
     ? t("aiRecognition.thinkingHelp")
-    : t(provider === "openai-compatible" ? "aiRecognition.thinkingUnsupportedCompatible" : "aiRecognition.thinkingUnsupportedModel");
+    : t(providerType === "openai-compatible" ? "aiRecognition.thinkingUnsupportedCompatible" : "aiRecognition.thinkingUnsupportedModel");
   const thinkingControlField = (
     <div className={cn("grid gap-2", mobileBar ? "min-w-0" : "pt-3")}>
       <Label htmlFor="ai-recognition-thinking" className={cn("text-xs font-medium text-muted-foreground", mobileBar && "sr-only")}>
@@ -281,7 +281,7 @@ export function AIRecognitionRunSettingsPanel({
         aria-label={t("aiRecognition.settingsTitle")}
       >
         <dl className="flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-[11px] leading-4">
-          <CompactSummaryLine label={t("aiRecognition.provider")} value={t(AI_PROVIDER_LABEL_KEYS[provider])} />
+          <CompactSummaryLine label={t("aiRecognition.providerType")} value={t(AI_PROVIDER_TYPE_LABEL_KEYS[providerType])} />
           <CompactSummaryLine label={t("aiRecognition.model")} value={model || t("aiRecognition.draftUnknownValue")} />
           <CompactSummaryLine label={t("aiRecognition.stepInput")} value={inputSummary} />
         </dl>
@@ -303,7 +303,7 @@ export function AIRecognitionRunSettingsPanel({
       </div>
 
       <dl className="grid gap-2 border-b border-border py-3 text-xs">
-        <SummaryLine label={t("aiRecognition.provider")} value={t(AI_PROVIDER_LABEL_KEYS[provider])} />
+        <SummaryLine label={t("aiRecognition.providerType")} value={t(AI_PROVIDER_TYPE_LABEL_KEYS[providerType])} />
         <SummaryLine label={t("aiRecognition.model")} value={model || t("aiRecognition.draftUnknownValue")} />
         <SummaryLine label={t("aiRecognition.stepInput")} value={inputSummary} />
       </dl>

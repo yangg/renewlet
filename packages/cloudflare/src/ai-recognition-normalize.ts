@@ -34,7 +34,8 @@ const REPEAT_REMINDER_WINDOW_SET = new Set<string>(REPEAT_REMINDER_WINDOWS);
 
 export function normalizeGeneratedAIRecognizeObject(
   raw: AiGeneratedRecognizeObject,
-  provider: AiRecognitionSettings["provider"],
+  providerType: AiRecognitionSettings["providerType"],
+  transportProtocol: AiRecognitionSettings["transportProtocol"],
   model: string,
   diagnostics: AiRecognitionDiagnostics,
   configContext: AIRecognitionPromptConfigContext,
@@ -50,7 +51,8 @@ export function normalizeGeneratedAIRecognizeObject(
     }
   }
   return aiRecognizeResponseSchema.parse({
-    provider,
+    providerType,
+    transportProtocol,
     model,
     subscriptions,
     warnings: compactAIWarnings(warnings, 20),

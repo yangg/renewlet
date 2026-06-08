@@ -56,7 +56,7 @@ msgstr "4. Disclaimer"
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/legal.ts:19
 msgid "legal.privacy.thirdParty.ai"
-msgstr "AI recognition: when you actively use AI recognition to add subscriptions, pasted text, uploaded images, and existing tag names are sent to the third-party AI provider configured in Settings."
+msgstr "AI recognition: when you actively use AI recognition to add subscriptions, pasted text, uploaded images, and existing tag names are sent to the third-party AI platform configured in Settings."
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/legal.ts:25

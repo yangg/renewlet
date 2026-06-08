@@ -1,6 +1,7 @@
 import type { MessageKey } from "@/i18n/messages";
 import type {
-  AiRecognitionProvider,
+  AiRecognitionProviderType,
+  AiRecognitionTransportProtocol,
   AiThinkingControl,
 } from "@/lib/api/schemas/ai-recognition";
 
@@ -17,12 +18,16 @@ const GEMINI_LEVELS = ["minimal", "low", "medium", "high"] as const;
 const GEMINI_BUDGETS = [1024, 4096, 8192] as const;
 const CLAUDE_BUDGETS = [1024, 4096, 8192] as const;
 
-export function getAIThinkingOptions(provider: AiRecognitionProvider, model: string): AIThinkingOption[] {
+export function getAIThinkingOptions(
+  providerType: AiRecognitionProviderType,
+  transportProtocol: AiRecognitionTransportProtocol,
+  model: string,
+): AIThinkingOption[] {
   const normalizedModel = normalizeAIModelIdForCapability(model);
   if (!normalizedModel) return [];
-  if (provider === "openai") return getOpenAIThinkingOptions(normalizedModel);
-  if (provider === "gemini") return getGeminiThinkingOptions(normalizedModel);
-  if (provider === "anthropic") return getAnthropicThinkingOptions(normalizedModel);
+  if (providerType === "openai" && transportProtocol === "openai-chat") return getOpenAIThinkingOptions(normalizedModel);
+  if (providerType === "gemini" && transportProtocol === "gemini-generate-content") return getGeminiThinkingOptions(normalizedModel);
+  if (providerType === "anthropic" && transportProtocol === "anthropic-messages") return getAnthropicThinkingOptions(normalizedModel);
   return [];
 }
 
@@ -31,19 +36,24 @@ export function normalizeAIModelIdForCapability(model: string): string {
 }
 
 export function normalizeAIThinkingControl(
-  provider: AiRecognitionProvider,
+  providerType: AiRecognitionProviderType,
+  transportProtocol: AiRecognitionTransportProtocol,
   model: string,
   control: AiThinkingControl | null,
 ): AiThinkingControl | null {
-  if (!control || control.provider !== provider) return null;
-  const options = getAIThinkingOptions(provider, model);
+  if (!control || !thinkingControlMatchesProvider(providerType, transportProtocol, control)) return null;
+  const options = getAIThinkingOptions(providerType, transportProtocol, model);
   return options.some((option) => option.control && thinkingOptionId(option.control) === thinkingOptionId(control))
     ? control
     : null;
 }
 
-export function defaultAIThinkingControl(provider: AiRecognitionProvider, model: string): AiThinkingControl | null {
-  return getAIThinkingOptions(provider, model)[0]?.control ?? null;
+export function defaultAIThinkingControl(
+  providerType: AiRecognitionProviderType,
+  transportProtocol: AiRecognitionTransportProtocol,
+  model: string,
+): AiThinkingControl | null {
+  return getAIThinkingOptions(providerType, transportProtocol, model)[0]?.control ?? null;
 }
 
 export function thinkingOptionId(control: AiThinkingControl | null): string {
@@ -60,6 +70,17 @@ export function thinkingOptionId(control: AiThinkingControl | null): string {
 
 export function thinkingControlFromOptionId(options: readonly AIThinkingOption[], id: string): AiThinkingControl | null {
   return options.find((option) => option.id === id)?.control ?? null;
+}
+
+function thinkingControlMatchesProvider(
+  providerType: AiRecognitionProviderType,
+  transportProtocol: AiRecognitionTransportProtocol,
+  control: AiThinkingControl,
+): boolean {
+  if (providerType === "openai" && transportProtocol === "openai-chat") return control.provider === "openai";
+  if (providerType === "gemini" && transportProtocol === "gemini-generate-content") return control.provider === "gemini";
+  if (providerType === "anthropic" && transportProtocol === "anthropic-messages") return control.provider === "anthropic";
+  return false;
 }
 
 function getOpenAIThinkingOptions(model: string): AIThinkingOption[] {

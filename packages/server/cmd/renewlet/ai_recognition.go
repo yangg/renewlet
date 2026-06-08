@@ -21,8 +21,8 @@ const (
 	aiRecognitionThinkingControlMax  = 8 << 10
 	aiRecognitionProviderTimeout     = 90 * time.Second
 	aiRecognitionMaxProviderResponse = 12000
-	aiRecognitionTestProviderTokens  = 2000
-	aiRecognitionTestPrompt          = "Renewlet AI connection test: Netflix, 9.99 USD, monthly subscription, website netflix.com."
+	aiRecognitionTestProviderTokens  = 16
+	aiRecognitionTestPrompt          = "Reply with OK."
 	aiRecognitionMaxPromptTags       = 200
 	aiRecognitionPromptTagPageSize   = 200
 )
@@ -35,7 +35,8 @@ var (
 )
 
 type aiRecognitionSettings struct {
-	Provider               string             `json:"provider"`
+	ProviderType           string             `json:"providerType"`
+	TransportProtocol      string             `json:"transportProtocol"`
 	Model                  string             `json:"model"`
 	ModelInputMode         string             `json:"modelInputMode"`
 	BaseURL                string             `json:"baseUrl"`
@@ -66,11 +67,12 @@ type aiRecognitionImage struct {
 }
 
 type aiRecognizeResponse struct {
-	Provider      string                          `json:"provider"`
-	Model         string                          `json:"model"`
-	Subscriptions []aiRecognizedSubscriptionDraft `json:"subscriptions"`
-	Warnings      []string                        `json:"warnings"`
-	Diagnostics   aiRecognitionDiagnostics        `json:"diagnostics"`
+	ProviderType      string                          `json:"providerType"`
+	TransportProtocol string                          `json:"transportProtocol"`
+	Model             string                          `json:"model"`
+	Subscriptions     []aiRecognizedSubscriptionDraft `json:"subscriptions"`
+	Warnings          []string                        `json:"warnings"`
+	Diagnostics       aiRecognitionDiagnostics        `json:"diagnostics"`
 }
 
 type aiRecognizedSubscriptionDraft struct {
@@ -110,13 +112,11 @@ type aiRecognitionTestRequest struct {
 }
 
 func (r *aiRecognitionTestRequest) Validate(locale appLocale) error {
-	r.Settings.Provider = strings.TrimSpace(r.Settings.Provider)
-	r.Settings.Model = strings.TrimSpace(r.Settings.Model)
-	r.Settings.BaseURL = strings.TrimSpace(r.Settings.BaseURL)
-	r.Settings.APIKey = strings.TrimSpace(r.Settings.APIKey)
-	if !isValidAIRecognitionProvider(r.Settings.Provider) {
+	r.Settings.ProviderType = strings.TrimSpace(r.Settings.ProviderType)
+	if !isValidAIRecognitionProviderType(r.Settings.ProviderType) {
 		return errors.New(serverText(locale, "common.invalidRequestParameters"))
 	}
+	r.Settings = sanitizeAIRecognitionSettings(r.Settings)
 	if r.Settings.BaseURL != "" && sanitizeAIRecognitionBaseURL(r.Settings.BaseURL) == "" {
 		return errors.New(serverText(locale, "common.invalidRequestParameters"))
 	}
@@ -129,9 +129,10 @@ func (r *aiRecognitionTestRequest) Validate(locale appLocale) error {
 }
 
 type aiRecognitionTestResponse struct {
-	OK       bool   `json:"ok"`
-	Provider string `json:"provider"`
-	Model    string `json:"model"`
+	OK                bool   `json:"ok"`
+	ProviderType      string `json:"providerType"`
+	TransportProtocol string `json:"transportProtocol"`
+	Model             string `json:"model"`
 }
 
 type aiRecognitionErrorResponse struct {
@@ -179,10 +180,11 @@ func handleAIRecognizeSubscriptions(app core.App, e *core.RequestEvent) error {
 		}
 		return e.BadRequestError(validationErrorMessage(locale, "common.invalidRequestBody", err), err)
 	}
-	if input.ThinkingControl != nil && input.ThinkingControl.Provider != settings.AIRecognition.Provider {
+	aiSettings := sanitizeAIRecognitionSettings(settings.AIRecognition)
+	if input.ThinkingControl != nil && !aiThinkingControlMatchesSettings(aiSettings, input.ThinkingControl) {
 		return e.BadRequestError(serverText(locale, "aiRecognition.thinkingProviderMismatch"), nil)
 	}
-	if err := validateAIRecognitionSettings(settings.AIRecognition, locale); err != nil {
+	if err := validateAIRecognitionSettings(aiSettings, locale); err != nil {
 		return e.BadRequestError(err.Error(), err)
 	}
 	// 配置项只作为模型上下文和响应归一化依据；新增分类/支付方式仍必须走 import preview/apply 用户确认链路。
@@ -192,7 +194,7 @@ func handleAIRecognizeSubscriptions(app core.App, e *core.RequestEvent) error {
 	}
 	response, err := defaultAIRecognitionRunner.Recognize(
 		e.Request.Context(),
-		settings.AIRecognition,
+		aiSettings,
 		input,
 		locale,
 		settings.Timezone,
@@ -230,40 +232,15 @@ func handleAIRecognitionTestConnection(app core.App, e *core.RequestEvent) error
 		return e.BadRequestError(validationErrorMessage(locale, "common.invalidRequestBody", err), err)
 	}
 	settings := sanitizeAIRecognitionSettings(body.Settings)
-	thinkingControl := settings.DefaultThinkingControl
-	if thinkingControl != nil && thinkingControl.Provider != settings.Provider {
-		thinkingControl = nil
-	}
 	if err := validateAIRecognitionSettings(settings, locale); err != nil {
 		return e.BadRequestError(err.Error(), err)
 	}
-	input := aiRecognitionInput{
-		Text:            aiRecognitionTestPrompt,
-		ThinkingControl: thinkingControl,
-		MaxOutputTokens: aiRecognitionTestProviderTokens,
-	}
-	_, err = defaultAIRecognitionRunner.Recognize(
-		e.Request.Context(),
-		settings,
-		input,
-		locale,
-		"UTC",
-		"USD",
-		aiRecognitionConfigContext{},
-	)
+	err = testAIRecognitionConnection(e.Request.Context(), settings)
 	if err != nil {
-		if diagnostics := aiRecognitionDiagnosticsFromError(err); diagnostics != nil {
-			if isAIRecognitionSchemaMismatchError(err) {
-				return aiRecognitionJSONError(e, http.StatusBadRequest, serverText(locale, "aiRecognition.schemaMismatch"), "AI_RECOGNITION_SCHEMA_MISMATCH", "schema_mismatch", aiRecognitionCauseError(err), diagnostics)
-			}
-			return aiRecognitionJSONError(e, http.StatusBadRequest, serverText(locale, "aiRecognition.testFailed"), "AI_RECOGNITION_TEST_FAILED", "provider_failed", aiRecognitionCauseError(err), diagnostics)
-		}
-		if isAIRecognitionSchemaMismatchError(err) {
-			return e.BadRequestError(serverText(locale, "aiRecognition.schemaMismatch"), nil)
-		}
+		// 连接测试只做一次最小文本生成；不走完整订阅 schema/repair/诊断链路，避免把“测连通”变成慢识别。
 		return e.BadRequestError(serverText(locale, "aiRecognition.testFailed"), safeAIRecognitionError(err))
 	}
-	return e.JSON(http.StatusOK, aiRecognitionTestResponse{OK: true, Provider: settings.Provider, Model: settings.Model})
+	return e.JSON(http.StatusOK, aiRecognitionTestResponse{OK: true, ProviderType: settings.ProviderType, TransportProtocol: settings.TransportProtocol, Model: settings.Model})
 }
 
 func aiRecognitionConfigContextForUser(app core.App, userID string, locale appLocale) (aiRecognitionConfigContext, error) {

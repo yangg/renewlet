@@ -38,12 +38,13 @@ type aiRecognitionDiagnosticOutput struct {
 }
 
 type aiRecognitionDiagnosticRequest struct {
-	Provider        string                         `json:"provider"`
-	Model           string                         `json:"model"`
-	ThinkingControl *aiThinkingControl             `json:"thinkingControl"`
-	MaxOutputTokens int                            `json:"maxOutputTokens"`
-	TextCharCount   int                            `json:"textCharCount"`
-	Images          []aiRecognitionDiagnosticImage `json:"images"`
+	ProviderType      string                         `json:"providerType"`
+	TransportProtocol string                         `json:"transportProtocol"`
+	Model             string                         `json:"model"`
+	ThinkingControl   *aiThinkingControl             `json:"thinkingControl"`
+	MaxOutputTokens   int                            `json:"maxOutputTokens"`
+	TextCharCount     int                            `json:"textCharCount"`
+	Images            []aiRecognitionDiagnosticImage `json:"images"`
 }
 
 type aiRecognitionDiagnosticImage struct {
@@ -101,12 +102,13 @@ func buildAIRecognitionDiagnostics(settings aiRecognitionSettings, input aiRecog
 			RawObjectJSON: diagnosticAIRecognitionOptionalText(aiRecognitionJSONText(rawObject), aiRecognitionDiagnosticJSONMaxChars),
 		},
 		Request: aiRecognitionDiagnosticRequest{
-			Provider:        settings.Provider,
-			Model:           settings.Model,
-			ThinkingControl: input.ThinkingControl,
-			MaxOutputTokens: aiRecognitionOutputTokenLimit(input),
-			TextCharCount:   len([]rune(input.Text)),
-			Images:          images,
+			ProviderType:      settings.ProviderType,
+			TransportProtocol: settings.TransportProtocol,
+			Model:             settings.Model,
+			ThinkingControl:   input.ThinkingControl,
+			MaxOutputTokens:   aiRecognitionOutputTokenLimit(input),
+			TextCharCount:     len([]rune(input.Text)),
+			Images:            images,
 		},
 		Response: aiRecognitionDiagnosticResponse{
 			Usage:            sanitizeAIRecognitionDiagnosticJSON(usage),

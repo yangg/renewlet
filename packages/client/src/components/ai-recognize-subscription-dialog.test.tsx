@@ -95,7 +95,8 @@ function configuredSettings(): AppSettings {
   return {
     ...DEFAULT_SETTINGS,
     aiRecognition: {
-      provider: "openai",
+      providerType: "openai",
+      transportProtocol: "openai-chat",
       model: "gpt-5-mini",
       modelInputMode: "select",
       baseUrl: "",
@@ -137,7 +138,8 @@ function makeDraft(overrides: Partial<AiRecognizedSubscriptionDraft> = {}): AiRe
 
 function makeResponse(subscriptions: AiRecognizedSubscriptionDraft[]): AiRecognizeResponse {
   return {
-    provider: "openai",
+    providerType: "openai",
+    transportProtocol: "openai-chat",
     model: "gpt-5-mini",
     subscriptions,
     warnings: [],
@@ -154,7 +156,8 @@ function makeResponse(subscriptions: AiRecognizedSubscriptionDraft[]): AiRecogni
         rawObjectJson: null,
       },
       request: {
-        provider: "openai",
+        providerType: "openai",
+        transportProtocol: "openai-chat",
         model: "gpt-5-mini",
         thinkingControl: null,
         maxOutputTokens: 4096,

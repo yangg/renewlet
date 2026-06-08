@@ -143,6 +143,21 @@ describe("AIModelCombobox", () => {
     expect(screen.queryByText(/使用自定义模型/)).not.toBeInTheDocument();
   });
 
+  it("hides model list feedback in manual mode", () => {
+    renderCombobox({
+      mode: "manual",
+      value: "custom-model",
+      models: [],
+      status: "success",
+      error: "无法获取模型列表",
+      truncated: true,
+    });
+
+    expect(screen.getByRole("textbox", { name: "模型" })).toHaveValue("custom-model");
+    expect(screen.queryByText("无法获取模型列表")).not.toBeInTheDocument();
+    expect(screen.queryByText("模型列表较长，仅显示前 300 个结果；可继续搜索或手动输入。")).not.toBeInTheDocument();
+  });
+
   it("renders the mode switch as a normal-flow segmented control", () => {
     render(<AIModelModeSwitch mode="select" onModeChange={vi.fn()} />);
 

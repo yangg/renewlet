@@ -22,6 +22,7 @@
     "./schemas/subscriptions": "./src/schemas/subscriptions.ts",
     "./schemas/uploads": "./src/schemas/uploads.ts",
     "./ai-recognition-notes": "./src/ai-recognition-notes.ts",
+    "./ai-provider-endpoints": "./src/ai-provider-endpoints.ts",
     "./ai-recognition-prompt": "./src/ai-recognition-prompt.ts",
     "./built-in-icons": "./src/built-in-icons.ts",
     "./favicon-domains": "./src/favicon-domains.ts",

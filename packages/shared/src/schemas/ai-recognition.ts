@@ -18,8 +18,10 @@ export const AI_RECOGNITION_DIAGNOSTIC_TEXT_MAX_CHARS = 32_000;
 export const AI_RECOGNITION_DIAGNOSTIC_JSON_MAX_CHARS = 32_000;
 export const AI_RECOGNITION_MAX_MODEL_LIST_MODELS = 300;
 
-export const aiRecognitionProviderSchema = z.enum(["openai", "gemini", "anthropic", "openai-compatible"]);
-export type AiRecognitionProvider = z.infer<typeof aiRecognitionProviderSchema>;
+export const aiRecognitionProviderTypeSchema = z.enum(["openai", "anthropic", "gemini", "openai-compatible"]);
+export type AiRecognitionProviderType = z.infer<typeof aiRecognitionProviderTypeSchema>;
+export const aiRecognitionTransportProtocolSchema = z.enum(["openai-chat", "anthropic-messages", "gemini-generate-content"]);
+export type AiRecognitionTransportProtocol = z.infer<typeof aiRecognitionTransportProtocolSchema>;
 export const aiRecognitionModelInputModeSchema = z.enum(["select", "manual"]);
 export type AiRecognitionModelInputMode = z.infer<typeof aiRecognitionModelInputModeSchema>;
 
@@ -83,14 +85,60 @@ const optionalProviderBaseUrlSchema = z.string().trim().max(2048).refine((value)
   }
 }, "AI base URL must be empty or an http(s) URL without credentials");
 
-export const aiRecognitionSettingsSchema = z.object({
-  provider: aiRecognitionProviderSchema,
+export function canonicalAIRecognitionTransportProtocol(providerType: AiRecognitionProviderType): AiRecognitionTransportProtocol {
+  if (providerType === "anthropic") return "anthropic-messages";
+  if (providerType === "gemini") return "gemini-generate-content";
+  return "openai-chat";
+}
+
+function normalizeAIRecognitionSettingsInput(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const input = value as Record<string, unknown>;
+  const providerType = typeof input["providerType"] === "string"
+    ? input["providerType"]
+    : typeof input["provider"] === "string"
+      ? input["provider"]
+      : undefined;
+  const normalized = { ...input };
+  delete normalized["provider"];
+  const parsedProviderType = providerType
+    ? aiRecognitionProviderTypeSchema.safeParse(providerType)
+    : null;
+  if (parsedProviderType?.success && !normalized["providerType"]) {
+    normalized["providerType"] = parsedProviderType.data;
+  }
+  const normalizedProviderType = normalized["providerType"];
+  const parsedNormalizedProviderType = typeof normalizedProviderType === "string"
+    ? aiRecognitionProviderTypeSchema.safeParse(normalizedProviderType)
+    : null;
+  if (parsedNormalizedProviderType?.success) {
+    normalized["transportProtocol"] = canonicalAIRecognitionTransportProtocol(parsedNormalizedProviderType.data);
+  }
+  return normalized;
+}
+
+function aiThinkingControlMatchesProviderType(providerType: AiRecognitionProviderType, control: AiThinkingControl | null): boolean {
+  if (control === null) return true;
+  if (providerType === "openai-compatible") return false;
+  return control.provider === providerType;
+}
+
+const aiRecognitionSettingsBaseSchema = z.object({
+  providerType: aiRecognitionProviderTypeSchema,
+  transportProtocol: aiRecognitionTransportProtocolSchema,
   model: z.string().trim().max(160),
   modelInputMode: aiRecognitionModelInputModeSchema.default("select"),
   baseUrl: optionalProviderBaseUrlSchema,
   apiKey: z.string().trim().max(4096),
   defaultThinkingControl: aiThinkingControlSchema.nullable(),
-}).strict();
+}).strict().transform((settings) => ({
+  ...settings,
+  transportProtocol: canonicalAIRecognitionTransportProtocol(settings.providerType),
+  defaultThinkingControl: aiThinkingControlMatchesProviderType(settings.providerType, settings.defaultThinkingControl)
+    ? settings.defaultThinkingControl
+    : null,
+}));
+export const aiRecognitionSettingsSchema = z.preprocess(normalizeAIRecognitionSettingsInput, aiRecognitionSettingsBaseSchema);
 export type AiRecognitionSettings = z.infer<typeof aiRecognitionSettingsSchema>;
 
 const aiRecognitionDiagnosticTextSchema = z.object({
@@ -112,7 +160,8 @@ export const aiRecognitionDiagnosticsSchema = z.object({
     rawObjectJson: aiRecognitionDiagnosticTextSchema.nullable(),
   }).strict(),
   request: z.object({
-    provider: aiRecognitionProviderSchema,
+    providerType: aiRecognitionProviderTypeSchema,
+    transportProtocol: aiRecognitionTransportProtocolSchema,
     model: z.string().trim().min(1).max(160),
     thinkingControl: aiThinkingControlSchema.nullable(),
     maxOutputTokens: z.number().int().positive().max(128_000),
@@ -197,7 +246,8 @@ export const aiRecognizedSubscriptionDraftSchema = z.object({
 export type AiRecognizedSubscriptionDraft = z.infer<typeof aiRecognizedSubscriptionDraftSchema>;
 
 export const aiRecognizeResponseSchema = z.object({
-  provider: aiRecognitionProviderSchema,
+  providerType: aiRecognitionProviderTypeSchema,
+  transportProtocol: aiRecognitionTransportProtocolSchema,
   model: z.string().trim().min(1).max(160),
   subscriptions: z.array(aiRecognizedSubscriptionDraftSchema).max(AI_RECOGNITION_MAX_SUBSCRIPTIONS),
   warnings: z.array(z.string().trim().min(1).max(240)).max(20),
@@ -246,7 +296,8 @@ export type AiRecognitionTestRequest = z.infer<typeof aiRecognitionTestRequestSc
 
 export const aiRecognitionTestResponseSchema = z.object({
   ok: z.literal(true),
-  provider: aiRecognitionProviderSchema,
+  providerType: aiRecognitionProviderTypeSchema,
+  transportProtocol: aiRecognitionTransportProtocolSchema,
   model: z.string().trim().min(1).max(160),
 }).strict();
 export type AiRecognitionTestResponse = z.infer<typeof aiRecognitionTestResponseSchema>;
@@ -260,7 +311,7 @@ const aiModelCapabilitySchema = z.object({
 export type AiModelCapability = z.infer<typeof aiModelCapabilitySchema>;
 
 export const aiModelListRequestSchema = z.object({
-  provider: aiRecognitionProviderSchema,
+  providerType: aiRecognitionProviderTypeSchema,
   baseUrl: optionalProviderBaseUrlSchema,
   apiKey: z.string().trim().max(4096),
 }).strict();
@@ -278,7 +329,8 @@ export const aiModelListItemSchema = z.object({
 export type AiModelListItem = z.infer<typeof aiModelListItemSchema>;
 
 export const aiModelListResponseSchema = z.object({
-  provider: aiRecognitionProviderSchema,
+  providerType: aiRecognitionProviderTypeSchema,
+  transportProtocol: aiRecognitionTransportProtocolSchema,
   models: z.array(aiModelListItemSchema).max(AI_RECOGNITION_MAX_MODEL_LIST_MODELS),
   truncated: z.boolean(),
 }).strict();

@@ -11,7 +11,8 @@ vi.mock("@/lib/api-client", () => ({
 }));
 
 const response = {
-  provider: "openai",
+  providerType: "openai",
+  transportProtocol: "openai-chat",
   model: "gpt-5-mini",
   subscriptions: [],
   warnings: [],
@@ -28,7 +29,8 @@ const response = {
       rawObjectJson: null,
     },
     request: {
-      provider: "openai",
+      providerType: "openai",
+      transportProtocol: "openai-chat",
       model: "gpt-5-mini",
       thinkingControl: null,
       maxOutputTokens: 4096,
@@ -76,7 +78,8 @@ describe("aiRecognitionService", () => {
 
   it("loads provider models through the authenticated app API", async () => {
     const modelList = {
-      provider: "openai",
+      providerType: "openai",
+      transportProtocol: "openai-chat",
       models: [{
         id: "gpt-5.1",
         displayName: null,
@@ -96,7 +99,7 @@ describe("aiRecognitionService", () => {
     mocks.apiFetch.mockResolvedValueOnce(modelList);
 
     await expect(aiRecognitionService.listModels({
-      provider: "openai",
+      providerType: "openai",
       baseUrl: "",
       apiKey: "sk-test",
     })).resolves.toEqual(modelList);
@@ -104,7 +107,7 @@ describe("aiRecognitionService", () => {
     expect(mocks.apiFetch.mock.calls[0]?.[0]).toBe("/api/app/ai/models/list");
     expect(mocks.apiFetch.mock.calls[0]?.[2]).toMatchObject({
       method: "POST",
-      body: JSON.stringify({ provider: "openai", baseUrl: "", apiKey: "sk-test" }),
+      body: JSON.stringify({ providerType: "openai", baseUrl: "", apiKey: "sk-test" }),
       timeoutMs: 20_000,
     });
   });

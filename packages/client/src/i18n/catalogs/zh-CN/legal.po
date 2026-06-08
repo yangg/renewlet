@@ -56,7 +56,7 @@ msgstr "4. 免责声明"
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/legal.ts:19
 msgid "legal.privacy.thirdParty.ai"
-msgstr "AI 识别：当你主动使用 AI 识别添加订阅时，粘贴的文字、上传的图片和已有标签名会发送到你在设置页配置的第三方 AI provider。"
+msgstr "AI 识别：当你主动使用 AI 识别添加订阅时，粘贴的文字、上传的图片和已有标签名会发送到你在设置页配置的第三方 AI 平台。"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/legal.ts:25

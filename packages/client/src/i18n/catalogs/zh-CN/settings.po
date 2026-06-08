@@ -120,7 +120,7 @@ msgstr "Bot Token 与 Chat ID 已填写"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:74
-msgid "aiRecognition.provider.anthropic"
+msgid "aiRecognition.providerType.anthropic"
 msgstr "Claude"
 
 #. js-lingui-explicit-id
@@ -170,7 +170,7 @@ msgstr "FloatRates JSON Feeds"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:73
-msgid "aiRecognition.provider.gemini"
+msgid "aiRecognition.providerType.gemini"
 msgstr "Gemini"
 
 #. js-lingui-explicit-id
@@ -285,28 +285,18 @@ msgstr "Notifyx 说明"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:72
-msgid "aiRecognition.provider.openai"
+msgid "aiRecognition.providerType.openai"
 msgstr "OpenAI"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:75
-msgid "aiRecognition.provider.openaiCompatible"
+msgid "aiRecognition.providerType.openaiCompatible"
 msgstr "OpenAI Compatible"
-
-#. js-lingui-explicit-id
-#: src/i18n/descriptors/settings.ts:89
-msgid "aiRecognition.baseUrlHelp"
-msgstr "OpenAI Compatible 必填；官方 provider 可留空或填写兼容网关地址。"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:96
 msgid "aiRecognition.thinkingUnsupportedCompatible"
 msgstr "OpenAI Compatible 没有统一 thinking 标准，Renewlet 不会传递思考控制。"
-
-#. js-lingui-explicit-id
-#: src/i18n/descriptors/settings.ts:147
-msgid "aiRecognition.baseUrlRequired"
-msgstr "OpenAI Compatible 需要填写 Base URL。"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:111
@@ -451,7 +441,7 @@ msgstr "为避免过于冗长的通知可以关闭这项"
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:94
 msgid "aiRecognition.thinkingHelp"
-msgstr "仅展示当前 provider/model 明确支持的官方思考控制；不支持时保持模型默认行为。"
+msgstr "仅展示当前平台和模型明确支持的官方思考控制；不支持时保持模型默认行为。"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:359
@@ -814,6 +804,11 @@ msgid "settings.builtInIconSourcesDialogDone"
 msgstr "完成"
 
 #. js-lingui-explicit-id
+#: src/i18n/descriptors/settings.ts:89
+msgid "aiRecognition.baseUrlHelp"
+msgstr "官方平台可留空；OpenAI Compatible 填写对应的 OpenAI Chat Base URL。"
+
+#. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:33
 msgid "settings.passwordDialogDescription"
 msgstr "密码将写入本地认证账户。修改成功后不会在页面回显，请妥善保存。"
@@ -874,6 +869,11 @@ msgid "settings.cronTip"
 msgstr "平台 Cron 仍建议每分钟或至少每 5 分钟访问一次接口；应用会按每个用户自己的时区判断是否发送。"
 
 #. js-lingui-explicit-id
+#: src/i18n/descriptors/settings.ts:71
+msgid "aiRecognition.providerType"
+msgstr "平台类型"
+
+#. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:290
 msgid "settings.appSettingsScope"
 msgstr "应用设置"
@@ -892,6 +892,11 @@ msgstr "开启后显示价格和币种；关闭时只给最小状态。"
 #: src/i18n/descriptors/settings.ts:34
 msgid "settings.currentPassword"
 msgstr "当前密码"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/settings.ts:147
+msgid "aiRecognition.baseUrlRequired"
+msgstr "当前平台需要填写 Base URL。"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:97
@@ -1279,11 +1284,6 @@ msgid "aiRecognition.modelListTruncated"
 msgstr "模型列表较长，仅显示前 300 个结果；可继续搜索或手动输入。"
 
 #. js-lingui-explicit-id
-#: src/i18n/descriptors/settings.ts:71
-msgid "aiRecognition.provider"
-msgstr "模型来源"
-
-#. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:78
 msgid "aiRecognition.modelMode"
 msgstr "模型输入方式"
@@ -1291,7 +1291,7 @@ msgstr "模型输入方式"
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:143
 msgid "aiRecognition.testSucceededDescription"
-msgstr "模型返回了可解析的结构化结果。"
+msgstr "模型返回了最小文本测试响应。"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:98
@@ -1771,7 +1771,7 @@ msgstr "配置内置图标来源"
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:70
 msgid "aiRecognition.settingsDescription"
-msgstr "配置用于识别订阅图片、备忘录或表格文本的第三方模型。识别内容和已有标签名会发送到你填写的 provider。"
+msgstr "配置用于识别订阅图片、备忘录或表格文本的第三方模型。识别内容和已有标签名会发送到你填写的 AI 平台。"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:169

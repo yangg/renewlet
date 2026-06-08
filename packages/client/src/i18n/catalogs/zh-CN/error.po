@@ -171,7 +171,7 @@ msgstr "开始日期无效"
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/error.ts:88
 msgid "error.code.AI_THINKING_PROVIDER_MISMATCH"
-msgstr "思考控制与当前模型来源不匹配"
+msgstr "思考控制与当前平台或协议不匹配"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/error.ts:40

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { AI_RECOGNITION_MAX_IMAGES } from "@renewlet/shared/schemas/ai-recognition";
-import { recognizeSubscriptions } from "./ai-recognition";
+import { recognizeSubscriptions, testAIRecognitionConnection } from "./ai-recognition";
 import type { Env } from "./types";
 
 const authMocks = vi.hoisted(() => ({
@@ -15,6 +15,7 @@ const dbMocks = vi.hoisted(() => ({
 
 const aiMocks = vi.hoisted(() => ({
   generateObject: vi.fn(),
+  generateText: vi.fn(),
   wrapLanguageModel: vi.fn(({ model }: { model: unknown }) => model),
   isNoObjectGeneratedError: vi.fn((error: unknown) => Boolean(error && typeof error === "object" && "__noObjectGenerated" in error)),
 }));
@@ -31,6 +32,7 @@ vi.mock("./db", () => ({
 
 vi.mock("ai", () => ({
   generateObject: aiMocks.generateObject,
+  generateText: aiMocks.generateText,
   wrapLanguageModel: aiMocks.wrapLanguageModel,
   NoObjectGeneratedError: {
     isInstance: aiMocks.isNoObjectGeneratedError,
@@ -38,7 +40,10 @@ vi.mock("ai", () => ({
 }));
 
 vi.mock("@ai-sdk/openai", () => ({
-  createOpenAI: vi.fn(() => vi.fn(() => ({ provider: "openai" }))),
+  createOpenAI: vi.fn(() => Object.assign(
+    vi.fn(() => ({ provider: "openai.responses" })),
+    { chat: vi.fn(() => ({ provider: "openai.chat" })) },
+  )),
 }));
 
 vi.mock("@ai-sdk/google", () => ({
@@ -116,6 +121,18 @@ function requestForImages(count: number): Request {
   });
 }
 
+function testConnectionRequestFor(settings: unknown): Request {
+  return new Request("https://renewlet.test/api/app/ai/subscriptions/test", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer test",
+      "content-type": "application/json",
+      "x-renewlet-locale": "zh-CN",
+    },
+    body: JSON.stringify({ settings }),
+  });
+}
+
 function generatedDraft(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     name: "dmit",
@@ -152,12 +169,14 @@ describe("Cloudflare AI recognition", () => {
     dbMocks.getSettings.mockReset();
     dbMocks.listSubscriptionTags.mockReset();
     aiMocks.generateObject.mockReset();
+    aiMocks.generateText.mockReset();
     aiMocks.wrapLanguageModel.mockClear();
     aiMocks.isNoObjectGeneratedError.mockClear();
     authMocks.requireAuth.mockResolvedValue({ user: authUser, session: { id: "ses" }, token: "test" });
     dbMocks.getSettings.mockResolvedValue({
       aiRecognition: {
-        provider: "openai",
+        providerType: "openai",
+        transportProtocol: "openai-chat",
         model: "gpt-5.1",
         modelInputMode: "select",
         baseUrl: "",
@@ -207,7 +226,8 @@ describe("Cloudflare AI recognition", () => {
 
     const response = await recognizeSubscriptions(requestForText("dmit 15元 1个月"), envFixture());
     const body = await response.json() as {
-      provider: string;
+      providerType: string;
+      transportProtocol: string;
       model: string;
       subscriptions: Array<{
         name: string;
@@ -225,13 +245,14 @@ describe("Cloudflare AI recognition", () => {
         schemaName: string;
         prompt: { system: { value: string }; user: { value: string } };
         output: { rawObjectJson: { value: string } | null; rawModelText: { value: string } | null };
-        request: { provider: string; model: string; textCharCount: number; images: Array<{ mediaType: string; sizeBytes: number }> };
+        request: { providerType: string; transportProtocol: string; model: string; textCharCount: number; images: Array<{ mediaType: string; sizeBytes: number }> };
         response: { usage: unknown; finishReason: string | null; providerMetadata: unknown };
       };
     };
 
     expect(response.status).toBe(200);
-    expect(body.provider).toBe("openai");
+    expect(body.providerType).toBe("openai");
+    expect(body.transportProtocol).toBe("openai-chat");
     expect(body.model).toBe("gpt-5.1");
     expect(body.subscriptions[0]).toMatchObject({
       name: "dmit",
@@ -265,14 +286,15 @@ describe("Cloudflare AI recognition", () => {
     expect(body.diagnostics.prompt.user.value).not.toContain("LOCVPS 是面向 VPS、云服务器和服务器托管的主机服务商。");
     expect(body.diagnostics.prompt.user.value).not.toContain("DMIT 是提供 VPS、云服务器和网络线路服务的主机商。");
     expect(body.diagnostics.output.rawObjectJson?.value).toContain("\"name\": \"dmit\"");
-    expect(body.diagnostics.request).toMatchObject({ provider: "openai", model: "gpt-5.1", textCharCount: 12, images: [] });
+    expect(body.diagnostics.request).toMatchObject({ providerType: "openai", transportProtocol: "openai-chat", model: "gpt-5.1", textCharCount: 12, images: [] });
     expect(body.diagnostics.response.finishReason).toBe("stop");
   });
 
   it("does not apply saved default thinking when the multipart field is absent", async () => {
     dbMocks.getSettings.mockResolvedValue({
       aiRecognition: {
-        provider: "openai",
+        providerType: "openai",
+        transportProtocol: "openai-chat",
         model: "gpt-5.1",
         modelInputMode: "select",
         baseUrl: "",
@@ -316,6 +338,52 @@ describe("Cloudflare AI recognition", () => {
 
     expect(call.providerOptions).toEqual({ openai: { reasoningEffort: "high" } });
     expect(body.diagnostics.request.thinkingControl).toEqual({ provider: "openai", effort: "high" });
+  });
+
+  it("tests provider connection with a minimal text request and no recognition chain", async () => {
+    aiMocks.generateText.mockResolvedValue({ text: "OK" });
+
+    const response = await testAIRecognitionConnection(testConnectionRequestFor({
+      providerType: "openai",
+      transportProtocol: "openai-chat",
+      model: "gpt-5.1",
+      modelInputMode: "select",
+      baseUrl: "",
+      apiKey: "sk-test",
+      defaultThinkingControl: { provider: "openai", effort: "high" },
+    }), envFixture());
+    const body = await response.json() as { ok: boolean; providerType: string; transportProtocol: string; model: string };
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ ok: true, providerType: "openai", transportProtocol: "openai-chat", model: "gpt-5.1" });
+    expect(aiMocks.generateText).toHaveBeenCalledWith(expect.objectContaining({
+      model: { provider: "openai.chat" },
+      prompt: "Reply with OK.",
+      maxOutputTokens: 16,
+      maxRetries: 0,
+    }));
+    expect(aiMocks.generateObject).not.toHaveBeenCalled();
+    expect(aiMocks.wrapLanguageModel).not.toHaveBeenCalled();
+  });
+
+  it("canonicalizes mismatched compatible protocol to OpenAI chat runtime", async () => {
+    aiMocks.generateText.mockResolvedValue({ text: "OK" });
+
+    const response = await testAIRecognitionConnection(testConnectionRequestFor({
+      providerType: "openai-compatible",
+      transportProtocol: "anthropic-messages",
+      model: "claude-compatible",
+      modelInputMode: "manual",
+      baseUrl: "https://gateway.example.com/anthropic/v1",
+      apiKey: "",
+      defaultThinkingControl: null,
+    }), envFixture());
+    const body = await response.json() as { providerType: string; transportProtocol: string };
+
+    expect(body).toMatchObject({ providerType: "openai-compatible", transportProtocol: "openai-chat" });
+    expect(aiMocks.generateText).toHaveBeenCalledWith(expect.objectContaining({
+      model: { provider: "openai-compatible" },
+    }));
   });
 
   it("rejects invalid thinking control fields", async () => {

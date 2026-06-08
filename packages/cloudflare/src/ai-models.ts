@@ -4,8 +4,9 @@ import {
   aiModelListResponseSchema,
   type AiModelListItem,
   type AiModelListRequest,
-  type AiRecognitionProvider,
+  type AiRecognitionTransportProtocol,
 } from "@renewlet/shared/schemas/ai-recognition";
+import { resolveAIProviderEndpoint, type AIModelListResponseShape } from "@renewlet/shared/ai-provider-endpoints";
 import { requireAuth } from "./auth";
 import { HttpError, json, readJson, requestLocale } from "./http";
 import { serverText, type AppLocale } from "./server-i18n";
@@ -18,6 +19,9 @@ const AI_MODEL_SECRET_PATTERN = /(sk-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{8,}|sk-
 type ModelListEndpoint = {
   url: string;
   headers: Headers;
+  modelListShape: AIModelListResponseShape;
+  providerType: AiModelListRequest["providerType"];
+  transportProtocol: AiRecognitionTransportProtocol;
 };
 
 type NormalizedModelList = {
@@ -35,9 +39,10 @@ export async function listAIModels(request: Request, env: Env): Promise<Response
   try {
     const endpoint = buildAIModelListEndpoint(input);
     const raw = await fetchAIModelListJSON(endpoint, locale);
-    const normalized = normalizeAIModelList(input.provider, raw);
+    const normalized = normalizeAIModelList(endpoint.modelListShape, raw);
     return json(aiModelListResponseSchema.parse({
-      provider: input.provider,
+      providerType: endpoint.providerType,
+      transportProtocol: endpoint.transportProtocol,
       models: normalized.models,
       truncated: normalized.truncated,
     }));
@@ -54,47 +59,36 @@ export async function listAIModels(request: Request, env: Env): Promise<Response
 
 function normalizeAIModelListRequest(input: AiModelListRequest): AiModelListRequest {
   return {
-    provider: input.provider,
+    providerType: input.providerType,
     baseUrl: input.baseUrl.trim(),
     apiKey: input.apiKey.trim(),
   };
 }
 
 function assertAIModelListRequest(input: AiModelListRequest, locale: AppLocale): void {
-  if (input.provider === "openai-compatible" && !input.baseUrl) {
+  const endpoint = resolveAIProviderEndpoint(input);
+  if (endpoint.baseUrlRequired && !input.baseUrl) {
     throw new HttpError(400, serverText(locale, "aiRecognition.baseUrlRequired"), "AI_MODEL_LIST_BASE_URL_REQUIRED");
   }
-  if (input.provider !== "openai-compatible" && !input.apiKey) {
+  if (endpoint.apiKeyRequired && !input.apiKey) {
     throw new HttpError(400, serverText(locale, "aiRecognition.apiKeyRequired"), "AI_MODEL_LIST_API_KEY_REQUIRED");
   }
 }
 
 function buildAIModelListEndpoint(input: AiModelListRequest): ModelListEndpoint {
   const headers = new Headers({ accept: "application/json" });
-  switch (input.provider) {
-    case "openai":
-      headers.set("authorization", `Bearer ${input.apiKey}`);
-      return { url: appendModelListPath(input.baseUrl || "https://api.openai.com/v1"), headers };
-    case "gemini":
-      headers.set("x-goog-api-key", input.apiKey);
-      return { url: appendModelListPath(input.baseUrl || "https://generativelanguage.googleapis.com/v1beta"), headers };
-    case "anthropic":
-      headers.set("x-api-key", input.apiKey);
-      headers.set("anthropic-version", "2023-06-01");
-      return { url: appendModelListPath(input.baseUrl || "https://api.anthropic.com/v1"), headers };
-    case "openai-compatible":
-      if (input.apiKey) headers.set("authorization", `Bearer ${input.apiKey}`);
-      return { url: appendModelListPath(input.baseUrl), headers };
+  const endpoint = resolveAIProviderEndpoint(input);
+  // 鉴权头由 shared resolver 按协议生成；Worker 只补模型列表代理自己的 Accept。
+  for (const [key, value] of Object.entries(endpoint.authHeaders)) {
+    headers.set(key, value);
   }
-}
-
-function appendModelListPath(baseUrl: string): string {
-  const url = new URL(baseUrl);
-  const path = url.pathname.replace(/\/+$/, "");
-  url.pathname = path.endsWith("/models") ? path : `${path}/models`;
-  url.search = "";
-  url.hash = "";
-  return url.toString();
+  return {
+    url: endpoint.modelsUrl,
+    headers,
+    modelListShape: endpoint.modelListShape,
+    providerType: endpoint.providerType,
+    transportProtocol: endpoint.transportProtocol,
+  };
 }
 
 async function fetchAIModelListJSON(endpoint: ModelListEndpoint, locale: AppLocale): Promise<unknown> {
@@ -168,10 +162,10 @@ async function readAIModelListResponseText(response: Response, locale: AppLocale
   return text + decoder.decode();
 }
 
-function normalizeAIModelList(provider: AiRecognitionProvider, raw: unknown): NormalizedModelList {
-  const models = provider === "gemini"
+function normalizeAIModelList(shape: AIModelListResponseShape, raw: unknown): NormalizedModelList {
+  const models = shape === "gemini"
     ? normalizeGeminiModels(raw)
-    : provider === "anthropic"
+    : shape === "anthropic"
       ? normalizeAnthropicModels(raw)
       : normalizeOpenAIShapeModels(raw);
   const deduped = dedupeModels(models);

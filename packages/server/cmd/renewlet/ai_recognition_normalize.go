@@ -51,7 +51,7 @@ type aiGeneratedNotesField struct {
 	Source string  `json:"source"`
 }
 
-func normalizeAIGeneratedRecognizeResponse(raw aiGeneratedRecognizeResponse, providerName string, model string, diagnostics aiRecognitionDiagnostics, configContext aiRecognitionConfigContext) (aiRecognizeResponse, error) {
+func normalizeAIGeneratedRecognizeResponse(raw aiGeneratedRecognizeResponse, providerType string, transportProtocol string, model string, diagnostics aiRecognitionDiagnostics, configContext aiRecognitionConfigContext) (aiRecognizeResponse, error) {
 	response := aiRecognizeResponse{
 		Warnings:      raw.Warnings,
 		Subscriptions: make([]aiRecognizedSubscriptionDraft, 0, len(raw.Subscriptions)),
@@ -60,7 +60,7 @@ func normalizeAIGeneratedRecognizeResponse(raw aiGeneratedRecognizeResponse, pro
 	for _, draft := range raw.Subscriptions {
 		response.Subscriptions = append(response.Subscriptions, aiGeneratedDraftToRecognized(draft))
 	}
-	return normalizeAIRecognizeResponse(response, providerName, model, configContext)
+	return normalizeAIRecognizeResponse(response, providerType, transportProtocol, model, configContext)
 }
 
 func aiGeneratedDraftToRecognized(draft aiGeneratedSubscriptionDraft) aiRecognizedSubscriptionDraft {
@@ -109,8 +109,9 @@ func aiGeneratedNotesToSuggestedField(field *aiGeneratedNotesField) *aiSuggested
 	return &aiSuggestedTextField{Value: *field.Value, Source: source}
 }
 
-func normalizeAIRecognizeResponse(raw aiRecognizeResponse, providerName string, model string, configContext aiRecognitionConfigContext) (aiRecognizeResponse, error) {
-	raw.Provider = providerName
+func normalizeAIRecognizeResponse(raw aiRecognizeResponse, providerType string, transportProtocol string, model string, configContext aiRecognitionConfigContext) (aiRecognizeResponse, error) {
+	raw.ProviderType = providerType
+	raw.TransportProtocol = transportProtocol
 	raw.Model = model
 	raw.Warnings = compactAIWarnings(raw.Warnings, 20)
 	if len(raw.Subscriptions) > aiRecognitionMaxSubscriptions {

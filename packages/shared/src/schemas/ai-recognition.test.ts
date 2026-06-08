@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  isAIProviderBaseUrlRequired,
+  resolveAIProviderEndpoint,
+} from "../ai-provider-endpoints";
+import {
   AI_RECOGNITION_MAX_IMAGES,
   aiGeneratedRecognizeObjectSchema,
   aiModelListRequestSchema,
@@ -46,7 +50,7 @@ describe("AI recognition generated schema", () => {
     }).success).toBe(true);
 
     const withoutNotes = generatedDraft();
-    delete withoutNotes.notes;
+    delete withoutNotes["notes"];
     expect(aiGeneratedRecognizeObjectSchema.safeParse({
       subscriptions: [withoutNotes],
       warnings: [],
@@ -74,7 +78,7 @@ describe("AI recognition generated schema", () => {
     }).success).toBe(false);
 
     const withoutDraftWarnings = generatedDraft();
-    delete withoutDraftWarnings.warnings;
+    delete withoutDraftWarnings["warnings"];
     expect(aiGeneratedRecognizeObjectSchema.safeParse({
       subscriptions: [withoutDraftWarnings],
       warnings: [],
@@ -109,7 +113,8 @@ describe("AI recognition diagnostics schema", () => {
         rawObjectJson: null,
       },
       request: {
-        provider: "openai",
+        providerType: "openai",
+        transportProtocol: "openai-chat",
         model: "gpt-5.1",
         thinkingControl: null,
         maxOutputTokens: 12000,
@@ -137,17 +142,18 @@ describe("AI recognition diagnostics schema", () => {
 describe("AI model list schema", () => {
   it("accepts normalized provider model list items", () => {
     expect(aiModelListRequestSchema.parse({
-      provider: "gemini",
+      providerType: "gemini",
       baseUrl: "",
       apiKey: "AIza-test-key",
     })).toEqual({
-      provider: "gemini",
+      providerType: "gemini",
       baseUrl: "",
       apiKey: "AIza-test-key",
     });
 
     expect(aiModelListResponseSchema.safeParse({
-      provider: "gemini",
+      providerType: "gemini",
+      transportProtocol: "gemini-generate-content",
       models: [{
         id: "gemini-2.5-pro",
         displayName: "Gemini 2.5 Pro",
@@ -168,14 +174,15 @@ describe("AI model list schema", () => {
 
   it("rejects model list payloads with unexpected fields", () => {
     expect(aiModelListRequestSchema.safeParse({
-      provider: "openai",
+      providerType: "openai",
       baseUrl: "",
       apiKey: "sk-test",
       model: "gpt-5.1",
     }).success).toBe(false);
 
     expect(aiModelListResponseSchema.safeParse({
-      provider: "openai",
+      providerType: "openai",
+      transportProtocol: "openai-chat",
       models: [{
         id: "gpt-5.1",
         displayName: null,
@@ -199,7 +206,8 @@ describe("AI model list schema", () => {
 describe("AI recognition settings schema", () => {
   it("defaults the model input mode to select for existing settings", () => {
     expect(aiRecognitionSettingsSchema.parse({
-      provider: "openai",
+      providerType: "openai",
+      transportProtocol: "openai-chat",
       model: "gpt-5.1",
       baseUrl: "",
       apiKey: "sk-test",
@@ -207,12 +215,127 @@ describe("AI recognition settings schema", () => {
     }).modelInputMode).toBe("select");
 
     expect(aiRecognitionSettingsSchema.parse({
-      provider: "openai",
+      providerType: "openai",
+      transportProtocol: "openai-chat",
       model: "custom-model",
       modelInputMode: "manual",
       baseUrl: "",
       apiKey: "sk-test",
       defaultThinkingControl: null,
     }).modelInputMode).toBe("manual");
+  });
+
+  it("normalizes old provider settings at the settings boundary only", () => {
+    expect(aiRecognitionSettingsSchema.parse({
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      baseUrl: "",
+      apiKey: "sk-ant-test",
+      defaultThinkingControl: null,
+    })).toMatchObject({
+      providerType: "anthropic",
+      transportProtocol: "anthropic-messages",
+      modelInputMode: "select",
+    });
+  });
+
+  it("canonicalizes missing and mismatched transport protocol from provider type", () => {
+    expect(aiRecognitionSettingsSchema.parse({
+      providerType: "gemini",
+      model: "gemini-2.5-pro",
+      baseUrl: "",
+      apiKey: "AIza-test",
+      defaultThinkingControl: null,
+    })).toMatchObject({
+      providerType: "gemini",
+      transportProtocol: "gemini-generate-content",
+    });
+
+    expect(aiRecognitionSettingsSchema.parse({
+      providerType: "openai-compatible",
+      transportProtocol: "anthropic-messages",
+      model: "custom-model",
+      modelInputMode: "manual",
+      baseUrl: "https://llm.example.com/v1",
+      apiKey: "",
+      defaultThinkingControl: { provider: "anthropic", mode: "effort", effort: "high" },
+    })).toMatchObject({
+      providerType: "openai-compatible",
+      transportProtocol: "openai-chat",
+      defaultThinkingControl: null,
+    });
+  });
+});
+
+describe("AI provider endpoint resolver", () => {
+  it("normalizes runtime and model-list endpoints by transport protocol", () => {
+    expect(resolveAIProviderEndpoint({
+      providerType: "openai",
+      baseUrl: "https://api.example.com/openai/v1/chat/completions",
+      apiKey: "sk-test",
+    })).toMatchObject({
+      runtimeBaseUrl: "https://api.example.com/openai/v1",
+      modelsUrl: "https://api.example.com/openai/v1/models",
+      modelListShape: "openai",
+      authHeaders: { authorization: "Bearer sk-test" },
+    });
+
+    expect(resolveAIProviderEndpoint({
+      providerType: "anthropic",
+      baseUrl: "https://claude.example.com/messages",
+      apiKey: "sk-ant-test",
+    })).toMatchObject({
+      runtimeBaseUrl: "https://claude.example.com/v1",
+      modelsUrl: "https://claude.example.com/v1/models",
+      modelListShape: "anthropic",
+      authHeaders: { "x-api-key": "sk-ant-test", "anthropic-version": "2023-06-01" },
+    });
+
+    expect(resolveAIProviderEndpoint({
+      providerType: "gemini",
+      baseUrl: "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-pro:generateContent?key=bad",
+      apiKey: "AIza-test",
+    })).toMatchObject({
+      runtimeBaseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      modelsUrl: "https://generativelanguage.googleapis.com/v1beta/models",
+      modelListShape: "gemini",
+      authHeaders: { "x-goog-api-key": "AIza-test" },
+    });
+  });
+
+  it("uses # to disable automatic version appending", () => {
+    expect(resolveAIProviderEndpoint({
+      providerType: "openai-compatible",
+      baseUrl: "https://gateway.example.com/custom/api#",
+      apiKey: "",
+    })).toMatchObject({
+      runtimeBaseUrl: "https://gateway.example.com/custom/api",
+      modelsUrl: "https://gateway.example.com/custom/api/models",
+      authHeaders: {},
+      baseUrlRequired: true,
+      apiKeyRequired: false,
+    });
+  });
+
+  it("requires base URL only when no official default matches the selected protocol", () => {
+    expect(isAIProviderBaseUrlRequired("openai")).toBe(false);
+    expect(isAIProviderBaseUrlRequired("anthropic")).toBe(false);
+    expect(isAIProviderBaseUrlRequired("gemini")).toBe(false);
+    expect(isAIProviderBaseUrlRequired("openai-compatible")).toBe(true);
+  });
+
+  it("overrides mismatched transport protocol before URL, auth and response shape resolution", () => {
+    expect(resolveAIProviderEndpoint({
+      providerType: "openai-compatible",
+      transportProtocol: "gemini-generate-content",
+      baseUrl: "https://gateway.example.com/custom/api#",
+      apiKey: "custom-key",
+    })).toMatchObject({
+      transportProtocol: "openai-chat",
+      runtimeBaseUrl: "https://gateway.example.com/custom/api",
+      modelsUrl: "https://gateway.example.com/custom/api/models",
+      modelListShape: "openai",
+      authHeaders: { authorization: "Bearer custom-key" },
+    });
   });
 });

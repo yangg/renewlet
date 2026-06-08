@@ -35,15 +35,18 @@ func TestAIModelListOpenAIShape(t *testing.T) {
 	})
 
 	response, err := listAIModels(context.Background(), aiModelListRequest{
-		Provider: "openai",
-		BaseURL:  server.URL + "/v1",
-		APIKey:   "sk-test-secret",
+		ProviderType: aiProviderTypeOpenAI,
+		BaseURL:      server.URL + "/v1",
+		APIKey:       "sk-test-secret",
 	}, localeZhCN)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(response.Models) != 1 || response.Models[0].ID != "gpt-5.1" {
 		t.Fatalf("unexpected models: %#v", response.Models)
+	}
+	if response.ProviderType != aiProviderTypeOpenAI || response.TransportProtocol != aiProtocolOpenAIChat {
+		t.Fatalf("provider/protocol not preserved: %#v", response)
 	}
 	if response.Models[0].OwnedBy == nil || *response.Models[0].OwnedBy != "openai" {
 		t.Fatalf("owner not parsed: %#v", response.Models[0])
@@ -59,9 +62,9 @@ func TestAIModelListGeminiShape(t *testing.T) {
 	})
 
 	response, err := listAIModels(context.Background(), aiModelListRequest{
-		Provider: "gemini",
-		BaseURL:  server.URL + "/v1beta",
-		APIKey:   "AIza-test-secret",
+		ProviderType: aiProviderTypeGemini,
+		BaseURL:      server.URL + "/v1beta",
+		APIKey:       "AIza-test-secret",
 	}, localeZhCN)
 	if err != nil {
 		t.Fatal(err)
@@ -74,7 +77,37 @@ func TestAIModelListGeminiShape(t *testing.T) {
 	}
 }
 
-func TestAIModelListAnthropicAndCompatible(t *testing.T) {
+func TestAIModelListAnthropicShape(t *testing.T) {
+	server := withAIModelListTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if got := r.Header.Get("x-api-key"); got != "sk-ant-test-secret" {
+			t.Fatalf("unexpected Anthropic key header: %q", got)
+		}
+		if got := r.Header.Get("anthropic-version"); got != "2023-06-01" {
+			t.Fatalf("unexpected Anthropic version header: %q", got)
+		}
+		_, _ = w.Write([]byte(`{"data":[{"id":"claude-sonnet-4-6","display_name":"Claude Sonnet 4.6","created_at":"2026-01-01T00:00:00Z","type":"model"}]}`))
+	})
+
+	response, err := listAIModels(context.Background(), aiModelListRequest{
+		ProviderType: aiProviderTypeAnthropic,
+		BaseURL:      server.URL + "/v1",
+		APIKey:       "sk-ant-test-secret",
+	}, localeZhCN)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Models) != 1 || response.Models[0].ID != "claude-sonnet-4-6" {
+		t.Fatalf("unexpected Anthropic models: %#v", response.Models)
+	}
+	if response.Models[0].DisplayName == nil || *response.Models[0].DisplayName != "Claude Sonnet 4.6" {
+		t.Fatalf("display name not parsed: %#v", response.Models[0])
+	}
+}
+
+func TestAIModelListCompatibleWithoutAPIKey(t *testing.T) {
 	server := withAIModelListTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/models" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
@@ -86,9 +119,9 @@ func TestAIModelListAnthropicAndCompatible(t *testing.T) {
 	})
 
 	response, err := listAIModels(context.Background(), aiModelListRequest{
-		Provider: "openai-compatible",
-		BaseURL:  server.URL + "/v1/",
-		APIKey:   "",
+		ProviderType: aiProviderTypeOpenAICompatible,
+		BaseURL:      server.URL + "/v1/",
+		APIKey:       "",
 	}, localeZhCN)
 	if err != nil {
 		t.Fatal(err)
@@ -105,9 +138,9 @@ func TestAIModelListProviderErrorRedactsSecrets(t *testing.T) {
 	})
 
 	_, err := listAIModels(context.Background(), aiModelListRequest{
-		Provider: "openai",
-		BaseURL:  server.URL + "/v1",
-		APIKey:   "sk-test-secret",
+		ProviderType: aiProviderTypeOpenAI,
+		BaseURL:      server.URL + "/v1",
+		APIKey:       "sk-test-secret",
 	}, localeZhCN)
 	var httpErr *aiModelListHTTPError
 	if !errors.As(err, &httpErr) {
@@ -130,9 +163,9 @@ func TestAIModelListTimeout(t *testing.T) {
 	})
 
 	_, err := listAIModels(context.Background(), aiModelListRequest{
-		Provider: "openai",
-		BaseURL:  server.URL + "/v1",
-		APIKey:   "sk-test-secret",
+		ProviderType: aiProviderTypeOpenAI,
+		BaseURL:      server.URL + "/v1",
+		APIKey:       "sk-test-secret",
 	}, localeZhCN)
 	var httpErr *aiModelListHTTPError
 	if !errors.As(err, &httpErr) || httpErr.code != "AI_MODEL_LIST_TIMEOUT" {

@@ -85,7 +85,7 @@ export const messages = [
   msg({ id: "error.code.AI_BASE_URL_REQUIRED", message: "请先填写 AI Base URL" }),
   msg({ id: "error.code.AI_API_KEY_REQUIRED", message: "请先填写 AI API Key" }),
   msg({ id: "error.code.AI_RECOGNITION_INPUT_REQUIRED", message: "请先粘贴文本或上传图片" }),
-  msg({ id: "error.code.AI_THINKING_PROVIDER_MISMATCH", message: "思考控制与当前模型来源不匹配" }),
+  msg({ id: "error.code.AI_THINKING_PROVIDER_MISMATCH", message: "思考控制与当前平台或协议不匹配" }),
   msg({ id: "error.code.AI_IMAGE_TYPE_INVALID", message: "图片类型无效，仅支持 PNG、JPG 或 WebP" }),
   msg({ id: "error.code.AI_RECOGNITION_EMPTY", message: "AI 没有识别到可导入的订阅" }),
   msg({ id: "error.code.AI_RECOGNITION_FAILED", message: "AI 识别失败，请检查输入和模型配置" }),

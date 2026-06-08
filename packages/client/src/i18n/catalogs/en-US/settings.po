@@ -120,7 +120,7 @@ msgstr "Bot Token and Chat ID filled"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:74
-msgid "aiRecognition.provider.anthropic"
+msgid "aiRecognition.providerType.anthropic"
 msgstr "Claude"
 
 #. js-lingui-explicit-id
@@ -170,7 +170,7 @@ msgstr "FloatRates JSON Feeds"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:73
-msgid "aiRecognition.provider.gemini"
+msgid "aiRecognition.providerType.gemini"
 msgstr "Gemini"
 
 #. js-lingui-explicit-id
@@ -285,28 +285,18 @@ msgstr "Notifyx help"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:72
-msgid "aiRecognition.provider.openai"
+msgid "aiRecognition.providerType.openai"
 msgstr "OpenAI"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:75
-msgid "aiRecognition.provider.openaiCompatible"
+msgid "aiRecognition.providerType.openaiCompatible"
 msgstr "OpenAI Compatible"
-
-#. js-lingui-explicit-id
-#: src/i18n/descriptors/settings.ts:89
-msgid "aiRecognition.baseUrlHelp"
-msgstr "Required for OpenAI Compatible. Official providers can leave it empty or use a compatible gateway URL."
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:96
 msgid "aiRecognition.thinkingUnsupportedCompatible"
 msgstr "OpenAI Compatible has no unified thinking standard, so Renewlet will not pass thinking controls."
-
-#. js-lingui-explicit-id
-#: src/i18n/descriptors/settings.ts:147
-msgid "aiRecognition.baseUrlRequired"
-msgstr "OpenAI Compatible requires a Base URL."
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:111
@@ -451,7 +441,7 @@ msgstr "Turn this off to keep notifications shorter."
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:94
 msgid "aiRecognition.thinkingHelp"
-msgstr "Only official thinking controls clearly supported by the current provider/model are shown. Unsupported models keep their default behavior."
+msgstr "Only official thinking controls clearly supported by the selected platform and model are shown. Unsupported models keep their default behavior."
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:359
@@ -814,6 +804,11 @@ msgid "settings.builtInIconSourcesDialogDone"
 msgstr "Done"
 
 #. js-lingui-explicit-id
+#: src/i18n/descriptors/settings.ts:89
+msgid "aiRecognition.baseUrlHelp"
+msgstr "Leave empty for official platforms. For OpenAI Compatible, enter the matching OpenAI Chat Base URL."
+
+#. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:33
 msgid "settings.passwordDialogDescription"
 msgstr "The password will be written to the local auth account. It will not be shown after a successful change, so keep it safe."
@@ -874,6 +869,11 @@ msgid "settings.cronTip"
 msgstr "Cron should still call the endpoint every minute or at least every 5 minutes. The app decides per user time zone whether to send."
 
 #. js-lingui-explicit-id
+#: src/i18n/descriptors/settings.ts:71
+msgid "aiRecognition.providerType"
+msgstr "Platform type"
+
+#. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:290
 msgid "settings.appSettingsScope"
 msgstr "App settings"
@@ -892,6 +892,11 @@ msgstr "Show prices and currencies when enabled; otherwise expose only minimal s
 #: src/i18n/descriptors/settings.ts:34
 msgid "settings.currentPassword"
 msgstr "Current password"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/settings.ts:147
+msgid "aiRecognition.baseUrlRequired"
+msgstr "This platform requires a Base URL."
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:97
@@ -1279,11 +1284,6 @@ msgid "aiRecognition.modelListTruncated"
 msgstr "The model list is long, so only the first 300 results are shown. Keep searching or enter a model manually."
 
 #. js-lingui-explicit-id
-#: src/i18n/descriptors/settings.ts:71
-msgid "aiRecognition.provider"
-msgstr "Model provider"
-
-#. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:78
 msgid "aiRecognition.modelMode"
 msgstr "Model input mode"
@@ -1291,7 +1291,7 @@ msgstr "Model input mode"
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:143
 msgid "aiRecognition.testSucceededDescription"
-msgstr "The model returned a parseable structured result."
+msgstr "The model returned a minimal text test response."
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:98
@@ -1771,7 +1771,7 @@ msgstr "Configure built-in icon sources"
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:70
 msgid "aiRecognition.settingsDescription"
-msgstr "Configure the third-party model used to recognize subscription images, notes, or table text. Recognition content and existing tag names are sent to the provider you configure."
+msgstr "Configure the third-party model used to recognize subscription images, notes, or table text. Recognition content and existing tag names are sent to the AI platform you configure."
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:169

@@ -88,8 +88,8 @@ export function AIRecognizeSubscriptionDialog({
   const aiSettings = settings.aiRecognition;
   const settingsBlocker = getAIRecognitionSettingsBlocker(aiSettings);
   const thinkingOptions = useMemo(
-    () => getAIThinkingOptions(aiSettings.provider, aiSettings.model),
-    [aiSettings.model, aiSettings.provider],
+    () => getAIThinkingOptions(aiSettings.providerType, aiSettings.transportProtocol, aiSettings.model),
+    [aiSettings.model, aiSettings.providerType, aiSettings.transportProtocol],
   );
   const selectedThinkingId = thinkingControl ? thinkingOptionId(thinkingControl) : NO_THINKING_CONTROL_ID;
   const {
@@ -146,8 +146,8 @@ export function AIRecognizeSubscriptionDialog({
 
   useEffect(() => {
     if (!open) return;
-    setThinkingControl(normalizeAIThinkingControl(aiSettings.provider, aiSettings.model, aiSettings.defaultThinkingControl));
-  }, [aiSettings.defaultThinkingControl, aiSettings.model, aiSettings.provider, open]);
+    setThinkingControl(normalizeAIThinkingControl(aiSettings.providerType, aiSettings.transportProtocol, aiSettings.model, aiSettings.defaultThinkingControl));
+  }, [aiSettings.defaultThinkingControl, aiSettings.model, aiSettings.providerType, aiSettings.transportProtocol, open]);
 
   function reset() {
     recognitionRunRef.current += 1;
@@ -335,7 +335,7 @@ export function AIRecognizeSubscriptionDialog({
   );
   const runSettingsPanel = (
     <AIRecognitionRunSettingsPanel
-      provider={aiSettings.provider}
+      providerType={aiSettings.providerType}
       model={aiSettings.model}
       mode={inputMode}
       textLength={text.length}

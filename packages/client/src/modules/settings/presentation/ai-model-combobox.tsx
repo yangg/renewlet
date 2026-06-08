@@ -55,6 +55,7 @@ export function AIModelCombobox({
     if (query) return models.filter((model) => modelMatchesQuery(model, query));
     return models.slice(0, MODEL_INITIAL_RENDER_LIMIT);
   }, [models, search]);
+  const showModelListFeedback = mode === "select";
 
   React.useEffect(() => {
     const previousStatus = previousStatusRef.current;
@@ -175,8 +176,8 @@ export function AIModelCombobox({
           </Popover>
         )}
       </div>
-      {error ? <p className="text-xs leading-5 text-destructive">{error}</p> : null}
-      {status === "success" && truncated ? (
+      {showModelListFeedback && error ? <p className="text-xs leading-5 text-destructive">{error}</p> : null}
+      {showModelListFeedback && status === "success" && truncated ? (
         <p className="text-xs leading-5 text-muted-foreground">{t("aiRecognition.modelListTruncated")}</p>
       ) : null}
     </div>

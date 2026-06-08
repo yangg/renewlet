@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -21,25 +20,30 @@ const (
 )
 
 type aiModelListRequest struct {
-	Provider string `json:"provider"`
-	BaseURL  string `json:"baseUrl"`
-	APIKey   string `json:"apiKey"`
+	ProviderType string `json:"providerType"`
+	BaseURL      string `json:"baseUrl"`
+	APIKey       string `json:"apiKey"`
 }
 
 func (r *aiModelListRequest) Validate(locale appLocale) error {
-	r.Provider = strings.TrimSpace(r.Provider)
+	r.ProviderType = strings.TrimSpace(r.ProviderType)
 	r.BaseURL = strings.TrimSpace(r.BaseURL)
 	r.APIKey = strings.TrimSpace(r.APIKey)
-	if !isValidAIRecognitionProvider(r.Provider) {
+	if !isValidAIRecognitionProviderType(r.ProviderType) {
 		return errors.New(serverText(locale, "common.invalidRequestParameters"))
 	}
 	if r.BaseURL != "" && sanitizeAIRecognitionBaseURL(r.BaseURL) == "" {
 		return errors.New(serverText(locale, "common.invalidRequestParameters"))
 	}
-	if r.Provider == "openai-compatible" && r.BaseURL == "" {
+	endpoint := resolveAIProviderEndpoint(aiRecognitionSettings{
+		ProviderType: r.ProviderType,
+		BaseURL:      r.BaseURL,
+		APIKey:       r.APIKey,
+	})
+	if endpoint.BaseURLRequired && r.BaseURL == "" {
 		return errors.New(serverText(locale, "aiRecognition.baseUrlRequired"))
 	}
-	if r.Provider != "openai-compatible" && r.APIKey == "" {
+	if endpoint.APIKeyRequired && r.APIKey == "" {
 		return errors.New(serverText(locale, "aiRecognition.apiKeyRequired"))
 	}
 	return nil
@@ -63,9 +67,10 @@ type aiModelListItem struct {
 }
 
 type aiModelListResponse struct {
-	Provider  string            `json:"provider"`
-	Models    []aiModelListItem `json:"models"`
-	Truncated bool              `json:"truncated"`
+	ProviderType      string            `json:"providerType"`
+	TransportProtocol string            `json:"transportProtocol"`
+	Models            []aiModelListItem `json:"models"`
+	Truncated         bool              `json:"truncated"`
 }
 
 type aiModelListErrorResponse struct {
@@ -80,8 +85,11 @@ type aiModelListErrorDetails struct {
 }
 
 type aiModelListEndpoint struct {
-	URL     string
-	Headers http.Header
+	URL               string
+	Headers           http.Header
+	ModelListShape    string
+	ProviderType      string
+	TransportProtocol string
 }
 
 type aiModelListHTTPError struct {
@@ -137,51 +145,36 @@ func listAIModels(ctx context.Context, input aiModelListRequest, locale appLocal
 	if err != nil {
 		return aiModelListResponse{}, err
 	}
-	models := normalizeAIModelList(input.Provider, raw)
+	models := normalizeAIModelList(endpoint.ModelListShape, raw)
 	truncated := len(models) > aiModelListMaxModels
 	if truncated {
 		models = models[:aiModelListMaxModels]
 	}
-	return aiModelListResponse{Provider: input.Provider, Models: models, Truncated: truncated}, nil
+	return aiModelListResponse{ProviderType: endpoint.ProviderType, TransportProtocol: endpoint.TransportProtocol, Models: models, Truncated: truncated}, nil
 }
 
 func buildAIModelListEndpoint(input aiModelListRequest) (aiModelListEndpoint, error) {
 	headers := http.Header{"Accept": []string{"application/json"}}
-	switch input.Provider {
-	case "openai":
-		headers.Set("Authorization", "Bearer "+input.APIKey)
-		return aiModelListEndpoint{URL: appendAIModelListPath(firstNonBlank(input.BaseURL, "https://api.openai.com/v1")), Headers: headers}, nil
-	case "gemini":
-		headers.Set("x-goog-api-key", input.APIKey)
-		return aiModelListEndpoint{URL: appendAIModelListPath(firstNonBlank(input.BaseURL, "https://generativelanguage.googleapis.com/v1beta")), Headers: headers}, nil
-	case "anthropic":
-		headers.Set("x-api-key", input.APIKey)
-		headers.Set("anthropic-version", "2023-06-01")
-		return aiModelListEndpoint{URL: appendAIModelListPath(firstNonBlank(input.BaseURL, "https://api.anthropic.com/v1")), Headers: headers}, nil
-	case "openai-compatible":
-		if input.APIKey != "" {
-			headers.Set("Authorization", "Bearer "+input.APIKey)
-		}
-		return aiModelListEndpoint{URL: appendAIModelListPath(input.BaseURL), Headers: headers}, nil
-	default:
+	if !isValidAIRecognitionProviderType(input.ProviderType) {
 		return aiModelListEndpoint{}, errAIRecognitionProviderInvalid
 	}
-}
-
-func appendAIModelListPath(baseURL string) string {
-	parsed, err := url.Parse(baseURL)
-	if err != nil {
-		return baseURL
+	endpoint := resolveAIProviderEndpoint(aiRecognitionSettings{
+		ProviderType: input.ProviderType,
+		BaseURL:      input.BaseURL,
+		APIKey:       input.APIKey,
+	})
+	for key, values := range endpoint.Headers {
+		for _, value := range values {
+			headers.Add(key, value)
+		}
 	}
-	path := strings.TrimRight(parsed.Path, "/")
-	if strings.HasSuffix(path, "/models") {
-		parsed.Path = path
-	} else {
-		parsed.Path = path + "/models"
-	}
-	parsed.RawQuery = ""
-	parsed.Fragment = ""
-	return parsed.String()
+	return aiModelListEndpoint{
+		URL:               endpoint.ModelsURL,
+		Headers:           headers,
+		ModelListShape:    endpoint.ModelListShape,
+		ProviderType:      endpoint.ProviderType,
+		TransportProtocol: endpoint.TransportProtocol,
+	}, nil
 }
 
 func fetchAIModelListJSON(ctx context.Context, endpoint aiModelListEndpoint, locale appLocale) (map[string]interface{}, error) {
@@ -247,9 +240,9 @@ func readAIModelListResponseBody(reader io.Reader, locale appLocale) ([]byte, er
 	return data, nil
 }
 
-func normalizeAIModelList(provider string, raw map[string]interface{}) []aiModelListItem {
+func normalizeAIModelList(shape string, raw map[string]interface{}) []aiModelListItem {
 	var models []aiModelListItem
-	switch provider {
+	switch shape {
 	case "gemini":
 		models = normalizeGeminiModelList(raw)
 	case "anthropic":

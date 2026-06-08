@@ -29,7 +29,7 @@
   "aiRecognition.noSubscriptions": "AI did not recognize any importable subscriptions.",
   "aiRecognition.schemaMismatch": "The AI response could not be turned into subscription drafts. Try a stronger model or add clearer price, cycle, and name details.",
   "aiRecognition.testFailed": "AI connection test failed. Check the model configuration.",
-  "aiRecognition.thinkingProviderMismatch": "Thinking control does not match the selected provider.",
+  "aiRecognition.thinkingProviderMismatch": "Thinking control does not match the selected platform or protocol.",
   "auth.accountDisabled": "Account is disabled",
   "auth.accountDisabledByAdmin": "Account disabled by an administrator",
   "auth.adminDisabledReason": "Disabled by administrator",

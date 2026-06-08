@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -139,6 +140,56 @@ func parseAIThinkingControl(data []byte, locale appLocale) (*aiThinkingControl, 
 	return &control, nil
 }
 
+func (settings *aiRecognitionSettings) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	allowed := map[string]struct{}{
+		"provider":               {},
+		"providerType":           {},
+		"transportProtocol":      {},
+		"model":                  {},
+		"modelInputMode":         {},
+		"baseUrl":                {},
+		"apiKey":                 {},
+		"defaultThinkingControl": {},
+	}
+	for key := range raw {
+		if _, ok := allowed[key]; !ok {
+			return fmt.Errorf("json: unknown field %q", key)
+		}
+	}
+	type aiRecognitionSettingsJSON struct {
+		Provider               string             `json:"provider"`
+		ProviderType           string             `json:"providerType"`
+		TransportProtocol      string             `json:"transportProtocol"`
+		Model                  string             `json:"model"`
+		ModelInputMode         string             `json:"modelInputMode"`
+		BaseURL                string             `json:"baseUrl"`
+		APIKey                 string             `json:"apiKey"`
+		DefaultThinkingControl *aiThinkingControl `json:"defaultThinkingControl"`
+	}
+	var input aiRecognitionSettingsJSON
+	if err := json.Unmarshal(data, &input); err != nil {
+		return err
+	}
+	providerType := firstNonBlank(input.ProviderType, input.Provider)
+	*settings = aiRecognitionSettings{
+		ProviderType:           providerType,
+		TransportProtocol:      input.TransportProtocol,
+		Model:                  input.Model,
+		ModelInputMode:         input.ModelInputMode,
+		BaseURL:                input.BaseURL,
+		APIKey:                 input.APIKey,
+		DefaultThinkingControl: input.DefaultThinkingControl,
+	}
+	if isValidAIRecognitionProviderType(providerType) {
+		settings.TransportProtocol = canonicalAIRecognitionTransportProtocol(providerType)
+	}
+	return nil
+}
+
 func validateAIThinkingControl(control *aiThinkingControl) error {
 	if control == nil {
 		return nil
@@ -183,10 +234,11 @@ func validateAIThinkingControl(control *aiThinkingControl) error {
 }
 
 func sanitizeAIRecognitionSettings(settings aiRecognitionSettings) aiRecognitionSettings {
-	settings.Provider = strings.TrimSpace(settings.Provider)
-	if !isValidAIRecognitionProvider(settings.Provider) {
-		settings.Provider = "openai"
+	settings.ProviderType = strings.TrimSpace(settings.ProviderType)
+	if !isValidAIRecognitionProviderType(settings.ProviderType) {
+		settings.ProviderType = aiProviderTypeOpenAI
 	}
+	settings.TransportProtocol = canonicalAIRecognitionTransportProtocol(settings.ProviderType)
 	settings.Model = strings.TrimSpace(settings.Model)
 	settings.ModelInputMode = strings.TrimSpace(settings.ModelInputMode)
 	if settings.ModelInputMode != "manual" {
@@ -195,15 +247,35 @@ func sanitizeAIRecognitionSettings(settings aiRecognitionSettings) aiRecognition
 	settings.BaseURL = sanitizeAIRecognitionBaseURL(settings.BaseURL)
 	settings.APIKey = strings.TrimSpace(settings.APIKey)
 	if settings.DefaultThinkingControl != nil {
-		if err := validateAIThinkingControl(settings.DefaultThinkingControl); err != nil || settings.DefaultThinkingControl.Provider != settings.Provider {
+		if err := validateAIThinkingControl(settings.DefaultThinkingControl); err != nil || !aiThinkingControlMatchesSettings(settings, settings.DefaultThinkingControl) {
 			settings.DefaultThinkingControl = nil
 		}
 	}
 	return settings
 }
 
-func isValidAIRecognitionProvider(value string) bool {
-	return value == "openai" || value == "gemini" || value == "anthropic" || value == "openai-compatible"
+func isValidAIRecognitionProviderType(value string) bool {
+	return value == aiProviderTypeOpenAI || value == aiProviderTypeGemini || value == aiProviderTypeAnthropic || value == aiProviderTypeOpenAICompatible
+}
+
+func isValidAIRecognitionTransportProtocol(value string) bool {
+	return value == aiProtocolOpenAIChat || value == aiProtocolAnthropicMessages || value == aiProtocolGeminiGenerateContent
+}
+
+func aiThinkingControlMatchesSettings(settings aiRecognitionSettings, control *aiThinkingControl) bool {
+	if control == nil {
+		return true
+	}
+	switch settings.TransportProtocol {
+	case aiProtocolOpenAIChat:
+		return settings.ProviderType == aiProviderTypeOpenAI && control.Provider == aiProviderTypeOpenAI
+	case aiProtocolAnthropicMessages:
+		return settings.ProviderType == aiProviderTypeAnthropic && control.Provider == aiProviderTypeAnthropic
+	case aiProtocolGeminiGenerateContent:
+		return settings.ProviderType == aiProviderTypeGemini && control.Provider == aiProviderTypeGemini
+	default:
+		return false
+	}
 }
 
 func sanitizeAIRecognitionBaseURL(value string) string {
@@ -223,13 +295,13 @@ func validateAIRecognitionSettings(settings aiRecognitionSettings, locale appLoc
 	if settings.Model == "" {
 		return errors.New(serverText(locale, "aiRecognition.modelRequired"))
 	}
-	if settings.Provider == "openai-compatible" {
+	endpoint := resolveAIProviderEndpoint(settings)
+	if endpoint.BaseURLRequired {
 		if settings.BaseURL == "" {
 			return errors.New(serverText(locale, "aiRecognition.baseUrlRequired"))
 		}
-		return nil
 	}
-	if settings.APIKey == "" {
+	if endpoint.APIKeyRequired && settings.APIKey == "" {
 		return errors.New(serverText(locale, "aiRecognition.apiKeyRequired"))
 	}
 	return nil

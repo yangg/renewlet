@@ -1,4 +1,4 @@
-import { generateObject, NoObjectGeneratedError, wrapLanguageModel, type JSONValue, type ModelMessage, type UserContent } from "ai";
+import { generateObject, generateText, NoObjectGeneratedError, wrapLanguageModel, type JSONValue, type ModelMessage, type UserContent } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -12,6 +12,7 @@ import {
   aiGeneratedRecognizeObjectSchema,
   aiRecognitionDiagnosticsSchema,
   aiRecognitionErrorDetailsSchema,
+  aiRecognitionSettingsSchema,
   aiRecognitionTestRequestSchema,
   aiRecognitionTestResponseSchema,
   aiThinkingControlSchema,
@@ -21,6 +22,7 @@ import {
   type AiThinkingControl,
   type AiRecognizeResponse,
 } from "@renewlet/shared/schemas/ai-recognition";
+import { resolveAIProviderEndpoint } from "@renewlet/shared/ai-provider-endpoints";
 import {
   AI_RECOGNITION_PROMPT_VERSION,
   AI_RECOGNITION_SCHEMA_NAME,
@@ -48,8 +50,7 @@ const AI_RECOGNITION_MAX_BODY_BYTES =
   + AI_RECOGNITION_MULTIPART_OVERHEAD;
 const AI_SECRET_PATTERN = /(sk-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{8,}|sk-ant-[A-Za-z0-9_-]{8,}|Bearer\s+[A-Za-z0-9._-]{8,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|(?:api[_-]?key|authorization|cookie|set-cookie|access[_-]?token|refresh[_-]?token)["'\s:=]+[A-Za-z0-9._~+/=-]{8,})/gi;
 const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
-const AI_RECOGNITION_TEST_TEXT = "Renewlet AI connection test: Netflix, 9.99 USD, monthly subscription, website netflix.com.";
-const EMPTY_AI_RECOGNITION_CONFIG_CONTEXT: AIRecognitionPromptConfigContext = { categories: [], paymentMethods: [], tags: [] };
+const AI_RECOGNITION_TEST_TEXT = "Reply with OK.";
 
 type AIRecognitionInput = {
   text: string;
@@ -98,12 +99,13 @@ export async function recognizeSubscriptions(request: Request, env: Env): Promis
   const auth = await requireAuth(request, env);
   assertAIRecognitionContentLength(request, locale);
   const settings = await getSettings(env, auth.user.id);
+  const aiSettings = aiRecognitionSettingsSchema.parse(settings.aiRecognition);
   const input = await readAIRecognitionInput(request, locale);
   const thinkingControl = input.thinkingControl;
-  if (thinkingControl && thinkingControl.provider !== settings.aiRecognition.provider) {
+  if (thinkingControl && !thinkingControlMatchesSettings(aiSettings, thinkingControl)) {
     throw new HttpError(400, serverText(locale, "aiRecognition.thinkingProviderMismatch"), "AI_THINKING_PROVIDER_MISMATCH");
   }
-  assertAIRecognitionSettings(settings.aiRecognition, locale);
+  assertAIRecognitionSettings(aiSettings, locale);
   // 配置项只作为模型上下文和响应归一化依据；新增分类/支付方式仍必须走 import preview/apply 用户确认链路。
   const [customConfig, existingTags] = await Promise.all([
     getCustomConfig(env, auth.user.id),
@@ -113,7 +115,7 @@ export async function recognizeSubscriptions(request: Request, env: Env): Promis
 
   try {
     const response = await runAIRecognition({
-      settings: settings.aiRecognition,
+      settings: aiSettings,
       input,
       locale,
       timezone: settings.timezone,
@@ -147,45 +149,28 @@ export async function recognizeSubscriptions(request: Request, env: Env): Promis
   }
 }
 
-/** testAIRecognitionConnection 使用当前表单配置做一次最小结构化调用；它不读取/写入持久设置。 */
+/** testAIRecognitionConnection 使用当前表单配置做一次最小文本调用；它不读取/写入持久设置。 */
 export async function testAIRecognitionConnection(request: Request, env: Env): Promise<Response> {
   const locale = requestLocale(request);
   await requireAuth(request, env);
   const body = await readJson(request, aiRecognitionTestRequestSchema, locale);
   const settings = body.settings;
-  const thinkingControl = settings.defaultThinkingControl?.provider === settings.provider
-    ? settings.defaultThinkingControl
-    : null;
   assertAIRecognitionSettings(settings, locale);
   try {
-    await runAIRecognition({
-      settings,
-      input: { text: AI_RECOGNITION_TEST_TEXT, images: [], thinkingControl },
-      locale,
-      timezone: "UTC",
-      defaultCurrency: "USD",
-      configContext: EMPTY_AI_RECOGNITION_CONFIG_CONTEXT,
-      thinkingControl,
-      maxOutputTokens: 2000,
-    });
-    return json(aiRecognitionTestResponseSchema.parse({ ok: true, provider: settings.provider, model: settings.model }));
+    await runAIRecognitionConnectionTest(settings);
+    return json(aiRecognitionTestResponseSchema.parse({
+      ok: true,
+      providerType: settings.providerType,
+      transportProtocol: settings.transportProtocol,
+      model: settings.model,
+    }));
   } catch (error) {
     if (error instanceof HttpError) throw error;
-    const diagnostics = aiRecognitionDiagnosticsFromError(error);
-    const cause = aiRecognitionCauseFromError(error);
-    if (isAIRecognitionSchemaMismatch(error)) {
-      throw new HttpError(
-        400,
-        serverText(locale, "aiRecognition.schemaMismatch"),
-        "AI_RECOGNITION_SCHEMA_MISMATCH",
-        diagnostics ? aiRecognitionErrorDetails("schema_mismatch", cause, diagnostics) : safeAIRecognitionError(cause),
-      );
-    }
     throw new HttpError(
       400,
       serverText(locale, "aiRecognition.testFailed"),
       "AI_RECOGNITION_TEST_FAILED",
-      diagnostics ? aiRecognitionErrorDetails("provider_failed", cause, diagnostics) : safeAIRecognitionError(cause),
+      safeAIRecognitionError(error),
     );
   }
 }
@@ -291,7 +276,7 @@ async function runAIRecognition({
   thinkingControl: AiThinkingControl | null;
   maxOutputTokens: number;
 }): Promise<AiRecognizeResponse> {
-  const providerOptions = providerOptionsForThinking(thinkingControl);
+  const providerOptions = providerOptionsForThinking(settings, thinkingControl);
   const systemPrompt = buildAIRecognitionSystemPrompt();
   const userPrompt = buildAIRecognitionUserPrompt({
     text: input.text,
@@ -320,7 +305,7 @@ async function runAIRecognition({
     });
     let finalGeneration = initialGeneration;
     let diagnostics = diagnosticsFromGeneration(settings, input, thinkingControl, maxOutputTokens, systemPrompt, userPrompt, finalGeneration);
-    let response = normalizeGeneratedAIRecognizeObject(finalGeneration.object, settings.provider, settings.model, diagnostics, configContext);
+    let response = normalizeGeneratedAIRecognizeObject(finalGeneration.object, settings.providerType, settings.transportProtocol, settings.model, diagnostics, configContext);
     const missingNames = missingDescribableNoteNames(response.subscriptions);
     if (missingNames.length > 0) {
       const repairPrompt = buildAIRecognitionRepairUserPrompt({
@@ -338,12 +323,12 @@ async function runAIRecognition({
           maxOutputTokens,
         });
         diagnostics = diagnosticsFromGeneration(settings, input, thinkingControl, maxOutputTokens, systemPrompt, repairPrompt, finalGeneration);
-        const repairedResponse = normalizeGeneratedAIRecognizeObject(finalGeneration.object, settings.provider, settings.model, diagnostics, configContext);
+        const repairedResponse = normalizeGeneratedAIRecognizeObject(finalGeneration.object, settings.providerType, settings.transportProtocol, settings.model, diagnostics, configContext);
         if (repairedResponse.subscriptions.length > 0) response = repairedResponse;
       } catch {
         finalGeneration = initialGeneration;
         diagnostics = diagnosticsFromGeneration(settings, input, thinkingControl, maxOutputTokens, systemPrompt, userPrompt, finalGeneration);
-        response = normalizeGeneratedAIRecognizeObject(finalGeneration.object, settings.provider, settings.model, diagnostics, configContext);
+        response = normalizeGeneratedAIRecognizeObject(finalGeneration.object, settings.providerType, settings.transportProtocol, settings.model, diagnostics, configContext);
       }
       response = fillMissingNotesWithDynamicFallback(response, locale, configContext);
     }
@@ -460,33 +445,19 @@ function assertAIRecognitionSettings(settings: AiRecognitionSettings, locale: Ap
   if (!settings.model.trim()) {
     throw new HttpError(400, serverText(locale, "aiRecognition.modelRequired"), "AI_MODEL_REQUIRED");
   }
-  if (settings.provider === "openai-compatible") {
-    if (!settings.baseUrl.trim()) {
-      throw new HttpError(400, serverText(locale, "aiRecognition.baseUrlRequired"), "AI_BASE_URL_REQUIRED");
-    }
-    return;
+  const endpoint = resolveAIProviderEndpoint(settings);
+  if (endpoint.baseUrlRequired && !settings.baseUrl.trim()) {
+    throw new HttpError(400, serverText(locale, "aiRecognition.baseUrlRequired"), "AI_BASE_URL_REQUIRED");
   }
-  if (!settings.apiKey.trim()) {
+  if (endpoint.apiKeyRequired && !settings.apiKey.trim()) {
     throw new HttpError(400, serverText(locale, "aiRecognition.apiKeyRequired"), "AI_API_KEY_REQUIRED");
   }
 }
 
 function createAIRecognitionModel(settings: AiRecognitionSettings, capture: AIRecognitionCapture) {
-  let model;
-  if (settings.provider === "openai") {
-    model = createOpenAI({ apiKey: settings.apiKey, ...(settings.baseUrl ? { baseURL: settings.baseUrl } : {}) })(settings.model);
-  } else if (settings.provider === "gemini") {
-    model = createGoogleGenerativeAI({ apiKey: settings.apiKey, ...(settings.baseUrl ? { baseURL: settings.baseUrl } : {}) })(settings.model);
-  } else if (settings.provider === "anthropic") {
-    model = createAnthropic({ apiKey: settings.apiKey, ...(settings.baseUrl ? { baseURL: settings.baseUrl } : {}) })(settings.model);
-  } else {
-    model = createOpenAICompatible({
-      name: "openai-compatible",
-      baseURL: settings.baseUrl,
-      ...(settings.apiKey ? { apiKey: settings.apiKey } : {}),
-      supportsStructuredOutputs: true,
-    })(settings.model);
-  }
+  const canonicalSettings = aiRecognitionSettingsSchema.parse(settings);
+  const endpoint = resolveAIProviderEndpoint(canonicalSettings);
+  const model = createAIRecognitionLanguageModel(canonicalSettings, endpoint.runtimeBaseUrl);
 
   return wrapLanguageModel({
     model,
@@ -504,17 +475,61 @@ function createAIRecognitionModel(settings: AiRecognitionSettings, capture: AIRe
   });
 }
 
-function providerOptionsForThinking(control: AiThinkingControl | null): Record<string, Record<string, JSONValue>> | undefined {
+function createAIRecognitionLanguageModel(settings: AiRecognitionSettings, runtimeBaseUrl: string) {
+  if (settings.transportProtocol === "anthropic-messages") {
+    return createAnthropic({
+      apiKey: settings.apiKey,
+      baseURL: runtimeBaseUrl,
+    })(settings.model);
+  }
+  if (settings.transportProtocol === "gemini-generate-content") {
+    return createGoogleGenerativeAI({
+      apiKey: settings.apiKey,
+      baseURL: runtimeBaseUrl,
+    })(settings.model);
+  }
+  if (settings.providerType === "openai") {
+    return createOpenAI({ apiKey: settings.apiKey, baseURL: runtimeBaseUrl }).chat(settings.model);
+  }
+  return createOpenAICompatible({
+    name: settings.providerType,
+    baseURL: runtimeBaseUrl,
+    ...(settings.apiKey ? { apiKey: settings.apiKey } : {}),
+    supportsStructuredOutputs: true,
+  })(settings.model);
+}
+
+async function runAIRecognitionConnectionTest(settings: AiRecognitionSettings): Promise<void> {
+  const canonicalSettings = aiRecognitionSettingsSchema.parse(settings);
+  // 连接测试刻意绕开 schema/repair/thinking/retry，只验证当前协议能完成最小文本生成。
+  await generateText({
+    model: createAIRecognitionLanguageModel(canonicalSettings, resolveAIProviderEndpoint(canonicalSettings).runtimeBaseUrl),
+    prompt: AI_RECOGNITION_TEST_TEXT,
+    maxOutputTokens: 16,
+    maxRetries: 0,
+  });
+}
+
+function thinkingControlMatchesSettings(settings: AiRecognitionSettings, control: AiThinkingControl): boolean {
+  if (settings.transportProtocol === "openai-chat") return settings.providerType === "openai" && control.provider === "openai";
+  if (settings.transportProtocol === "anthropic-messages") return settings.providerType === "anthropic" && control.provider === "anthropic";
+  return settings.providerType === "gemini" && control.provider === "gemini";
+}
+
+function providerOptionsForThinking(settings: AiRecognitionSettings, control: AiThinkingControl | null): Record<string, Record<string, JSONValue>> | undefined {
   if (!control) return undefined;
   if (control.provider === "openai") {
+    if (settings.providerType !== "openai" || settings.transportProtocol !== "openai-chat") return undefined;
     return { openai: { reasoningEffort: control.effort } };
   }
   if (control.provider === "gemini") {
+    if (settings.providerType !== "gemini" || settings.transportProtocol !== "gemini-generate-content") return undefined;
     if (control.mode === "off") return { google: { thinkingConfig: { thinkingBudget: 0 } } };
     if (control.mode === "dynamic") return { google: { thinkingConfig: { thinkingBudget: -1 } } };
     if (control.mode === "budget") return { google: { thinkingConfig: { thinkingBudget: control.budget } } };
     return { google: { thinkingConfig: { thinkingLevel: control.level } } };
   }
+  if (settings.providerType !== "anthropic" || settings.transportProtocol !== "anthropic-messages") return undefined;
   if (control.mode === "effort") {
     return { anthropic: { effort: control.effort } };
   }
@@ -580,7 +595,7 @@ function buildAIRecognitionDiagnostics({
   finishReason: string | null;
   providerMetadata: unknown;
 }): AiRecognitionDiagnostics {
-  // diagnostics 只进入当前 API 响应，不能入库；这里集中截断/脱敏，避免 provider 原文泄漏密钥。
+  // diagnostics 只进入当前 API 响应，不能入库；这里集中截断/脱敏，避免模型平台原文泄漏密钥。
   return aiRecognitionDiagnosticsSchema.parse({
     schemaVersion: "1",
     promptVersion: AI_RECOGNITION_PROMPT_VERSION,
@@ -594,7 +609,8 @@ function buildAIRecognitionDiagnostics({
       rawObjectJson: rawObject === null ? null : diagnosticText(safeJsonStringify(rawObject), AI_RECOGNITION_DIAGNOSTIC_JSON_MAX_CHARS),
     },
     request: {
-      provider: settings.provider,
+      providerType: settings.providerType,
+      transportProtocol: settings.transportProtocol,
       model: settings.model,
       thinkingControl,
       maxOutputTokens,

@@ -57,7 +57,8 @@ export function createDefaultAppSettings(options: DefaultSettingsOptions = {}): 
     barkSilentPush: false,
     serverchanSendKey: "",
     aiRecognition: {
-      provider: "openai",
+      providerType: "openai",
+      transportProtocol: "openai-chat",
       model: "",
       modelInputMode: "select",
       baseUrl: "",

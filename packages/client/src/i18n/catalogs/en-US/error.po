@@ -171,7 +171,7 @@ msgstr "Start date is invalid."
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/error.ts:88
 msgid "error.code.AI_THINKING_PROVIDER_MISMATCH"
-msgstr "Thinking control does not match the current model provider."
+msgstr "Thinking control does not match the selected platform or protocol."
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/error.ts:40

@@ -34,7 +34,7 @@ vi.mock("@/i18n/I18nProvider", () => ({
         "aiRecognition.apiKeyOptionalPlaceholder": "可选",
         "aiRecognition.apiKeyRequired": "请先填写 API Key。",
         "aiRecognition.baseUrl": "Base URL",
-        "aiRecognition.baseUrlHelp": "兼容 OpenAI 接口时使用。",
+        "aiRecognition.baseUrlHelp": "官方平台可留空；OpenAI Compatible 填写对应的 OpenAI Chat Base URL。",
         "aiRecognition.baseUrlPlaceholder": "默认地址",
         "aiRecognition.baseUrlRequired": "OpenAI Compatible 需要填写 Base URL。",
         "aiRecognition.defaultThinking": "默认思考控制",
@@ -49,17 +49,17 @@ vi.mock("@/i18n/I18nProvider", () => ({
         "aiRecognition.modelSelectEmpty": "没有可选择的模型。请确认 Base URL / API Key 已填写，或切换到手动输入。",
         "aiRecognition.modelSelectPlaceholder": "选择模型",
         "aiRecognition.modelSelectSearchPlaceholder": "搜索模型",
-        "aiRecognition.provider": "模型来源",
-        "aiRecognition.provider.anthropic": "Claude",
-        "aiRecognition.provider.gemini": "Gemini",
-        "aiRecognition.provider.openai": "OpenAI",
-        "aiRecognition.provider.openaiCompatible": "OpenAI Compatible",
+        "aiRecognition.providerType": "平台类型",
+        "aiRecognition.providerType.anthropic": "Claude",
+        "aiRecognition.providerType.gemini": "Gemini",
+        "aiRecognition.providerType.openai": "OpenAI",
+        "aiRecognition.providerType.openaiCompatible": "OpenAI Compatible",
         "aiRecognition.settingsDescription": "配置用于识别订阅图片、备忘录或表格文本的第三方模型。",
         "aiRecognition.settingsTitle": "AI 识别",
         "aiRecognition.testConnection": "测试连接",
         "aiRecognition.testing": "测试中...",
         "aiRecognition.thinking.modelDefault": "模型默认",
-        "aiRecognition.thinkingHelp": "仅展示当前 provider/model 明确支持的官方思考控制。",
+        "aiRecognition.thinkingHelp": "仅展示当前平台和模型明确支持的官方思考控制。",
         "aiRecognition.thinkingUnsupportedCompatible": "OpenAI Compatible 没有统一 thinking 标准。",
         "aiRecognition.thinkingUnsupportedModel": "当前模型未匹配到官方 thinking 能力。",
       };
@@ -78,7 +78,8 @@ function renderAIRecognitionSection({
   function StatefulSection() {
     const [settings, setSettings] = useState<AiRecognitionSettings>({
       ...DEFAULT_SETTINGS.aiRecognition,
-      provider: "anthropic",
+      providerType: "anthropic",
+      transportProtocol: "anthropic-messages",
       model: "claude-sonnet-4-6",
       modelInputMode: "manual",
       apiKey: "anthropic-key",
@@ -102,18 +103,20 @@ function renderAIRecognitionSection({
   return render(<StatefulSection />);
 }
 
-describe("AIRecognitionSettingsSection model field layout", () => {
+describe("AIRecognitionSettingsSection provider model layout", () => {
   beforeEach(() => {
     mocks.listModels.mockReset();
     mocks.testConnection.mockReset();
     mocks.toast.mockReset();
+    Element.prototype.hasPointerCapture ??= vi.fn(() => false);
+    Element.prototype.releasePointerCapture ??= vi.fn();
   });
 
-  it("uses shared label and control rows for provider and model fields", () => {
+  it("uses compact label and control rows for provider type and model fields", () => {
     renderAIRecognitionSection();
 
     const fieldGrid = screen.getByTestId("ai-provider-model-grid");
-    const providerField = screen.getByTestId("ai-provider-field");
+    const providerField = screen.getByTestId("ai-provider-type-field");
     const modelField = screen.getByTestId("ai-model-field");
     const providerLabelRow = screen.getByTestId("ai-provider-label-row");
     const modelLabelRow = screen.getByTestId("ai-model-label-row");
@@ -136,8 +139,10 @@ describe("AIRecognitionSettingsSection model field layout", () => {
     expect(modelControlRow).toHaveClass("self-start");
     expect(modelControlRow).toHaveClass("md:order-4");
     expect(modeSwitch).not.toHaveClass("absolute");
+    expect(within(providerLabelRow).getByText("平台类型")).toBeInTheDocument();
     expect(within(modelLabelRow).getByText("模型")).toBeInTheDocument();
-    expect(within(modelControlRow).getByRole("textbox", { name: "模型" })).toHaveValue("claude-sonnet-4-6");
+    expect(screen.queryByText("接口协议")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "模型" })).toHaveValue("claude-sonnet-4-6");
   });
 
   it("requests models when switching to select mode with credentials available", async () => {
@@ -150,12 +155,27 @@ describe("AIRecognitionSettingsSection model field layout", () => {
 
     await waitFor(() => {
       expect(aiRecognitionService.listModels).toHaveBeenCalledWith({
-        provider: "anthropic",
+        providerType: "anthropic",
         baseUrl: "",
         apiKey: "anthropic-key",
       });
     });
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ modelInputMode: "select" }));
+  });
+
+  it("derives hidden protocol when provider type changes", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderAIRecognitionSection({ onChange });
+
+    await user.click(screen.getByRole("combobox", { name: "平台类型" }));
+    await user.click(await screen.findByRole("option", { name: "Gemini" }));
+
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      providerType: "gemini",
+      transportProtocol: "gemini-generate-content",
+      defaultThinkingControl: null,
+    }));
   });
 
   it("keeps provider field structure when model loading fails", async () => {
@@ -169,6 +189,22 @@ describe("AIRecognitionSettingsSection model field layout", () => {
     expect(await screen.findByText("请求体不是有效 JSON")).toBeInTheDocument();
     expect(providerControlRow).toHaveClass("self-start");
     expect(providerControlRow).toHaveClass("md:order-3");
-    expect(screen.getByTestId("ai-model-control-row")).toHaveTextContent("请求体不是有效 JSON");
+  });
+
+  it("hides model list errors after switching back to manual input", async () => {
+    const user = userEvent.setup();
+    mocks.listModels.mockRejectedValueOnce(new Error("请求体不是有效 JSON"));
+    renderAIRecognitionSection();
+
+    await user.click(screen.getByRole("button", { name: "选择模型" }));
+
+    expect(await screen.findByText("请求体不是有效 JSON")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "手动输入" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("请求体不是有效 JSON")).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("textbox", { name: "模型" })).toBeInTheDocument();
   });
 });

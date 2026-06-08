@@ -57,7 +57,7 @@ describe("Cloudflare AI model list proxy", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await listAIModels(requestFor({
-      provider: "openai",
+      providerType: "openai",
       baseUrl: "",
       apiKey: "sk-test-secret",
     }), envFixture());
@@ -92,7 +92,7 @@ describe("Cloudflare AI model list proxy", () => {
     }), { status: 200 })));
 
     const response = await listAIModels(requestFor({
-      provider: "gemini",
+      providerType: "gemini",
       baseUrl: "",
       apiKey: "AIza-test-secret",
     }), envFixture());
@@ -113,7 +113,7 @@ describe("Cloudflare AI model list proxy", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await listAIModels(requestFor({
-      provider: "anthropic",
+      providerType: "anthropic",
       baseUrl: "",
       apiKey: "sk-ant-test-secret",
     }), envFixture());
@@ -133,7 +133,7 @@ describe("Cloudflare AI model list proxy", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await listAIModels(requestFor({
-      provider: "openai-compatible",
+      providerType: "openai-compatible",
       baseUrl: "https://llm.example.com/v1/",
       apiKey: "",
     }), envFixture());
@@ -148,7 +148,7 @@ describe("Cloudflare AI model list proxy", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("invalid sk-test-secret", { status: 401 })));
 
     await expect(listAIModels(requestFor({
-      provider: "openai",
+      providerType: "openai",
       baseUrl: "",
       apiKey: "sk-test-secret",
     }), envFixture())).rejects.toMatchObject({
@@ -165,7 +165,7 @@ describe("Cloudflare AI model list proxy", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("aborted", "AbortError")));
 
     await expect(listAIModels(requestFor({
-      provider: "gemini",
+      providerType: "gemini",
       baseUrl: "",
       apiKey: "AIza-test-secret",
     }), envFixture())).rejects.toMatchObject({

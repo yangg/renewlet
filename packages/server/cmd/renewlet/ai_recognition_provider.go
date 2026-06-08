@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/zendev-sh/goai"
 	"github.com/zendev-sh/goai/provider"
@@ -18,6 +21,7 @@ type aiRecognitionGeneration struct {
 }
 
 var generateAIRecognitionObjectForRunner = generateAIRecognitionObject
+var newAIRecognitionModelForConnection = newAIRecognitionModel
 
 func (goaiRecognitionRunner) Recognize(
 	ctx context.Context,
@@ -49,7 +53,7 @@ func (goaiRecognitionRunner) Recognize(
 		return aiRecognizeResponse{}, &aiRecognitionRunError{cause: err, diagnostics: diagnostics}
 	}
 	diagnostics := buildAIRecognitionDiagnosticsForGeneration(settings, input, systemPrompt, userPrompt, generation)
-	response, err := normalizeAIGeneratedRecognizeResponse(generation.result.Object, settings.Provider, settings.Model, diagnostics, configContext)
+	response, err := normalizeAIGeneratedRecognizeResponse(generation.result.Object, settings.ProviderType, settings.TransportProtocol, settings.Model, diagnostics, configContext)
 	if err != nil {
 		return aiRecognizeResponse{}, &aiRecognitionRunError{cause: err, diagnostics: diagnostics}
 	}
@@ -57,7 +61,7 @@ func (goaiRecognitionRunner) Recognize(
 		repairPrompt := buildAIRecognitionRepairUserPrompt(userPrompt, generation.result.Object, missingNames)
 		if repairedGeneration, repairErr := generateAIRecognitionObjectForRunner(ctx, model, input, systemPrompt, repairPrompt); repairErr == nil {
 			repairDiagnostics := buildAIRecognitionDiagnosticsForGeneration(settings, input, systemPrompt, repairPrompt, repairedGeneration)
-			if repairedResponse, normalizeErr := normalizeAIGeneratedRecognizeResponse(repairedGeneration.result.Object, settings.Provider, settings.Model, repairDiagnostics, configContext); normalizeErr == nil {
+			if repairedResponse, normalizeErr := normalizeAIGeneratedRecognizeResponse(repairedGeneration.result.Object, settings.ProviderType, settings.TransportProtocol, settings.Model, repairDiagnostics, configContext); normalizeErr == nil {
 				diagnostics = repairDiagnostics
 				response = repairedResponse
 			}
@@ -95,7 +99,7 @@ func generateAIRecognitionObject(ctx context.Context, model provider.LanguageMod
 			capture.providerMetadata = step.ProviderMetadata
 		}),
 	}
-	if providerOptions := aiRecognitionProviderOptions(input.ThinkingControl); len(providerOptions) > 0 {
+	if providerOptions := aiRecognitionProviderOptions(modelProviderType(model), modelTransportProtocol(model), input.ThinkingControl); len(providerOptions) > 0 {
 		options = append(options, goai.WithProviderOptions(providerOptions))
 	}
 	result, err := goai.GenerateObject[aiGeneratedRecognizeResponse](ctx, model, options...)
@@ -226,44 +230,114 @@ var aiRecognitionGeneratedSchema = json.RawMessage(`{
 
 func newAIRecognitionModel(settings aiRecognitionSettings) (provider.LanguageModel, error) {
 	settings = sanitizeAIRecognitionSettings(settings)
-	switch settings.Provider {
-	case "openai":
+	endpoint := resolveAIProviderEndpoint(settings)
+	switch settings.TransportProtocol {
+	case aiProtocolOpenAIChat:
+		if settings.ProviderType != aiProviderTypeOpenAI {
+			options := []compat.Option{compat.WithBaseURL(endpoint.RuntimeBaseURL)}
+			if settings.APIKey != "" {
+				options = append(options, compat.WithAPIKey(settings.APIKey))
+			}
+			return aiRecognitionRuntimeModel{LanguageModel: compat.Chat(settings.Model, options...), providerType: settings.ProviderType, transportProtocol: settings.TransportProtocol}, nil
+		}
 		options := []openai.Option{openai.WithAPIKey(settings.APIKey)}
-		if settings.BaseURL != "" {
-			options = append(options, openai.WithBaseURL(settings.BaseURL))
+		if endpoint.RuntimeBaseURL != "" {
+			options = append(options, openai.WithBaseURL(endpoint.RuntimeBaseURL))
 		}
-		return openai.Chat(settings.Model, options...), nil
-	case "gemini":
+		return aiRecognitionRuntimeModel{LanguageModel: openai.Chat(settings.Model, options...), providerType: settings.ProviderType, transportProtocol: settings.TransportProtocol}, nil
+	case aiProtocolGeminiGenerateContent:
 		options := []google.Option{google.WithAPIKey(settings.APIKey)}
-		if settings.BaseURL != "" {
-			options = append(options, google.WithBaseURL(settings.BaseURL))
+		if baseURL := goAIBaseURLForEndpoint(endpoint); baseURL != "" {
+			options = append(options, google.WithBaseURL(baseURL))
 		}
-		return google.Chat(settings.Model, options...), nil
-	case "anthropic":
+		if client := aiProviderRuntimeHTTPClient(endpoint, "v1beta"); client != nil {
+			options = append(options, google.WithHTTPClient(client))
+		}
+		return aiRecognitionRuntimeModel{LanguageModel: google.Chat(settings.Model, options...), providerType: settings.ProviderType, transportProtocol: settings.TransportProtocol}, nil
+	case aiProtocolAnthropicMessages:
 		options := []anthropic.Option{anthropic.WithAPIKey(settings.APIKey)}
-		if settings.BaseURL != "" {
-			options = append(options, anthropic.WithBaseURL(settings.BaseURL))
+		if baseURL := goAIBaseURLForEndpoint(endpoint); baseURL != "" {
+			options = append(options, anthropic.WithBaseURL(baseURL))
 		}
-		return anthropic.Chat(settings.Model, options...), nil
-	case "openai-compatible":
-		options := []compat.Option{compat.WithBaseURL(settings.BaseURL)}
-		if settings.APIKey != "" {
-			options = append(options, compat.WithAPIKey(settings.APIKey))
+		if client := aiProviderRuntimeHTTPClient(endpoint, "v1"); client != nil {
+			options = append(options, anthropic.WithHTTPClient(client))
 		}
-		return compat.Chat(settings.Model, options...), nil
+		return aiRecognitionRuntimeModel{LanguageModel: anthropic.Chat(settings.Model, options...), providerType: settings.ProviderType, transportProtocol: settings.TransportProtocol}, nil
 	default:
 		return nil, errAIRecognitionProviderInvalid
 	}
 }
 
-func aiRecognitionProviderOptions(control *aiThinkingControl) map[string]any {
+func testAIRecognitionConnection(ctx context.Context, settings aiRecognitionSettings) error {
+	settings = sanitizeAIRecognitionSettings(settings)
+	model, err := newAIRecognitionModelForConnection(settings)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, aiRecognitionProviderTimeout)
+	defer cancel()
+	options := []goai.Option{
+		goai.WithPrompt(aiRecognitionTestPrompt),
+		goai.WithMaxOutputTokens(aiRecognitionTestProviderTokens),
+		goai.WithMaxRetries(0),
+	}
+	if providerOptions := aiRecognitionProviderOptions(settings.ProviderType, settings.TransportProtocol, nil); len(providerOptions) > 0 {
+		options = append(options, goai.WithProviderOptions(providerOptions))
+	}
+	_, err = goai.GenerateText(ctx, model, options...)
+	return err
+}
+
+type aiRecognitionRuntimeModel struct {
+	provider.LanguageModel
+	providerType      string
+	transportProtocol string
+}
+
+func (model aiRecognitionRuntimeModel) ProviderType() string {
+	return model.providerType
+}
+
+func (model aiRecognitionRuntimeModel) TransportProtocol() string {
+	return model.transportProtocol
+}
+
+func modelProviderType(model provider.LanguageModel) string {
+	if typed, ok := model.(interface{ ProviderType() string }); ok {
+		return typed.ProviderType()
+	}
+	return ""
+}
+
+func modelTransportProtocol(model provider.LanguageModel) string {
+	if typed, ok := model.(interface{ TransportProtocol() string }); ok {
+		return typed.TransportProtocol()
+	}
+	return ""
+}
+
+func aiRecognitionProviderOptions(providerType string, transportProtocol string, control *aiThinkingControl) map[string]any {
+	var options map[string]any
+	if providerType == aiProviderTypeOpenAI && transportProtocol == aiProtocolOpenAIChat {
+		options = map[string]any{"useResponsesAPI": false}
+	}
 	if control == nil {
-		return nil
+		return options
 	}
 	switch control.Provider {
 	case "openai":
-		return map[string]any{"reasoning_effort": control.Effort}
+		if providerType != aiProviderTypeOpenAI || transportProtocol != aiProtocolOpenAIChat {
+			return options
+		}
+		if options == nil {
+			options = map[string]any{}
+		}
+		options["reasoning_effort"] = control.Effort
+		return options
 	case "gemini":
+		if providerType != aiProviderTypeGemini || transportProtocol != aiProtocolGeminiGenerateContent {
+			return options
+		}
 		switch control.Mode {
 		case "off":
 			return map[string]any{"google": map[string]any{"thinkingConfig": map[string]any{"thinkingBudget": 0}}}
@@ -275,6 +349,9 @@ func aiRecognitionProviderOptions(control *aiThinkingControl) map[string]any {
 			return map[string]any{"google": map[string]any{"thinkingConfig": map[string]any{"thinkingLevel": control.Level}}}
 		}
 	case "anthropic":
+		if providerType != aiProviderTypeAnthropic || transportProtocol != aiProtocolAnthropicMessages {
+			return options
+		}
 		if control.Mode == "effort" {
 			return map[string]any{"effort": control.Effort}
 		}
@@ -282,7 +359,64 @@ func aiRecognitionProviderOptions(control *aiThinkingControl) map[string]any {
 			return map[string]any{"thinking": map[string]any{"type": "enabled", "budgetTokens": *control.BudgetTokens}}
 		}
 	}
-	return nil
+	return options
+}
+
+func goAIBaseURLForEndpoint(endpoint aiProviderEndpoint) string {
+	if endpoint.TransportProtocol == aiProtocolAnthropicMessages || endpoint.TransportProtocol == aiProtocolGeminiGenerateContent {
+		// GoAI 的 Anthropic/Gemini provider 会自己插入版本段；shared/Worker runtimeBaseURL 保留官方版本段，Docker 侧必须在 SDK 边界去掉。
+		if endpoint.AutoVersionDisabled {
+			return endpoint.RuntimeBaseURL
+		}
+		return aiProviderTrailingVersionSegmentPattern.ReplaceAllString(endpoint.RuntimeBaseURL, "")
+	}
+	return endpoint.RuntimeBaseURL
+}
+
+func aiProviderRuntimeHTTPClient(endpoint aiProviderEndpoint, version string) *http.Client {
+	if !endpoint.AutoVersionDisabled {
+		return nil
+	}
+	return &http.Client{Transport: aiProviderRuntimeTransport{
+		baseURL:                endpoint.RuntimeBaseURL,
+		version:                version,
+		rewriteInsertedVersion: endpoint.AutoVersionDisabled,
+		inner:                  http.DefaultTransport,
+	}}
+}
+
+type aiProviderRuntimeTransport struct {
+	baseURL                string
+	version                string
+	rewriteInsertedVersion bool
+	inner                  http.RoundTripper
+}
+
+func (transport aiProviderRuntimeTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	inner := transport.inner
+	if inner == nil {
+		inner = http.DefaultTransport
+	}
+	if !transport.rewriteInsertedVersion {
+		return inner.RoundTrip(request)
+	}
+	parsed, err := url.Parse(transport.baseURL)
+	if err != nil {
+		return inner.RoundTrip(request)
+	}
+	prefix := strings.TrimRight(parsed.Path, "/")
+	insertedVersionPath := prefix + "/" + transport.version
+	if strings.HasPrefix(request.URL.Path, insertedVersionPath+"/") || request.URL.Path == insertedVersionPath {
+		clone := request.Clone(request.Context())
+		nextURL := *request.URL
+		nextURL.Path = prefix + strings.TrimPrefix(request.URL.Path, insertedVersionPath)
+		if nextURL.Path == "" {
+			nextURL.Path = "/"
+		}
+		clone.URL = &nextURL
+		return inner.RoundTrip(clone)
+	}
+	return inner.RoundTrip(request)
 }
 
 func aiRecognitionOutputTokenLimit(input aiRecognitionInput) int {

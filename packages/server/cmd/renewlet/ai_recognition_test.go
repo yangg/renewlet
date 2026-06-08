@@ -24,43 +24,105 @@ func TestAIRecognitionProviderOptions(t *testing.T) {
 	budget := 4096
 	budgetTokens := 8192
 	tests := []struct {
-		name    string
-		control *aiThinkingControl
-		want    map[string]any
+		name              string
+		providerType      string
+		transportProtocol string
+		control           *aiThinkingControl
+		want              map[string]any
 	}{
 		{
-			name:    "openai reasoning effort",
-			control: &aiThinkingControl{Provider: "openai", Effort: "high"},
-			want:    map[string]any{"reasoning_effort": "high"},
+			name:              "openai chat completion with reasoning effort",
+			providerType:      aiProviderTypeOpenAI,
+			transportProtocol: aiProtocolOpenAIChat,
+			control:           &aiThinkingControl{Provider: "openai", Effort: "high"},
+			want:              map[string]any{"useResponsesAPI": false, "reasoning_effort": "high"},
 		},
 		{
-			name:    "gemini off thinking budget",
-			control: &aiThinkingControl{Provider: "gemini", Mode: "off"},
-			want:    map[string]any{"google": map[string]any{"thinkingConfig": map[string]any{"thinkingBudget": 0}}},
+			name:              "openai chat completion without thinking",
+			providerType:      aiProviderTypeOpenAI,
+			transportProtocol: aiProtocolOpenAIChat,
+			want:              map[string]any{"useResponsesAPI": false},
 		},
 		{
-			name:    "gemini fixed thinking budget",
-			control: &aiThinkingControl{Provider: "gemini", Mode: "budget", Budget: &budget},
-			want:    map[string]any{"google": map[string]any{"thinkingConfig": map[string]any{"thinkingBudget": 4096}}},
+			name:              "compatible openai chat does not receive official openai options",
+			providerType:      aiProviderTypeOpenAICompatible,
+			transportProtocol: aiProtocolOpenAIChat,
+			control:           &aiThinkingControl{Provider: "openai", Effort: "high"},
+			want:              nil,
 		},
 		{
-			name:    "anthropic effort",
-			control: &aiThinkingControl{Provider: "anthropic", Mode: "effort", Effort: "xhigh"},
-			want:    map[string]any{"effort": "xhigh"},
+			name:              "gemini off thinking budget",
+			providerType:      aiProviderTypeGemini,
+			transportProtocol: aiProtocolGeminiGenerateContent,
+			control:           &aiThinkingControl{Provider: "gemini", Mode: "off"},
+			want:              map[string]any{"google": map[string]any{"thinkingConfig": map[string]any{"thinkingBudget": 0}}},
 		},
 		{
-			name:    "anthropic legacy budget tokens",
-			control: &aiThinkingControl{Provider: "anthropic", Mode: "budget", BudgetTokens: &budgetTokens},
-			want:    map[string]any{"thinking": map[string]any{"type": "enabled", "budgetTokens": 8192}},
+			name:              "gemini fixed thinking budget",
+			providerType:      aiProviderTypeGemini,
+			transportProtocol: aiProtocolGeminiGenerateContent,
+			control:           &aiThinkingControl{Provider: "gemini", Mode: "budget", Budget: &budget},
+			want:              map[string]any{"google": map[string]any{"thinkingConfig": map[string]any{"thinkingBudget": 4096}}},
+		},
+		{
+			name:              "anthropic effort",
+			providerType:      aiProviderTypeAnthropic,
+			transportProtocol: aiProtocolAnthropicMessages,
+			control:           &aiThinkingControl{Provider: "anthropic", Mode: "effort", Effort: "xhigh"},
+			want:              map[string]any{"effort": "xhigh"},
+		},
+		{
+			name:              "anthropic legacy budget tokens",
+			providerType:      aiProviderTypeAnthropic,
+			transportProtocol: aiProtocolAnthropicMessages,
+			control:           &aiThinkingControl{Provider: "anthropic", Mode: "budget", BudgetTokens: &budgetTokens},
+			want:              map[string]any{"thinking": map[string]any{"type": "enabled", "budgetTokens": 8192}},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := aiRecognitionProviderOptions(tt.control)
+			got := aiRecognitionProviderOptions(tt.providerType, tt.transportProtocol, tt.control)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("provider options mismatch: got %#v want %#v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAIRecognitionConnectionUsesMinimalTextGeneration(t *testing.T) {
+	fake := &aiConnectionTestModel{
+		err: &goai.APIError{Message: "rate limited", StatusCode: http.StatusTooManyRequests, IsRetryable: true},
+	}
+	previousModelFactory := newAIRecognitionModelForConnection
+	newAIRecognitionModelForConnection = func(settings aiRecognitionSettings) (provider.LanguageModel, error) {
+		return fake, nil
+	}
+	t.Cleanup(func() {
+		newAIRecognitionModelForConnection = previousModelFactory
+	})
+
+	err := testAIRecognitionConnection(context.Background(), aiRecognitionSettings{
+		ProviderType:           aiProviderTypeOpenAI,
+		TransportProtocol:      aiProtocolOpenAIChat,
+		Model:                  "gpt-5.1",
+		APIKey:                 "sk-test",
+		DefaultThinkingControl: &aiThinkingControl{Provider: "openai", Effort: "high"},
+	})
+	var apiErr *goai.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected raw API error from zero-retry connection test, got %#v", err)
+	}
+	if fake.calls != 1 {
+		t.Fatalf("connection test should disable retries, got %d model calls", fake.calls)
+	}
+	if fake.params.MaxOutputTokens != aiRecognitionTestProviderTokens || fake.params.ResponseFormat != nil || len(fake.params.Tools) != 0 {
+		t.Fatalf("connection test should be a small text-only call, got %#v", fake.params)
+	}
+	if !reflect.DeepEqual(fake.params.ProviderOptions, map[string]any{"useResponsesAPI": false}) {
+		t.Fatalf("OpenAI connection test must stay on Chat Completions, got %#v", fake.params.ProviderOptions)
+	}
+	if len(fake.params.Messages) != 1 || len(fake.params.Messages[0].Content) != 1 || fake.params.Messages[0].Content[0].Text != aiRecognitionTestPrompt {
+		t.Fatalf("connection test prompt mismatch: %#v", fake.params.Messages)
 	}
 }
 
@@ -81,7 +143,7 @@ func TestGoAIRecognitionRunnerRepairsMissingNotes(t *testing.T) {
 
 	response, err := goaiRecognitionRunner{}.Recognize(
 		context.Background(),
-		aiRecognitionSettings{Provider: "openai", Model: "gpt-5.1", APIKey: "sk-test"},
+		aiRecognitionSettings{ProviderType: aiProviderTypeOpenAI, TransportProtocol: aiProtocolOpenAIChat, Model: "gpt-5.1", APIKey: "sk-test"},
 		aiRecognitionInput{Text: "HostDZire CloudVPS 15元 1个月", MaxOutputTokens: 12000},
 		localeZhCN,
 		"Asia/Shanghai",
@@ -110,7 +172,7 @@ func TestGoAIRecognitionRunnerFallsBackWhenRepairStillMissesNotes(t *testing.T) 
 
 	response, err := goaiRecognitionRunner{}.Recognize(
 		context.Background(),
-		aiRecognitionSettings{Provider: "openai", Model: "gpt-5.1", APIKey: "sk-test"},
+		aiRecognitionSettings{ProviderType: aiProviderTypeOpenAI, TransportProtocol: aiProtocolOpenAIChat, Model: "gpt-5.1", APIKey: "sk-test"},
 		aiRecognitionInput{Text: "HostDZire CloudVPS 15元 1个月", MaxOutputTokens: 12000},
 		localeZhCN,
 		"Asia/Shanghai",
@@ -166,14 +228,33 @@ func TestReadAIRecognitionMultipartImageLimit(t *testing.T) {
 }
 
 func TestSanitizeAIRecognitionSettingsModelInputMode(t *testing.T) {
-	if got := sanitizeAIRecognitionSettings(aiRecognitionSettings{Provider: "openai", ModelInputMode: ""}).ModelInputMode; got != "select" {
+	if got := sanitizeAIRecognitionSettings(aiRecognitionSettings{ProviderType: aiProviderTypeOpenAI, TransportProtocol: aiProtocolOpenAIChat, ModelInputMode: ""}).ModelInputMode; got != "select" {
 		t.Fatalf("empty model input mode should default to select, got %q", got)
 	}
-	if got := sanitizeAIRecognitionSettings(aiRecognitionSettings{Provider: "openai", ModelInputMode: "manual"}).ModelInputMode; got != "manual" {
+	if got := sanitizeAIRecognitionSettings(aiRecognitionSettings{ProviderType: aiProviderTypeOpenAI, TransportProtocol: aiProtocolOpenAIChat, ModelInputMode: "manual"}).ModelInputMode; got != "manual" {
 		t.Fatalf("manual model input mode should be preserved, got %q", got)
 	}
-	if got := sanitizeAIRecognitionSettings(aiRecognitionSettings{Provider: "openai", ModelInputMode: "unknown"}).ModelInputMode; got != "select" {
+	if got := sanitizeAIRecognitionSettings(aiRecognitionSettings{ProviderType: aiProviderTypeOpenAI, TransportProtocol: aiProtocolOpenAIChat, ModelInputMode: "unknown"}).ModelInputMode; got != "select" {
 		t.Fatalf("invalid model input mode should fall back to select, got %q", got)
+	}
+}
+
+func TestSanitizeAIRecognitionSettingsCanonicalizesProtocol(t *testing.T) {
+	settings := sanitizeAIRecognitionSettings(aiRecognitionSettings{
+		ProviderType:      aiProviderTypeOpenAICompatible,
+		TransportProtocol: aiProtocolAnthropicMessages,
+		ModelInputMode:    "manual",
+		DefaultThinkingControl: &aiThinkingControl{
+			Provider: aiProviderTypeAnthropic,
+			Mode:     "effort",
+			Effort:   "high",
+		},
+	})
+	if settings.TransportProtocol != aiProtocolOpenAIChat {
+		t.Fatalf("compatible provider should use openai chat, got %q", settings.TransportProtocol)
+	}
+	if settings.DefaultThinkingControl != nil {
+		t.Fatalf("mismatched thinking control should be cleared: %#v", settings.DefaultThinkingControl)
 	}
 }
 
@@ -346,7 +427,7 @@ func TestAIRecognitionExistingTagsForUser(t *testing.T) {
 
 func TestAIRecognitionDiagnosticsRedactsSecretsAndImageData(t *testing.T) {
 	diagnostics := buildAIRecognitionDiagnostics(
-		aiRecognitionSettings{Provider: "openai", Model: "gpt-5.1"},
+		aiRecognitionSettings{ProviderType: aiProviderTypeOpenAI, TransportProtocol: aiProtocolOpenAIChat, Model: "gpt-5.1"},
 		aiRecognitionInput{
 			Text: "dmit 15元 1个月 sk-testsecret123",
 			Images: []aiRecognitionImage{{
@@ -399,13 +480,13 @@ func TestNormalizeAIRecognizeResponse(t *testing.T) {
 			Warnings:        []string{"", "manual warning", "manual warning"},
 		}},
 		Diagnostics: testAIRecognitionDiagnostics(),
-	}, "openai", "gpt-5.1", aiRecognitionConfigContext{})
+	}, aiProviderTypeOpenAI, aiProtocolOpenAIChat, "gpt-5.1", aiRecognitionConfigContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	draft := response.Subscriptions[0]
-	if response.Provider != "openai" || response.Model != "gpt-5.1" {
-		t.Fatalf("provider/model not attached: %#v", response)
+	if response.ProviderType != aiProviderTypeOpenAI || response.TransportProtocol != aiProtocolOpenAIChat || response.Model != "gpt-5.1" {
+		t.Fatalf("provider/protocol/model not attached: %#v", response)
 	}
 	if draft.Name != "Netflix" || draft.Price != nil || draft.BillingCycle != nil || draft.Confidence != "low" {
 		t.Fatalf("draft was not normalized: %#v", draft)
@@ -454,13 +535,13 @@ func TestNormalizeAIGeneratedRecognizeResponse(t *testing.T) {
 			Tags:          []string{"数字服务", "数字服务", "  云服务  "},
 		}},
 		Warnings: []string{},
-	}, "openai", "gpt-5.1", testAIRecognitionDiagnostics(), configContext)
+	}, aiProviderTypeOpenAI, aiProtocolOpenAIChat, "gpt-5.1", testAIRecognitionDiagnostics(), configContext)
 	if err != nil {
 		t.Fatal(err)
 	}
 	draft := response.Subscriptions[0]
-	if response.Provider != "openai" || response.Model != "gpt-5.1" {
-		t.Fatalf("provider/model not attached: %#v", response)
+	if response.ProviderType != aiProviderTypeOpenAI || response.TransportProtocol != aiProtocolOpenAIChat || response.Model != "gpt-5.1" {
+		t.Fatalf("provider/protocol/model not attached: %#v", response)
 	}
 	if draft.Name != "dmit" || draft.Price == nil || *draft.Price != 15 {
 		t.Fatalf("generated draft price not normalized: %#v", draft)
@@ -487,7 +568,7 @@ func TestNormalizeAITagsReusesExistingAndKeepsStableGeneratedTags(t *testing.T) 
 			Confidence: "high",
 		}},
 		Diagnostics: testAIRecognitionDiagnostics(),
-	}, "openai", "gpt-5.1", aiRecognitionConfigContext{Tags: []string{"VPS", "云服务器"}})
+	}, aiProviderTypeOpenAI, aiProtocolOpenAIChat, "gpt-5.1", aiRecognitionConfigContext{Tags: []string{"VPS", "云服务器"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -502,7 +583,7 @@ func TestNormalizeAITagsReusesExistingAndKeepsStableGeneratedTags(t *testing.T) 
 			Confidence: "high",
 		}},
 		Diagnostics: testAIRecognitionDiagnostics(),
-	}, "openai", "gpt-5.1", aiRecognitionConfigContext{})
+	}, aiProviderTypeOpenAI, aiProtocolOpenAIChat, "gpt-5.1", aiRecognitionConfigContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -517,7 +598,7 @@ func TestNormalizeAITagsReusesExistingAndKeepsStableGeneratedTags(t *testing.T) 
 			Confidence: "high",
 		}},
 		Diagnostics: testAIRecognitionDiagnostics(),
-	}, "openai", "gpt-5.1", aiRecognitionConfigContext{})
+	}, aiProviderTypeOpenAI, aiProtocolOpenAIChat, "gpt-5.1", aiRecognitionConfigContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -536,7 +617,7 @@ func TestNormalizeAINotesDropsRecognitionProcessText(t *testing.T) {
 			Confidence: "low",
 		}},
 		Diagnostics: testAIRecognitionDiagnostics(),
-	}, "openai", "gpt-5.1", aiRecognitionConfigContext{})
+	}, aiProviderTypeOpenAI, aiProtocolOpenAIChat, "gpt-5.1", aiRecognitionConfigContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -558,7 +639,7 @@ func TestNormalizeAINotesRemovesRenewletAdvice(t *testing.T) {
 			Confidence: "high",
 		}},
 		Diagnostics: testAIRecognitionDiagnostics(),
-	}, "openai", "gpt-5.1", aiRecognitionConfigContext{})
+	}, aiProviderTypeOpenAI, aiProtocolOpenAIChat, "gpt-5.1", aiRecognitionConfigContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -580,7 +661,7 @@ func TestFillMissingAINotesWithDynamicFallback(t *testing.T) {
 			Confidence: "high",
 		}},
 		Diagnostics: testAIRecognitionDiagnostics(),
-	}, "openai", "gpt-5.1", aiRecognitionConfigContext{})
+	}, aiProviderTypeOpenAI, aiProtocolOpenAIChat, "gpt-5.1", aiRecognitionConfigContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -603,7 +684,7 @@ func TestNormalizeAIConfigValueKeepsUnknownNamesForImportCreation(t *testing.T) 
 			Confidence: "high",
 		}},
 		Diagnostics: testAIRecognitionDiagnostics(),
-	}, "openai", "gpt-5.1", aiRecognitionConfigContext{
+	}, aiProviderTypeOpenAI, aiProtocolOpenAIChat, "gpt-5.1", aiRecognitionConfigContext{
 		Categories: []aiRecognitionConfigOption{{
 			Value: "hosting_domains",
 			Label: "域名与托管",
@@ -632,7 +713,7 @@ func TestAIRecognitionSchemaMismatchError(t *testing.T) {
 
 func testAIRecognitionDiagnostics() aiRecognitionDiagnostics {
 	return buildAIRecognitionDiagnostics(
-		aiRecognitionSettings{Provider: "openai", Model: "gpt-5.1"},
+		aiRecognitionSettings{ProviderType: aiProviderTypeOpenAI, TransportProtocol: aiProtocolOpenAIChat, Model: "gpt-5.1"},
 		aiRecognitionInput{Text: "dmit 15元 1个月", MaxOutputTokens: 12000},
 		"Return JSON only",
 		"Extract subscriptions",
@@ -642,6 +723,29 @@ func testAIRecognitionDiagnostics() aiRecognitionDiagnostics {
 		"stop",
 		map[string]any{"openai": map[string]any{"id": "resp_1"}},
 	)
+}
+
+type aiConnectionTestModel struct {
+	calls  int
+	params provider.GenerateParams
+	err    error
+}
+
+func (model *aiConnectionTestModel) ModelID() string {
+	return "connection-test"
+}
+
+func (model *aiConnectionTestModel) DoGenerate(_ context.Context, params provider.GenerateParams) (*provider.GenerateResult, error) {
+	model.calls += 1
+	model.params = params
+	if model.err != nil {
+		return nil, model.err
+	}
+	return &provider.GenerateResult{Text: "OK"}, nil
+}
+
+func (model *aiConnectionTestModel) DoStream(context.Context, provider.GenerateParams) (*provider.StreamResult, error) {
+	return nil, errors.New("stream not used in connection test")
 }
 
 func readAIRecognitionMultipartForTest(t *testing.T, fields map[string]string) aiRecognitionInput {

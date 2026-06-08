@@ -8,7 +8,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getDisplayErrorMessage } from "@/lib/display-error";
 import { cn } from "@/lib/utils";
-import type { AiModelListItem, AiRecognitionProvider, AiRecognitionSettings } from "@/lib/api/schemas/ai-recognition";
+import {
+  canonicalAIRecognitionTransportProtocol,
+  type AiModelListItem,
+  type AiRecognitionProviderType,
+  type AiRecognitionSettings,
+} from "@/lib/api/schemas/ai-recognition";
+import { resolveAIProviderEndpoint } from "@renewlet/shared/ai-provider-endpoints";
 import {
   getAIThinkingOptions,
   normalizeAIThinkingControl,
@@ -20,13 +26,13 @@ import { aiRecognitionService } from "@/services/ai-recognition-service";
 import { AIModelCombobox, AIModelModeSwitch } from "./ai-model-combobox";
 import { LoadingButtonContent } from "./settings-shared-controls";
 
-const AI_PROVIDERS = ["openai", "gemini", "anthropic", "openai-compatible"] as const satisfies readonly AiRecognitionProvider[];
+const AI_PROVIDER_TYPES = ["openai", "anthropic", "gemini", "openai-compatible"] as const satisfies readonly AiRecognitionProviderType[];
 const MODEL_DEFAULT_THINKING_ID = "model-default";
-const AI_PROVIDER_LABEL_KEYS = {
-  openai: "aiRecognition.provider.openai",
-  gemini: "aiRecognition.provider.gemini",
-  anthropic: "aiRecognition.provider.anthropic",
-  "openai-compatible": "aiRecognition.provider.openaiCompatible",
+const AI_PROVIDER_TYPE_LABEL_KEYS = {
+  openai: "aiRecognition.providerType.openai",
+  anthropic: "aiRecognition.providerType.anthropic",
+  gemini: "aiRecognition.providerType.gemini",
+  "openai-compatible": "aiRecognition.providerType.openaiCompatible",
 } as const;
 
 interface AIModelListState {
@@ -44,8 +50,10 @@ const EMPTY_MODEL_LIST_STATE: AIModelListState = {
 };
 
 function canListAIModels(settings: AiRecognitionSettings): boolean {
-  if (settings.provider === "openai-compatible") return Boolean(settings.baseUrl.trim());
-  return Boolean(settings.apiKey.trim());
+  const endpoint = resolveAIProviderEndpoint(settings);
+  if (endpoint.baseUrlRequired && !settings.baseUrl.trim()) return false;
+  if (endpoint.apiKeyRequired && !settings.apiKey.trim()) return false;
+  return true;
 }
 
 interface AIRecognitionSettingsSectionProps {
@@ -66,29 +74,50 @@ export function AIRecognitionSettingsSection({
   const [testing, setTesting] = useState(false);
   const [modelListState, setModelListState] = useState<AIModelListState>(EMPTY_MODEL_LIST_STATE);
   const modelListRequestRef = useRef(0);
+  const canonicalSettings = useMemo(() => {
+    const transportProtocol = canonicalAIRecognitionTransportProtocol(settings.providerType);
+    return {
+      ...settings,
+      transportProtocol,
+      defaultThinkingControl: normalizeAIThinkingControl(settings.providerType, transportProtocol, settings.model, settings.defaultThinkingControl),
+    };
+  }, [settings]);
   const thinkingOptions = useMemo(
-    () => getAIThinkingOptions(settings.provider, settings.model),
-    [settings.model, settings.provider],
+    () => getAIThinkingOptions(canonicalSettings.providerType, canonicalSettings.transportProtocol, canonicalSettings.model),
+    [canonicalSettings.model, canonicalSettings.providerType, canonicalSettings.transportProtocol],
   );
-  const selectedThinkingId = settings.defaultThinkingControl
-    ? thinkingOptionId(settings.defaultThinkingControl)
+  const endpoint = useMemo(
+    () => resolveAIProviderEndpoint({
+      apiKey: canonicalSettings.apiKey,
+      baseUrl: canonicalSettings.baseUrl,
+      providerType: canonicalSettings.providerType,
+    }),
+    [canonicalSettings.apiKey, canonicalSettings.baseUrl, canonicalSettings.providerType],
+  );
+  const selectedThinkingId = canonicalSettings.defaultThinkingControl
+    ? thinkingOptionId(canonicalSettings.defaultThinkingControl)
     : MODEL_DEFAULT_THINKING_ID;
-  const testBlocker = getAIRecognitionSettingsBlocker(settings);
+  const testBlocker = getAIRecognitionSettingsBlocker(canonicalSettings);
 
   useEffect(() => {
     // 模型列表来自第三方 provider，必须随凭证/地址变化失效；旧请求返回较慢时也不能覆盖新配置。
     modelListRequestRef.current += 1;
     setModelListState(EMPTY_MODEL_LIST_STATE);
-  }, [settings.apiKey, settings.baseUrl, settings.provider]);
+  }, [canonicalSettings.apiKey, canonicalSettings.baseUrl, canonicalSettings.providerType, canonicalSettings.transportProtocol]);
 
   const update = (patch: Partial<AiRecognitionSettings>) => {
-    const next = { ...settings, ...patch };
-    next.defaultThinkingControl = normalizeAIThinkingControl(next.provider, next.model, next.defaultThinkingControl);
+    const providerType = patch.providerType ?? settings.providerType;
+    const transportProtocol = canonicalAIRecognitionTransportProtocol(providerType);
+    const next = { ...settings, ...patch, providerType, transportProtocol };
+    next.defaultThinkingControl = normalizeAIThinkingControl(next.providerType, next.transportProtocol, next.model, next.defaultThinkingControl);
     onChange(next);
   };
 
-  const handleProviderChange = (provider: AiRecognitionProvider) => {
-    update({ provider, defaultThinkingControl: null });
+  const handleProviderTypeChange = (providerType: AiRecognitionProviderType) => {
+    update({
+      providerType,
+      defaultThinkingControl: null,
+    });
   };
 
   const handleThinkingChange = (id: string) => {
@@ -100,13 +129,13 @@ export function AIRecognitionSettingsSection({
   };
 
   const handleRefreshModels = async () => {
-    const baseUrl = settings.baseUrl.trim();
-    const apiKey = settings.apiKey.trim();
-    if (settings.provider === "openai-compatible" && !baseUrl) {
+    const baseUrl = canonicalSettings.baseUrl.trim();
+    const apiKey = canonicalSettings.apiKey.trim();
+    if (endpoint.baseUrlRequired && !baseUrl) {
       setModelListState({ ...EMPTY_MODEL_LIST_STATE, status: "error", error: t("aiRecognition.baseUrlRequired") });
       return;
     }
-    if (settings.provider !== "openai-compatible" && !apiKey) {
+    if (endpoint.apiKeyRequired && !apiKey) {
       setModelListState({ ...EMPTY_MODEL_LIST_STATE, status: "error", error: t("aiRecognition.apiKeyRequired") });
       return;
     }
@@ -116,7 +145,7 @@ export function AIRecognitionSettingsSection({
     setModelListState((current) => ({ ...current, status: "loading", error: null }));
     try {
       const response = await aiRecognitionService.listModels({
-        provider: settings.provider,
+        providerType: canonicalSettings.providerType,
         baseUrl,
         apiKey,
       });
@@ -141,7 +170,7 @@ export function AIRecognitionSettingsSection({
     update({ modelInputMode });
     if (
       modelInputMode === "select"
-      && canListAIModels(settings)
+      && canListAIModels(canonicalSettings)
       && modelListState.status !== "loading"
       && (modelListState.status === "idle" || modelListState.status === "error" || modelListState.models.length === 0)
     ) {
@@ -160,7 +189,7 @@ export function AIRecognitionSettingsSection({
     }
     setTesting(true);
     try {
-      await aiRecognitionService.testConnection(settings);
+      await aiRecognitionService.testConnection(canonicalSettings);
       toast({
         title: t("aiRecognition.testSucceeded"),
         description: t("aiRecognition.testSucceededDescription"),
@@ -203,18 +232,18 @@ export function AIRecognitionSettingsSection({
 
       <div className="grid gap-5">
         <div className="grid items-start gap-5 md:grid-cols-2 md:gap-x-5 md:gap-y-2" data-testid="ai-provider-model-grid">
-          <div className="grid gap-2 md:contents" data-testid="ai-provider-field">
+          <div className="grid gap-2 md:contents" data-testid="ai-provider-type-field">
             <div className="flex min-h-7 items-end md:order-1" data-testid="ai-provider-label-row">
-              <Label htmlFor="ai-provider">{t("aiRecognition.provider")}</Label>
+              <Label htmlFor="ai-provider-type">{t("aiRecognition.providerType")}</Label>
             </div>
             <div className="self-start md:order-3" data-testid="ai-provider-control-row">
-              <Select value={settings.provider} onValueChange={(value) => handleProviderChange(value as AiRecognitionProvider)}>
-                <SelectTrigger id="ai-provider" className="border-border bg-secondary">
+              <Select value={canonicalSettings.providerType} onValueChange={(value) => handleProviderTypeChange(value as AiRecognitionProviderType)}>
+                <SelectTrigger id="ai-provider-type" className="border-border bg-secondary">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {AI_PROVIDERS.map((provider) => (
-                    <SelectItem key={provider} value={provider}>{t(AI_PROVIDER_LABEL_KEYS[provider])}</SelectItem>
+                  {AI_PROVIDER_TYPES.map((providerType) => (
+                    <SelectItem key={providerType} value={providerType}>{t(AI_PROVIDER_TYPE_LABEL_KEYS[providerType])}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -225,21 +254,21 @@ export function AIRecognitionSettingsSection({
             <div className="flex min-h-7 min-w-0 flex-wrap items-end justify-between gap-x-3 gap-y-1 md:order-2" data-testid="ai-model-label-row">
               <Label htmlFor="ai-model">{t("aiRecognition.model")}</Label>
               <AIModelModeSwitch
-                mode={settings.modelInputMode}
+                mode={canonicalSettings.modelInputMode}
                 onModeChange={handleModelInputModeChange}
               />
             </div>
             <div className="self-start md:order-4" data-testid="ai-model-control-row">
               <AIModelCombobox
                 id="ai-model"
-                value={settings.model}
+                value={canonicalSettings.model}
                 onValueChange={(model) => update({ model })}
-                mode={settings.modelInputMode}
+                mode={canonicalSettings.modelInputMode}
                 models={modelListState.models}
                 status={modelListState.status}
                 error={modelListState.error}
                 truncated={modelListState.truncated}
-                canAutoRefreshModels={canListAIModels(settings)}
+                canAutoRefreshModels={canListAIModels(canonicalSettings)}
                 onRequestModels={() => void handleRefreshModels()}
                 placeholder={t("aiRecognition.modelPlaceholder")}
               />
@@ -252,9 +281,9 @@ export function AIRecognitionSettingsSection({
             <Label htmlFor="ai-base-url">{t("aiRecognition.baseUrl")}</Label>
             <Input
               id="ai-base-url"
-              value={settings.baseUrl}
+              value={canonicalSettings.baseUrl}
               onChange={(event) => update({ baseUrl: event.target.value })}
-              placeholder={settings.provider === "openai-compatible" ? "https://api.example.com/v1" : t("aiRecognition.baseUrlPlaceholder")}
+              placeholder={endpoint.baseUrlRequired ? "https://api.example.com/v1" : t("aiRecognition.baseUrlPlaceholder")}
               className="border-border bg-secondary"
               inputMode="url"
             />
@@ -267,9 +296,9 @@ export function AIRecognitionSettingsSection({
               id="ai-api-key"
               type="password"
               autoComplete="off"
-              value={settings.apiKey}
+              value={canonicalSettings.apiKey}
               onChange={(event) => update({ apiKey: event.target.value })}
-              placeholder={settings.provider === "openai-compatible" ? t("aiRecognition.apiKeyOptionalPlaceholder") : "sk-..."}
+              placeholder={endpoint.apiKeyRequired ? "sk-..." : t("aiRecognition.apiKeyOptionalPlaceholder")}
               className="border-border bg-secondary"
             />
             <p className="text-xs text-muted-foreground">{t("aiRecognition.apiKeyHelp")}</p>
@@ -298,7 +327,7 @@ export function AIRecognitionSettingsSection({
         <p className="text-xs leading-5 text-muted-foreground">
           {thinkingOptions.length > 0
             ? t("aiRecognition.thinkingHelp")
-            : t(settings.provider === "openai-compatible" ? "aiRecognition.thinkingUnsupportedCompatible" : "aiRecognition.thinkingUnsupportedModel")}
+            : t(canonicalSettings.providerType === "openai-compatible" ? "aiRecognition.thinkingUnsupportedCompatible" : "aiRecognition.thinkingUnsupportedModel")}
         </p>
       </div>
     </section>
