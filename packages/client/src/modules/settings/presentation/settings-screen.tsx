@@ -109,6 +109,7 @@ export function SettingsScreen() {
     isSavingSettings,
     notificationHistory,
     calendarFeed,
+    builtInIconIndex,
     publicStatusPage,
     password,
     passwordResetEnabled,
@@ -281,6 +282,7 @@ export function SettingsScreen() {
                 className={SETTINGS_SECTION_SCROLL_CLASS}
                 sources={settings.builtInIconSources}
                 onChange={(sources) => updateSetting('builtInIconSources', sources)}
+                iconIndex={builtInIconIndex}
               />
 
               <AIRecognitionSettingsSection

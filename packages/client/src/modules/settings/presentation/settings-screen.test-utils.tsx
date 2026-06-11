@@ -6,8 +6,10 @@ import { vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DEFAULT_CUSTOM_CONFIG } from "@/types/config";
 import type { ExchangeRates } from "@/lib/api/schemas/exchange-rates";
+import type { BuiltInIconIndexStatus } from "@/lib/api/schemas/media";
 import { DEFAULT_SETTINGS, type AppSettings, type NotificationChannel } from "@/types/subscription";
 import type { ThemeMode } from "@/types/theme";
+import { BUILT_IN_ICON_PROVIDERS, type BuiltInIconProvider } from "@renewlet/shared/built-in-icons";
 import { SettingsScreen } from "./settings-screen";
 
 const mocks = vi.hoisted(() => ({
@@ -36,6 +38,23 @@ export const SETTINGS_SECTION_IDS = [
 export const TEST_MOBILE_ANCHOR_LINE_PX = 208;
 export const TEST_ACTIVE_SECTION_TOP_PX = TEST_MOBILE_ANCHOR_LINE_PX - 24;
 export const TEST_NEXT_SECTION_TOP_PX = TEST_MOBILE_ANCHOR_LINE_PX + 160;
+
+function iconProviderVersion(provider: BuiltInIconProvider) {
+  const commitSha = provider === "thesvg"
+    ? "aaa111122223333444455556666777788889999"
+    : provider === "selfhst"
+      ? "bbb111122223333444455556666777788889999"
+      : "ccc111122223333444455556666777788889999";
+  return {
+    sourceRef: commitSha,
+    displayVersion: commitSha.slice(0, 7),
+    commitSha,
+    commitShortSha: commitSha.slice(0, 7),
+    commitDate: "2026-06-11T00:00:00.000Z",
+    releaseTag: null,
+    releasePublishedAt: null,
+  };
+}
 
 type TestSettingsSectionId = typeof SETTINGS_SECTION_IDS[number];
 
@@ -257,6 +276,13 @@ export function createControllerState(overrides: {
     enabled?: boolean;
     feedUrl?: string | null;
   };
+  builtInIconIndex?: {
+    canManage?: boolean;
+    status?: BuiltInIconIndexStatus;
+    isLoading?: boolean;
+    checkingProvider?: BuiltInIconProvider | null;
+    refreshingProvider?: BuiltInIconProvider | null;
+  };
   publicStatusPage?: {
     enabled?: boolean;
     pageUrl?: string | null;
@@ -342,6 +368,35 @@ export function createControllerState(overrides: {
       openSystem: fn,
       regenerate: fn,
       revoke: fn,
+    },
+    builtInIconIndex: {
+      canManage: overrides.builtInIconIndex?.canManage ?? true,
+      status: overrides.builtInIconIndex?.status ?? {
+        source: "embedded",
+        hash: "embedded-hash",
+        iconCount: 10249,
+        providerCounts: { thesvg: 6047, selfhst: 2346, dashboardIcons: 1856 },
+        checkedAt: null,
+        updatedAt: null,
+        refreshing: false,
+        providers: BUILT_IN_ICON_PROVIDERS.map((provider) => ({
+          provider,
+          current: iconProviderVersion(provider),
+          latest: null,
+          iconCount: provider === "thesvg" ? 6047 : provider === "selfhst" ? 2346 : 1856,
+          checkedAt: null,
+          refreshedAt: null,
+          lastError: null,
+          refreshing: false,
+          updateAvailable: false,
+        })),
+      },
+      isLoading: overrides.builtInIconIndex?.isLoading ?? false,
+      checkingProvider: overrides.builtInIconIndex?.checkingProvider ?? null,
+      refreshingProvider: overrides.builtInIconIndex?.refreshingProvider ?? null,
+      checkAllProviders: fn,
+      checkProvider: fn,
+      refreshProvider: fn,
     },
     publicStatusPage: {
       enabled: overrides.publicStatusPage?.enabled ?? false,

@@ -74,6 +74,12 @@ vi.mock("@/hooks/use-calendar-feed", () => ({
   useDeleteCalendarFeed: () => ({ mutateAsync: mocks.deleteCalendarFeedMutateAsync, isPending: false }),
 }));
 
+vi.mock("@/hooks/use-built-in-icon-index", () => ({
+  useBuiltInIconIndexStatus: () => ({ data: undefined, isLoading: false, refetch: vi.fn() }),
+  useCheckBuiltInIconIndexProvider: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useRefreshBuiltInIconIndexProvider: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+
 vi.mock("@/hooks/use-public-status-page", () => ({
   usePublicStatusPageStatus: () => mocks.publicStatusPageStatus,
   useCreatePublicStatusPage: () => ({ mutateAsync: mocks.createPublicStatusPageMutateAsync, isPending: false }),

@@ -81,6 +81,7 @@ export interface MediaResolver {
 export function createMediaResolver(
   icons: readonly BuiltInIcon[],
   config: MediaResolverConfig = mediaResolverConfig,
+  providerCdnBaseOverrides: Partial<Record<BuiltInIconProvider, string>> = {},
 ): MediaResolver {
   const providerRank = new Map(config.builtInProviders.map((provider, index) => [provider.provider, index]));
   const resolver: MediaResolver = {
@@ -88,7 +89,7 @@ export function createMediaResolver(
     icons: [],
     canonicalExact: new Map(),
     tokenExact: new Map(),
-    providerCdnBase: new Map(config.builtInProviders.map((provider) => [provider.provider, provider.cdnBase])),
+    providerCdnBase: new Map(config.builtInProviders.map((provider) => [provider.provider, providerCdnBaseOverrides[provider.provider] ?? provider.cdnBase])),
     preferredVariants: new Map(config.builtInProviders.map((provider) => [provider.provider, provider.preferredVariants])),
     planSuffixWords: new Set(config.auto.planSuffixWords),
     searchModifierSuffixWords: new Set(config.search.modifierSuffixWords),

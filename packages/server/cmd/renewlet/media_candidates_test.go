@@ -220,8 +220,7 @@ func TestMediaCandidatesSearchUsesReducedBuiltInQuery(t *testing.T) {
 }
 
 func TestMediaCandidatesSearchUsesBuiltInMatchForFaviconFallback(t *testing.T) {
-	originalResolver := builtInResolver
-	builtInResolver = buildBuiltInResolverIndex([]builtInIcon{{
+	resolver := buildBuiltInResolverIndex([]builtInIcon{{
 		Provider:  "thesvg",
 		Slug:      "acme",
 		Title:     "Acme",
@@ -229,11 +228,8 @@ func TestMediaCandidatesSearchUsesBuiltInMatchForFaviconFallback(t *testing.T) {
 		ExactKeys: []string{"acme"},
 		TokenKeys: []string{"acme"},
 	}})
-	t.Cleanup(func() {
-		builtInResolver = originalResolver
-	})
 
-	item := resolveMediaCandidateItem("logo", "search", mediaCandidateResolveItem{
+	item := resolveMediaCandidateItem(resolver, "logo", "search", mediaCandidateResolveItem{
 		ID:   "synthetic-long-plan",
 		Name: "Acme Alpha Beta Gamma",
 	}, 8, defaultBuiltInIconSourceSettings())
@@ -258,14 +254,10 @@ func TestMediaCandidatesSearchReservesFaviconFallbackBudget(t *testing.T) {
 			TokenKeys: []string{"acme"},
 		})
 	}
-	originalResolver := builtInResolver
-	builtInResolver = buildBuiltInResolverIndex(icons)
-	t.Cleanup(func() {
-		builtInResolver = originalResolver
-	})
+	resolver := buildBuiltInResolverIndex(icons)
 
 	limit := 8
-	item := resolveMediaCandidateItem("logo", "search", mediaCandidateResolveItem{
+	item := resolveMediaCandidateItem(resolver, "logo", "search", mediaCandidateResolveItem{
 		ID:   "synthetic-many-built-in",
 		Name: "Acme",
 	}, limit, defaultBuiltInIconSourceSettings())

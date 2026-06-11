@@ -57,6 +57,10 @@ import {
   type SettingsPublicStatusPageController,
 } from "./use-public-status-page-settings-controller";
 import {
+  useSettingsBuiltInIconIndexController,
+  type SettingsBuiltInIconIndexController,
+} from "./use-built-in-icon-index-controller";
+import {
   useNotificationHistory,
   type NotificationHistoryResponse,
   type NotificationHistoryStatusFilter,
@@ -214,6 +218,7 @@ export interface SettingsFormController {
   handleTestConnection: (channel: NotificationChannel) => void | Promise<void>;
   notificationHistory: SettingsNotificationHistoryController;
   calendarFeed: SettingsCalendarFeedController;
+  builtInIconIndex: SettingsBuiltInIconIndexController;
   publicStatusPage: SettingsPublicStatusPageController;
   password: PasswordChangeController;
   passwordResetEnabled: boolean;
@@ -259,6 +264,8 @@ export function useSettingsFormController(): SettingsFormController {
   const calendarFeedStatus = useCalendarFeedStatus();
   const createCalendarFeed = useCreateCalendarFeed();
   const deleteCalendarFeed = useDeleteCalendarFeed();
+  const canRefreshBuiltInIconIndex = accountIdentity.role === "admin";
+  const builtInIconIndex = useSettingsBuiltInIconIndexController(canRefreshBuiltInIconIndex);
   const { refetch: refetchNotificationHistory } = notificationHistory;
   const hasInitializedFromRemoteRef = useRef(false);
   const hasResolvedDefaultRecipientEmailRef = useRef(false);
@@ -753,6 +760,7 @@ export function useSettingsFormController(): SettingsFormController {
       regenerate: handleRegenerateCalendarFeed,
       revoke: handleRevokeCalendarFeed,
     },
+    builtInIconIndex,
     publicStatusPage,
     password,
     passwordResetEnabled,

@@ -18,6 +18,7 @@ import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -388,6 +389,77 @@ function checkCloudflareWorkflowBuildMetadata() {
   }
 }
 
+function checkCloudflareWorkerSecretsFileScript() {
+  const helperScript = join(repoRoot, "scripts/write-cloudflare-worker-secrets-file.mjs");
+  const tempDir = mkdtempSync(join(tmpdir(), "renewlet-worker-secrets-"));
+  try {
+    const absentPath = join(tempDir, "absent.json");
+    const absentOutputPath = join(tempDir, "absent.out");
+    run("node", [helperScript, absentPath], {
+      env: {
+        ...process.env,
+        GITHUB_OUTPUT: absentOutputPath,
+        RENEWLET_GITHUB_TOKEN: "",
+      },
+    });
+    if (existsSync(absentPath)) {
+      throw new Error("Cloudflare Worker secrets helper must not write a file when no optional secrets are configured.");
+    }
+    const absentOutput = readFileSync(absentOutputPath, "utf8");
+    if (!absentOutput.includes("has_secrets=false\n") || !absentOutput.includes("secrets_file=\n")) {
+      throw new Error("Cloudflare Worker secrets helper must emit empty GitHub outputs when no optional secrets exist.");
+    }
+
+    const presentPath = join(tempDir, "present.json");
+    const presentOutputPath = join(tempDir, "present.out");
+    run("node", [helperScript, presentPath], {
+      env: {
+        ...process.env,
+        GITHUB_OUTPUT: presentOutputPath,
+        RENEWLET_GITHUB_TOKEN: "github_pat_test",
+      },
+    });
+    const secrets = JSON.parse(readFileSync(presentPath, "utf8"));
+    if (secrets.RENEWLET_GITHUB_TOKEN !== "github_pat_test") {
+      throw new Error("Cloudflare Worker secrets helper must write RENEWLET_GITHUB_TOKEN into the secrets file.");
+    }
+    const presentOutput = readFileSync(presentOutputPath, "utf8");
+    if (!presentOutput.includes("has_secrets=true\n") || !presentOutput.includes(`secrets_file=${presentPath}\n`)) {
+      throw new Error("Cloudflare Worker secrets helper must emit the generated secrets file path for GitHub Actions.");
+    }
+    if (presentOutput.includes("github_pat_test")) {
+      throw new Error("Cloudflare Worker secrets helper must not leak secret values through GitHub outputs.");
+    }
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+function checkCloudflareWorkflowOptionalSecrets() {
+  const workflows = [
+    ["cloudflare-worker.yml", readFileSync(join(repoRoot, ".github/workflows/cloudflare-worker.yml"), "utf8")],
+    ["release-publish.yml", readFileSync(join(repoRoot, ".github/workflows/release-publish.yml"), "utf8")],
+  ];
+
+  for (const [name, workflow] of workflows) {
+    for (const snippet of [
+      "id: worker-secrets",
+      "RENEWLET_GITHUB_TOKEN: ${{ secrets.RENEWLET_GITHUB_TOKEN }}",
+      "node scripts/write-cloudflare-worker-secrets-file.mjs \"$CLOUDFLARE_WORKER_SECRETS_FILE\"",
+      "deploy_args=(deploy --config \"$CI_WRANGLER_CONFIG\")",
+      "deploy_args+=(--secrets-file \"$CLOUDFLARE_WORKER_SECRETS_FILE\")",
+      "pnpm exec wrangler \"${deploy_args[@]}\"",
+    ]) {
+      if (!workflow.includes(snippet)) {
+        throw new Error(`${name} must keep optional Worker secrets deployment snippet: ${snippet}`);
+      }
+    }
+    if (workflow.includes("secret put RENEWLET_GITHUB_TOKEN")) {
+      throw new Error(`${name} must deploy optional Worker secrets through --secrets-file, not wrangler secret put.`);
+    }
+  }
+}
+
 run("bash", ["-n", deployScript]);
 checkGeneratedSecrets();
 checkInvalidExistingPBKeyIsRejected();
@@ -400,6 +472,8 @@ checkCloudflareFreshD1Migrations();
 checkCloudflareDeployButtonVars();
 checkCloudflareDeployButtonVersionFallback();
 checkCloudflareWorkflowBuildMetadata();
+checkCloudflareWorkerSecretsFileScript();
+checkCloudflareWorkflowOptionalSecrets();
 checkComposeConfig();
 
 console.log("Deployment configuration checks passed.");

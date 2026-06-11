@@ -11,6 +11,12 @@ const mediaResolverConfigSchema = z.object({
   builtInProviders: z.array(z.object({
     provider: z.enum(BUILT_IN_ICON_PROVIDERS),
     cdnBase: z.string().url(),
+    github: z.object({
+      owner: z.string().min(1),
+      repo: z.string().min(1),
+      branch: z.string().min(1),
+      latestRelease: z.boolean(),
+    }).strict(),
     preferredVariants: z.array(z.string().min(1)).min(1),
   }).strict()).length(BUILT_IN_ICON_PROVIDERS.length).refine((providers) => {
     const seen = new Set(providers.map((item) => item.provider));

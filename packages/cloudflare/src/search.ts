@@ -5,23 +5,20 @@
  */
 import {
   clampMediaCandidateLimit,
-  createMediaResolver,
   resolveMediaCandidateItem,
-  type BuiltInIcon,
 } from "@renewlet/shared/media-resolver";
 import { mediaResolverConfig } from "@renewlet/shared/media-resolver-config";
 import {
   mediaCandidateResolveRequestSchema,
   mediaCandidateResolveResponseSchema,
 } from "@renewlet/shared/schemas/media";
-import builtInIconsIndex from "../../client/src/lib/built-in-icons-index.json";
 import { getSettings } from "./db";
 import { json, privateShortCache, readJson, requestLocale } from "./http";
 import { serverText } from "./server-i18n";
 import { requireAuth } from "./auth";
+import { getActiveBuiltInMediaResolver } from "./media-icon-index";
 import type { Env } from "./types";
 
-const builtInResolver = createMediaResolver(builtInIconsIndex as BuiltInIcon[], mediaResolverConfig);
 const mediaRateLimitData = new Map<string, { count: number; resetAt: number }>();
 
 /** Logo/Icon 候选搜索入口；鉴权、限流和来源设置在 Worker 边界处理，排序规则在 shared resolver。 */
@@ -38,6 +35,7 @@ export async function mediaCandidates(request: Request, env: Env): Promise<Respo
   const body = await readJson(request, mediaCandidateResolveRequestSchema, locale);
   const settings = await getSettings(env, auth.user.id);
   const limit = clampMediaCandidateLimit(mediaResolverConfig, body.limit);
+  const builtInResolver = await getActiveBuiltInMediaResolver(env);
   const items = body.items.map((item) => resolveMediaCandidateItem(
     builtInResolver,
     body.kind,

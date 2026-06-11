@@ -37,6 +37,7 @@ import {
 } from "./cloud-backup";
 import { recognizeSubscriptions, recognizeSubscriptionsStream, testAIRecognitionConnection } from "./ai-recognition";
 import { listAIModels } from "./ai-models";
+import { builtInIconIndexStatus, checkBuiltInIconIndexProvider, refreshBuiltInIconIndexProvider } from "./media-icon-index";
 import { mediaCandidates } from "./search";
 import { notificationHistory, notificationRun, notificationTest, runScheduledNotifications } from "./notifications";
 import { renewAutoSubscriptionsForAllUsers } from "./subscription-renewal";
@@ -116,7 +117,7 @@ async function routePublic(request: Request, env: Env, url: URL): Promise<Respon
 
 async function routeApp(request: Request, env: Env, url: URL): Promise<Response> {
   const segments = pathSegments(url);
-  const [head, second, third, fourth, fifth] = segments;
+  const [head, second, third, fourth, fifth, sixth, seventh] = segments;
 
   // Worker 只实现 Renewlet 产品 API，不模拟 PocketBase REST；路由表越显式，运行面漂移越早暴露。
   if (head === "auth" && second === "login") return routeMethods(request, { POST: () => login(request, env) });
@@ -148,6 +149,21 @@ async function routeApp(request: Request, env: Env, url: URL): Promise<Response>
   }
   if (head === "admin" && second === "system" && third === "restart") {
     return routeMethods(request, { POST: () => systemRestart(request, env) });
+  }
+  if (head === "admin" && second === "media" && third === "icon-index" && !fourth) {
+    return routeMethods(request, {
+      GET: () => builtInIconIndexStatus(request, env),
+    });
+  }
+  if (head === "admin" && second === "media" && third === "icon-index" && fourth === "providers" && fifth && sixth === "check" && !seventh) {
+    return routeMethods(request, {
+      POST: () => checkBuiltInIconIndexProvider(request, env, fifth),
+    });
+  }
+  if (head === "admin" && second === "media" && third === "icon-index" && fourth === "providers" && fifth && sixth === "refresh" && !seventh) {
+    return routeMethods(request, {
+      POST: () => refreshBuiltInIconIndexProvider(request, env, fifth),
+    });
   }
 
   if (head === "settings") return routeMethods(request, {

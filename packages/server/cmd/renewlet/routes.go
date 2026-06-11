@@ -193,6 +193,15 @@ func registerRoutes(app core.App, router *router.Router[*core.RequestEvent]) {
 		defaultSystemUpdateService.ScheduleRestart()
 		return nil
 	})
+	admin.GET("/media/icon-index", func(e *core.RequestEvent) error {
+		return handleBuiltInIconIndexStatus(app, e)
+	})
+	admin.POST("/media/icon-index/providers/{provider}/check", func(e *core.RequestEvent) error {
+		return handleBuiltInIconIndexProviderCheck(app, e)
+	})
+	admin.POST("/media/icon-index/providers/{provider}/refresh", func(e *core.RequestEvent) error {
+		return handleBuiltInIconIndexProviderRefresh(app, e)
+	})
 
 	auth := router.Group("/api/app").Bind(apis.RequireAuth("users"))
 	auth.PUT("/account/password", func(e *core.RequestEvent) error {

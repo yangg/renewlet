@@ -26,6 +26,7 @@
     "./ai-provider-endpoints": "./src/ai-provider-endpoints.ts",
     "./ai-recognition-prompt": "./src/ai-recognition-prompt.ts",
     "./built-in-icons": "./src/built-in-icons.ts",
+    "./built-in-icon-index-builder": "./src/built-in-icon-index-builder.ts",
     "./contract-fixtures": "./src/contract-fixtures.ts",
     "./favicon-domains": "./src/favicon-domains.ts",
     "./media-resolver": "./src/media-resolver.ts",
