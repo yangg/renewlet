@@ -31,9 +31,8 @@ func TestBuildEmailHTMLMessageRendersCompatibleReminderTemplate(t *testing.T) {
 		`style="`,
 		`<html lang="zh-CN">`,
 		"Renewlet",
-		"Renewlet 订阅提醒",
-		"今日提醒",
-		"即将续费: <strong",
+		"<title>Renewlet 订阅提醒</title>",
+		"即将续费 <strong",
 		"即将续费",
 		"试用结束",
 		"已过期",
@@ -41,9 +40,45 @@ func TestBuildEmailHTMLMessageRendersCompatibleReminderTemplate(t *testing.T) {
 		"18 CNY",
 		"2026-05-17",
 		emailThemeFromSettings(settings).Primary,
+		`class="email-container email-card email-ledger"`,
+		`class="email-ledger-summary email-rule"`,
+		`class="email-panel email-ledger-table"`,
+		`colspan="2"`,
+		`border-radius:12px`,
+		`border-left:2px solid`,
+		`@media (prefers-color-scheme: dark)`,
+		"#F9FAFB",
+		"#FFFFFF",
+		"#E3E7ED",
+		"#171C26",
+		"#6C7993",
+		"#0C0E12",
+		"#13161B",
+		"#23272E",
+		"#1F2229",
+		"#F0F2F5",
+		"#9AA6B8",
 	)
 	assertNotContainsAny(t, body, "display:flex", "display: flex", "display:grid", "display: grid", "ZgotmplZ")
-	assertNotContainsAny(t, body, `padding:26px 32px; background-color`, `border-radius:999px`)
+	assertNotContainsAny(t, body,
+		"今日提醒",
+		`<h1`,
+		`class="email-panel email-ledger-section"`,
+		`font-size:18px; font-weight:700; line-height:24px`,
+		`padding:26px 32px; background-color`,
+		`class="email-chip"`,
+		`bgcolor="#111720"`,
+		`background-color:#111720`,
+		`width:36px; height:36px; border-radius:10px`,
+		`border-radius:999px`,
+		`<td height="4" style="height:4px; font-size:0; line-height:0; background-color:`,
+		`font-size:14px; font-weight:800; line-height:28px;">R</td>`,
+		`font-size:20px; font-weight:700; line-height:26px`,
+		`font-weight:800`,
+		`<img`,
+		`<svg`,
+		`background-image`,
+	)
 	if len(body) >= emailMaxHTMLBytes {
 		t.Fatalf("expected email html below clipping guard, got %d bytes", len(body))
 	}
@@ -61,24 +96,24 @@ func TestBuildEmailHTMLMessageRendersEnglishTestNotification(t *testing.T) {
 	assertContainsAll(t, body,
 		`<html lang="en-US">`,
 		"Renewlet test notification",
-		"Channel check",
 		"Message",
 		"If you received this message",
 		"Generated at",
 	)
+	assertNotContainsAny(t, body, "Channel check", "<h1", `class="email-ledger-summary email-rule"`, "Reminder items")
 }
 
-func TestBuildEmailHTMLMessageDoesNotDuplicateTestStatusChip(t *testing.T) {
+func TestBuildEmailHTMLMessageOmitsVisibleStatusTitleHero(t *testing.T) {
 	t.Setenv("APP_URL", "")
 	settings := defaultAppSettings()
 	message := buildTestNotification(time.Date(2026, 5, 14, 1, 2, 3, 0, time.UTC), settings)
 	body := mustBuildEmailHTML(t, settings, message)
 
-	if got := strings.Count(body, "配置检查"); got != 1 {
-		t.Fatalf("expected status label once, got %d\n%s", got, body)
+	if got := strings.Count(body, "配置检查"); got != 0 {
+		t.Fatalf("expected status label to stay out of visible html, got %d\n%s", got, body)
 	}
-	assertContainsAll(t, body, "Renewlet 测试通知")
-	assertNotContainsAny(t, body, `border-radius:999px`)
+	assertContainsAll(t, body, "<title>Renewlet 测试通知</title>", "消息内容")
+	assertNotContainsAny(t, body, `<h1`, `>Renewlet 测试通知</h1>`, `class="email-chip"`, `border-radius:999px`, `font-size:14px; font-weight:800; line-height:28px;">R</td>`)
 }
 
 func TestBuildEmailHTMLMessageRendersReminderCTAFromAppURL(t *testing.T) {
@@ -90,7 +125,7 @@ func TestBuildEmailHTMLMessageRendersReminderCTAFromAppURL(t *testing.T) {
 
 	body := mustBuildEmailHTML(t, settings, message)
 
-	assertContainsAll(t, body, `href="https://renewlet.example/app/subscriptions"`, "查看订阅")
+	assertContainsAll(t, body, `href="https://renewlet.example/app/subscriptions"`, "查看订阅", `line-height:38px`)
 	assertNotContainsAny(t, body, "打开通知设置")
 	if got := strings.Count(body, "<a href="); got != 1 {
 		t.Fatalf("expected a single CTA link, got %d\n%s", got, body)
@@ -183,10 +218,10 @@ func TestBuildEmailHTMLMessageRendersEmptyNotificationContent(t *testing.T) {
 	body := mustBuildEmailHTML(t, settings, message)
 
 	assertContainsAll(t, body,
-		"No reminders",
 		"Message",
 		"No subscriptions need reminders today.",
 	)
+	assertNotContainsAny(t, body, "No reminders", "Reminder items", `class="email-ledger-summary email-rule"`)
 }
 
 func TestBuildEmailHTMLMessageCapsLargeHTMLBody(t *testing.T) {
@@ -217,7 +252,7 @@ func TestBuildEmailHTMLMessageCapsLargeHTMLBody(t *testing.T) {
 	if len(body) >= emailMaxHTMLBytes {
 		t.Fatalf("expected compact email html below clipping guard, got %d bytes", len(body))
 	}
-	assertContainsAll(t, body, "内容较长", "消息内容", "提醒项目:", ">800</strong>")
+	assertContainsAll(t, body, "内容较长", "消息内容", "提醒项目", ">800</strong>")
 }
 
 func TestEmailThemeFromSettingsMapsVariantsAndCustomColor(t *testing.T) {
@@ -240,7 +275,7 @@ func TestEmailThemeFromSettingsMapsVariantsAndCustomColor(t *testing.T) {
 }
 
 func TestEmailThemesRenderWithoutTemplateCSSSanitizerFailures(t *testing.T) {
-	t.Setenv("APP_URL", "")
+	t.Setenv("APP_URL", "https://renewlet.example")
 	for _, variant := range []string{"emerald", "ocean", "sunset", "lavender", "rose", "custom"} {
 		t.Run(variant, func(t *testing.T) {
 			settings := defaultAppSettings()
