@@ -115,6 +115,7 @@
   "cloudBackup.snapshotInvalid": "云备份快照无效",
   "cloudBackup.testFailed": "云备份连接测试失败",
   "cloudBackup.webdavRequired": "请填写 WebDAV 配置",
+  "demo.operationDisabled": "Demo 模式不允许执行此操作。",
   "common.emptyBody": "请求体无效",
   "common.internalError": "服务器内部错误",
   "common.invalidJson": "请求体无效",

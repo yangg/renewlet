@@ -8,13 +8,19 @@ export const healthResponseSchema = z.object({
 }).strict();
 
 /**
- * 首装状态响应。
+ * 认证前应用能力状态。
  *
- * 该接口认证前可访问，只能表达“是否展示初始化入口”；真正创建管理员仍由后端再次校验。
+ * app status 是登录、setup 和 demo 置灰能力的共同真相源；真正写入仍由后端 route/hook 校验。
  */
-export const setupStatusResponseSchema = z.object({
+export const appStatusResponseSchema = z.object({
   setupRequired: z.boolean(),
   setupEnabled: z.boolean(),
+  demoMode: z.boolean(),
+}).strict();
+
+export const setupStatusResponseSchema = appStatusResponseSchema.pick({
+  setupRequired: true,
+  setupEnabled: true,
 }).strict();
 
 export const setupCreateResponseSchema = okResponseSchema;
@@ -86,6 +92,7 @@ export const systemUpdateResponseSchema = z.object({
 
 export const systemRestartResponseSchema = okResponseSchema;
 
+export type AppStatusResponse = z.infer<typeof appStatusResponseSchema>;
 export type SetupStatusResponse = z.infer<typeof setupStatusResponseSchema>;
 export type PasswordResetStatusResponse = z.infer<typeof passwordResetStatusResponseSchema>;
 export type SystemDeployment = z.infer<typeof systemDeploymentSchema>;

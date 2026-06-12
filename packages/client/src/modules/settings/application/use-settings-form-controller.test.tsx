@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_CUSTOM_CONFIG, type CustomConfig } from "@/types/config";
 import { DEFAULT_SETTINGS, type AppSettings } from "@/types/subscription";
 import { BUILT_IN_ICON_PROVIDERS, type BuiltInIconProvider } from "@renewlet/shared/built-in-icons";
+import type { BuiltInIconIndexStatus } from "@/lib/api/schemas/media";
 import {
   APPEARANCE_PENDING_STORAGE_KEY,
   SETTINGS_APPEARANCE_PENDING_STORAGE_KEY,
@@ -59,50 +60,7 @@ const mocks = vi.hoisted(() => ({
   updatePublicStatusPageMutateAsync: vi.fn(),
   deletePublicStatusPageMutateAsync: vi.fn(),
   builtInIconIndexStatus: {
-    data: {
-      source: "embedded",
-      hash: "embedded-hash",
-      iconCount: 100,
-      providerCounts: { thesvg: 40, selfhst: 30, dashboardIcons: 30 },
-      checkedAt: null,
-      updatedAt: null,
-      refreshing: false,
-      providers: [
-        {
-          provider: "thesvg",
-          current: { sourceRef: "embedded", displayVersion: "bundled", commitSha: null, commitShortSha: null, commitDate: null, releaseTag: null, releasePublishedAt: null },
-          latest: null,
-          iconCount: 40,
-          checkedAt: null,
-          refreshedAt: null,
-          lastError: null,
-          refreshing: false,
-          updateAvailable: false,
-        },
-        {
-          provider: "selfhst",
-          current: { sourceRef: "embedded", displayVersion: "bundled", commitSha: null, commitShortSha: null, commitDate: null, releaseTag: null, releasePublishedAt: null },
-          latest: null,
-          iconCount: 30,
-          checkedAt: null,
-          refreshedAt: null,
-          lastError: null,
-          refreshing: false,
-          updateAvailable: false,
-        },
-        {
-          provider: "dashboardIcons",
-          current: { sourceRef: "embedded", displayVersion: "bundled", commitSha: null, commitShortSha: null, commitDate: null, releaseTag: null, releasePublishedAt: null },
-          latest: null,
-          iconCount: 30,
-          checkedAt: null,
-          refreshedAt: null,
-          lastError: null,
-          refreshing: false,
-          updateAvailable: false,
-        },
-      ],
-    },
+    data: undefined as BuiltInIconIndexStatus | undefined,
     isLoading: false,
     refetch: vi.fn(),
   },
@@ -114,7 +72,8 @@ const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
   openWindow: vi.fn(),
   isCloudflareRuntime: false,
-  accountIdentity: { email: "alice@example.com" as string | null, role: "admin" },
+  accountIdentity: { email: "alice@example.com" as string | null, role: "admin", banned: false },
+  appStatus: { setupRequired: false, setupEnabled: true, demoMode: false, isLoading: false },
 }));
 
 vi.mock("@/hooks/use-toast", () => ({
@@ -130,6 +89,10 @@ vi.mock("@/hooks/use-settings", () => ({
   useUpdateSettings: () => ({
     mutateAsync: mocks.updateSettingsMutateAsync,
   }),
+}));
+
+vi.mock("@/hooks/use-setup-status", () => ({
+  useSetupStatus: () => mocks.appStatus,
 }));
 
 vi.mock("@/hooks/use-exchange-rates", () => ({
@@ -367,7 +330,8 @@ describe("useSettingsFormController", () => {
     mocks.remoteSettings = BASE_SETTINGS;
     mocks.customConfig = DEFAULT_CUSTOM_CONFIG;
     mocks.isCloudflareRuntime = false;
-    mocks.accountIdentity = { email: "alice@example.com", role: "admin" };
+    mocks.accountIdentity = { email: "alice@example.com", role: "admin", banned: false };
+    mocks.appStatus = { setupRequired: false, setupEnabled: true, demoMode: false, isLoading: false };
     mocks.updateSettingsMutateAsync.mockImplementation(async (settings: AppSettings) => settings);
     mocks.saveConfig.mockImplementation(async (config: CustomConfig) => config);
     mocks.refreshRates.mockResolvedValue(undefined);
@@ -395,7 +359,7 @@ describe("useSettingsFormController", () => {
     mocks.deletePublicStatusPageMutateAsync.mockResolvedValue({ ok: true });
     mocks.checkBuiltInIconIndexProviderMutateAsync.mockImplementation(async (provider: BuiltInIconProvider) => ({
       status: {
-        ...(mocks.builtInIconIndexStatus.data as object),
+        ...(mocks.builtInIconIndexStatus.data ?? {}),
       },
       provider: providerStatusFixtures({ thesvg: 40, selfhst: 30, dashboardIcons: 30 }).find((item) => item.provider === provider),
     }));
@@ -454,6 +418,15 @@ describe("useSettingsFormController", () => {
     expect(result.current.canAccessPocketBaseAdmin).toBe(false);
   });
 
+  it("does not expose user management capability for banned admins", () => {
+    mocks.accountIdentity = { email: "admin@example.com", role: "admin", banned: true };
+
+    const { result } = renderHook(() => useSettingsFormController());
+
+    expect(result.current.canManageUsers).toBe(false);
+    expect(result.current.canAccessPocketBaseAdmin).toBe(false);
+  });
+
   it("prefills an empty recipient email from the current account email without marking the form dirty", async () => {
     mocks.remoteSettings = {
       ...BASE_SETTINGS,
@@ -465,6 +438,33 @@ describe("useSettingsFormController", () => {
     await waitFor(() => {
       expect(result.current.settings.recipientEmail).toBe("alice@example.com");
     });
+    expect(result.current.hasUnsavedChanges).toBe(false);
+  });
+
+  it("does not prefill or mutate external integration settings in demo mode", async () => {
+    mocks.appStatus = { setupRequired: false, setupEnabled: false, demoMode: true, isLoading: false };
+    mocks.remoteSettings = {
+      ...BASE_SETTINGS,
+      enabledChannels: [],
+      recipientEmail: "",
+    };
+
+    const { result } = renderHook(() => useSettingsFormController());
+
+    await waitFor(() => {
+      expect(result.current.externalIntegrationsDisabled).toBe(true);
+    });
+    expect(result.current.settings.recipientEmail).toBe("");
+
+    act(() => {
+      result.current.updateSetting("recipientEmail", "billing@example.com");
+      result.current.toggleChannel("telegram");
+      void result.current.handleTestConnection("telegram");
+    });
+
+    expect(result.current.settings.recipientEmail).toBe("");
+    expect(result.current.settings.enabledChannels).toEqual([]);
+    expect(mocks.testConnection).not.toHaveBeenCalled();
     expect(result.current.hasUnsavedChanges).toBe(false);
   });
 
@@ -580,13 +580,13 @@ describe("useSettingsFormController", () => {
       ...BASE_SETTINGS,
       recipientEmail: "",
     };
-    mocks.accountIdentity = { email: null, role: "admin" };
+    mocks.accountIdentity = { email: null, role: "admin", banned: false };
     const { result, rerender } = renderHook(() => useSettingsFormController());
 
     expect(result.current.settings.recipientEmail).toBe("");
 
     act(() => {
-      mocks.accountIdentity = { email: "late@example.com", role: "admin" };
+      mocks.accountIdentity = { email: "late@example.com", role: "admin", banned: false };
       rerender();
     });
 

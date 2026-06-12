@@ -7,6 +7,11 @@ import { defineConfig } from "vite";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const devProxyTarget = process.env["VITE_DEV_PROXY_TARGET"] || "http://127.0.0.1:3000";
+const devProxyOptions = () => ({
+  target: devProxyTarget,
+  // 本地开发经 Vite 访问 Go API 时，公开/日历 bearer URL 需要保留浏览器看到的外部 origin。
+  xfwd: true,
+});
 const contentSecurityPolicy = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
@@ -73,9 +78,9 @@ export default defineConfig({
       "Content-Security-Policy": contentSecurityPolicy,
     },
     proxy: {
-      "/api": devProxyTarget,
-      "/calendar/renewals.ics": devProxyTarget,
-      "/_": devProxyTarget,
+      "/api": devProxyOptions(),
+      "/calendar/renewals.ics": devProxyOptions(),
+      "/_": devProxyOptions(),
     },
     allowedHosts: ['sh.cfhd.de']
   },

@@ -268,6 +268,7 @@ export function createCloudBackupControllerState() {
 export function createControllerState(overrides: {
   settings?: Partial<AppSettings>;
   effectiveThemeMode?: ThemeMode;
+  canManageUsers?: boolean;
   canAccessPocketBaseAdmin?: boolean;
   testingChannel?: NotificationChannel | null;
   isSavingSettings?: boolean;
@@ -291,6 +292,7 @@ export function createControllerState(overrides: {
     hiddenCount?: number;
   };
   rates?: ExchangeRates;
+  externalIntegrationsDisabled?: boolean;
 } = {}) {
   const fn = vi.fn();
   const currencySymbols: Record<string, string> = {
@@ -316,6 +318,7 @@ export function createControllerState(overrides: {
     },
     effectiveThemeMode: overrides.effectiveThemeMode ?? overrides.settings?.themeMode ?? DEFAULT_SETTINGS.themeMode,
     accountEmail: "alice@example.com",
+    canManageUsers: overrides.canManageUsers ?? true,
     canAccessPocketBaseAdmin: overrides.canAccessPocketBaseAdmin ?? true,
     customConfig: DEFAULT_CUSTOM_CONFIG,
     subscriptionsQuery: { data: [] },
@@ -429,6 +432,7 @@ export function createControllerState(overrides: {
       updatePassword: fn,
     },
     passwordResetEnabled: true,
+    externalIntegrationsDisabled: overrides.externalIntegrationsDisabled ?? false,
   };
 }
 

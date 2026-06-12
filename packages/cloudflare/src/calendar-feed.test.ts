@@ -43,7 +43,7 @@ describe("calendar feed worker handlers", () => {
     const env = await createCalendarFeedTestEnv();
     const request = authorizedRequest("https://renewlet.example/api/app/calendar-feed", {
       body: "{}",
-      headers: { "accept-language": "en-US" },
+      headers: { "accept-language": "en-US", "x-forwarded-host": "evil.example", "x-forwarded-proto": "http" },
       method: "POST",
     });
 

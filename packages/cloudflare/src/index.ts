@@ -4,6 +4,7 @@ import {
   adminDeleteUser,
   adminListUsers,
   adminPatchUser,
+  appStatus,
   changePassword,
   createInitialAdmin,
   login,
@@ -94,6 +95,9 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
   if (!url.pathname.startsWith("/api/")) return errorResponse(404, serverText(locale, "common.notFound"), "NOT_FOUND");
   if (url.pathname === "/api/app/health") return health();
   if (url.pathname === "/api/app/ready") return ready(env);
+  if (url.pathname === "/api/app/status") return routeMethods(request, {
+    GET: () => appStatus(request, env),
+  });
   if (url.pathname === "/api/app/setup") return routeMethods(request, {
     GET: () => setupStatus(request, env),
     POST: () => createInitialAdmin(request, env),

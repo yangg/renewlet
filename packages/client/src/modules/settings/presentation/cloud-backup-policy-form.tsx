@@ -30,6 +30,7 @@ interface CloudBackupPolicyFormProps {
   scheduleWeekday: CloudBackupFormState["scheduleWeekday"];
   retention: string;
   busy: boolean;
+  disabled?: boolean;
   onScheduleEnabledChange: (checked: boolean) => void;
   onFrequencyChange: (frequency: CloudBackupFormState["scheduleFrequency"]) => void;
   onScheduleTimeChange: (value: string) => void;
@@ -44,6 +45,7 @@ export function CloudBackupPolicyForm({
   scheduleWeekday,
   retention,
   busy,
+  disabled = false,
   onScheduleEnabledChange,
   onFrequencyChange,
   onScheduleTimeChange,
@@ -64,7 +66,7 @@ export function CloudBackupPolicyForm({
           id="cloudBackupSchedule"
           checked={scheduleEnabled}
           onCheckedChange={onScheduleEnabledChange}
-          disabled={busy}
+          disabled={disabled || busy}
           aria-label={t("settings.cloudBackupSchedule")}
         />
       </div>
@@ -72,7 +74,7 @@ export function CloudBackupPolicyForm({
         <FieldRow label={t("settings.cloudBackupFrequency")} htmlFor="cloudBackupFrequency">
           <Select
             value={scheduleFrequency}
-            disabled={!scheduleEnabled || busy}
+            disabled={disabled || !scheduleEnabled || busy}
             onValueChange={(value) => onFrequencyChange(value as CloudBackupFormState["scheduleFrequency"])}
           >
             <SelectTrigger id="cloudBackupFrequency" className="h-9 border-border bg-background">
@@ -88,7 +90,7 @@ export function CloudBackupPolicyForm({
           <FieldRow label={t("settings.cloudBackupScheduleWeekday")} htmlFor="cloudBackupScheduleWeekday">
             <Select
               value={scheduleWeekday}
-              disabled={!scheduleEnabled || busy}
+              disabled={disabled || !scheduleEnabled || busy}
               onValueChange={(value) => onScheduleWeekdayChange(value as CloudBackupFormState["scheduleWeekday"])}
             >
               <SelectTrigger id="cloudBackupScheduleWeekday" className="h-9 border-border bg-background">
@@ -110,7 +112,7 @@ export function CloudBackupPolicyForm({
           <TimePicker
             id="cloudBackupScheduleTime"
             value={scheduleTime}
-            disabled={!scheduleEnabled || busy}
+            disabled={disabled || !scheduleEnabled || busy}
             onChange={onScheduleTimeChange}
             ariaLabel={t("settings.cloudBackupScheduleTime")}
             density="compact"
@@ -125,6 +127,7 @@ export function CloudBackupPolicyForm({
             allowNegative={false}
             decimalScale={0}
             isAllowed={isAllowedRetentionValue}
+            disabled={disabled || busy}
             onRawValueChange={onRetentionChange}
             className="h-9 border-border bg-background"
           />

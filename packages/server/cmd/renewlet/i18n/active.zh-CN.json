@@ -125,6 +125,7 @@
   "common.notFound": "接口不存在",
   "common.requestBodyTooLarge": "请求体过大",
   "common.requiredField": "{label} 不能为空",
+  "demo.operationDisabled": "Demo 模式不允许执行此操作。",
   "email.billingDate": "扣费日期",
   "email.brandTagline": "通知",
   "email.ctaOpenSettings": "打开通知设置",

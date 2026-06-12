@@ -108,9 +108,11 @@ function aiModelListApiError(body = "{\"code\":\"INVALID_API_KEY\",\"message\":\
 function renderAIRecognitionSection({
   initialSettings,
   onChange = vi.fn(),
+  disabled = false,
 }: {
   initialSettings?: Partial<AiRecognitionSettings>;
   onChange?: (settings: AiRecognitionSettings) => void;
+  disabled?: boolean;
 } = {}) {
   function StatefulSection() {
     const [settings, setSettings] = useState<AiRecognitionSettings>({
@@ -132,6 +134,7 @@ function renderAIRecognitionSection({
             setSettings(nextSettings);
             onChange(nextSettings);
           }}
+          disabled={disabled}
         />
       </TooltipProvider>
     );
@@ -198,6 +201,27 @@ describe("AIRecognitionSettingsSection provider model layout", () => {
       });
     });
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ modelInputMode: "select" }));
+  });
+
+  it("disables provider credentials, test and model refresh controls when requested", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderAIRecognitionSection({
+      onChange,
+      disabled: true,
+      initialSettings: { modelInputMode: "select" },
+    });
+
+    expect(screen.getByRole("combobox", { name: "平台类型" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "模型" })).toBeDisabled();
+    expect(screen.getByLabelText("Base URL")).toBeDisabled();
+    expect(screen.getByLabelText("API Key")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "测试连接" })).toBeDisabled();
+
+    await user.click(screen.getByRole("combobox", { name: "模型" }));
+
+    expect(aiRecognitionService.listModels).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("derives hidden protocol when provider type changes", async () => {

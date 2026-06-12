@@ -77,6 +77,14 @@ http://localhost:3000/setup
 
 Create the first admin user. The deploy script creates `docker-compose.yml`, `.env`, and `data/`, then generates `PB_ENCRYPTION_KEY` and `CRON_SECRET` for you.
 
+To publish a public demo instance, set only this in `.env`:
+
+```env
+RENEWLET_DEMO_MODE="true"
+```
+
+Demo Mode uses the same Docker image, Compose file, and login page. Visitors sign in with `demo@renewlet.local` / `renewlet-demo`; demo data resets on startup and every 2 hours, while setup and real external side effects are disabled.
+
 If Docker Hub is unavailable, switch the image in `.env` to GHCR:
 
 ```env
@@ -140,6 +148,7 @@ Common settings live in `.env`:
 | `TZ` | Container time zone, mainly for logs; reminders use each user's time zone. |
 | `PB_ENCRYPTION_KEY` | Encryption key for sensitive PocketBase settings. Do not rotate it casually after deployment. |
 | `CRON_SECRET` | Bearer secret for external Cron calls to `/api/cron/notifications`. |
+| `RENEWLET_DEMO_MODE` | Docker Demo Mode switch. Defaults to `false`. |
 | `NOTIFICATION_SCHEDULER_ENABLED` | Enables the built-in notification scheduler. Defaults to `true`. |
 
 The full Docker environment template is in `.env.example`.

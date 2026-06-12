@@ -36,7 +36,8 @@ const mocks = vi.hoisted(() => ({
   updatePublicStatusPageMutateAsync: vi.fn(),
   deletePublicStatusPageMutateAsync: vi.fn(),
   isCloudflareRuntime: false,
-  accountIdentity: { email: "alice@example.com" as string | null, role: "admin" },
+  accountIdentity: { email: "alice@example.com" as string | null, role: "admin", banned: false },
+  appStatus: { setupRequired: false, setupEnabled: true, demoMode: false, isLoading: false },
 }));
 
 vi.mock("@/hooks/use-toast", () => ({
@@ -46,6 +47,10 @@ vi.mock("@/hooks/use-toast", () => ({
 vi.mock("@/hooks/use-settings", () => ({
   useSettings: () => ({ data: mocks.remoteSettings }),
   useUpdateSettings: () => ({ mutateAsync: mocks.updateSettingsMutateAsync }),
+}));
+
+vi.mock("@/hooks/use-setup-status", () => ({
+  useSetupStatus: () => mocks.appStatus,
 }));
 
 vi.mock("@/hooks/use-exchange-rates", () => ({
@@ -171,7 +176,8 @@ describe("useSettingsFormController monthly budget input", () => {
     mocks.remoteSettings = BASE_SETTINGS;
     mocks.customConfig = DEFAULT_CUSTOM_CONFIG;
     mocks.isCloudflareRuntime = false;
-    mocks.accountIdentity = { email: "alice@example.com", role: "admin" };
+    mocks.accountIdentity = { email: "alice@example.com", role: "admin", banned: false };
+    mocks.appStatus = { setupRequired: false, setupEnabled: true, demoMode: false, isLoading: false };
     mocks.updateSettingsMutateAsync.mockImplementation(async (settings: AppSettings) => settings);
     mocks.saveConfig.mockImplementation(async (config: CustomConfig) => config);
     mocks.refreshRates.mockResolvedValue(undefined);

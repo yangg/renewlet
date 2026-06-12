@@ -66,6 +66,9 @@ type customConfigPayload struct {
 // 为什么放在 RecordValidate：同一规则可以覆盖自定义 API、PocketBase SDK 和管理后台写入。
 func registerRecordHooks(app core.App) {
 	app.OnRecordValidate().BindFunc(func(e *core.RecordEvent) error {
+		if err := demoModePolicy.EnforceRecordValidation(app, e.Record); err != nil {
+			return err
+		}
 		switch e.Record.Collection().Name {
 		case "subscriptions":
 			if err := normalizeSubscriptionRecord(e.Record); err != nil {
@@ -99,6 +102,12 @@ func registerRecordHooks(app core.App) {
 			if err := normalizeCloudBackupTargetRecord(e.Record); err != nil {
 				return err
 			}
+		}
+		return e.Next()
+	})
+	app.OnRecordDelete("users").BindFunc(func(e *core.RecordEvent) error {
+		if err := demoModePolicy.EnforceRecordDelete(e.Record); err != nil {
+			return err
 		}
 		return e.Next()
 	})

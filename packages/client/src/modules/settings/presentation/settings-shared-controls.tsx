@@ -46,6 +46,7 @@ export interface CheckboxSettingRowProps {
   label: ReactNode;
   description?: ReactNode;
   className?: string;
+  disabled?: boolean;
 }
 
 /** 设置页复用的 checkbox 行，固定 label/control 间距并允许描述文本换行。 */
@@ -56,6 +57,7 @@ export function CheckboxSettingRow({
   label,
   description,
   className,
+  disabled = false,
 }: CheckboxSettingRowProps) {
   return (
     <div className={cn('grid grid-cols-[auto_1fr] gap-x-3', className)}>
@@ -63,11 +65,12 @@ export function CheckboxSettingRow({
         <Checkbox
           id={id}
           checked={checked}
+          disabled={disabled}
           onCheckedChange={(nextChecked) => onCheckedChange(nextChecked === true)}
         />
       </div>
       <div className="min-w-0">
-        <Label htmlFor={id} className="flex h-5 cursor-pointer items-center leading-5">
+        <Label htmlFor={id} className={cn("flex h-5 items-center leading-5", disabled ? "cursor-not-allowed opacity-70" : "cursor-pointer")}>
           {label}
         </Label>
         {description ? (

@@ -105,6 +105,28 @@ describe("SettingsScreen SMTP email settings", () => {
     expect(screen.getByRole("button", { name: "测试邮件通知" })).toBeInTheDocument();
   });
 
+  it("disables external integration controls in demo mode while keeping ordinary settings editable", () => {
+    mocks.useSettingsFormController.mockReturnValue(createControllerState({
+      externalIntegrationsDisabled: true,
+    }));
+    renderSettingsScreen();
+
+    expect(screen.getByRole("button", { name: "修改密码" })).toBeDisabled();
+    expect(screen.getByLabelText("SMTP 服务器")).toBeDisabled();
+    expect(screen.getByLabelText("SMTP 端口")).toBeDisabled();
+    expect(screen.getByLabelText("收件人邮箱")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "测试邮件通知" })).toBeDisabled();
+    expect(screen.getByLabelText("第三方 API 测试号码")).toBeDisabled();
+    expect(screen.getByLabelText("Base URL")).toBeDisabled();
+    expect(screen.getByLabelText("API Key")).toBeDisabled();
+    for (const button of screen.getAllByRole("button", { name: "测试连接" })) {
+      expect(button).toBeDisabled();
+    }
+    expect(screen.getByRole("button", { name: "保存配置" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "立即备份" })).toBeDisabled();
+    expect(screen.getByLabelText("月度预算金额")).toBeEnabled();
+  });
+
   it("keeps the SMTP port as a bounded NumericInput string", async () => {
     const user = userEvent.setup();
     render(<StatefulEmailNotificationPanel />);
@@ -139,9 +161,10 @@ describe("SettingsScreen SMTP email settings", () => {
     expect(input.value).not.toMatch(/[.\-eE]/);
   });
 
-  it("shows the PocketBase admin link for admins", () => {
+  it("shows admin account links for Docker admins", () => {
     renderSettingsScreen();
 
+    expect(screen.getByRole("link", { name: "管理用户" })).toHaveAttribute("href", "/admin/users");
     const link = screen.getByRole("link", { name: "PocketBase 后台" });
     expect(link).toHaveAttribute("href", "/_/");
     expect(link).toHaveAttribute("target", "_blank");
@@ -161,13 +184,27 @@ describe("SettingsScreen SMTP email settings", () => {
     expect(screen.getByTestId("route-path")).toHaveTextContent("/forgot-password");
   });
 
-  it("hides the PocketBase admin link for non-admin users", () => {
+  it("hides admin-only account links for non-admin users", () => {
     mocks.useSettingsFormController.mockReturnValue(createControllerState({
+      canManageUsers: false,
       canAccessPocketBaseAdmin: false,
     }));
 
     renderSettingsScreen();
 
+    expect(screen.queryByRole("link", { name: "管理用户" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "PocketBase 后台" })).not.toBeInTheDocument();
+  });
+
+  it("keeps user management visible for Cloudflare admins while hiding PocketBase admin", () => {
+    mocks.useSettingsFormController.mockReturnValue(createControllerState({
+      canManageUsers: true,
+      canAccessPocketBaseAdmin: false,
+    }));
+
+    renderSettingsScreen();
+
+    expect(screen.getByRole("link", { name: "管理用户" })).toHaveAttribute("href", "/admin/users");
     expect(screen.queryByRole("link", { name: "PocketBase 后台" })).not.toBeInTheDocument();
   });
 

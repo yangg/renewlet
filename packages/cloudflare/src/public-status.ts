@@ -19,6 +19,7 @@ import { requireAuth } from "./auth";
 import { HttpError, json, readJson, requestLocale } from "./http";
 import { serverText, type AppLocale } from "./server-i18n";
 import { calendarFeedBuiltInCategoryLabelKey } from "./calendar-feed-built-in-labels";
+import { requestOrigin } from "./request-origin";
 import type { AssetRow, Env, PublicStatusPageRow, SubscriptionRow } from "./types";
 
 const PUBLIC_STATUS_LIMIT = 500;
@@ -250,10 +251,7 @@ function todayDateOnly(timezone: string): string {
 function publicStatusLogoUrl(request: Request, token: string, logo: string): string {
   const match = privateAssetLogoPattern.exec(logo);
   if (!match) return logo;
-  const url = new URL(request.url);
-  url.pathname = `/api/public/status/${encodeURIComponent(token)}/assets/${encodeURIComponent(match[1]!)}`;
-  url.search = "";
-  return url.toString();
+  return `${requestOrigin(request)}/api/public/status/${encodeURIComponent(token)}/assets/${encodeURIComponent(match[1]!)}`;
 }
 
 async function publicStatusAssetIsReferenced(env: Env, userId: string, assetId: string): Promise<boolean> {
@@ -303,8 +301,7 @@ function publicStatusPageStatus(row: PublicStatusPageRow | null, request: Reques
 }
 
 function publicStatusPageUrl(request: Request, token: string): string {
-  const url = new URL(request.url);
-  return `${url.origin}/status/${encodeURIComponent(token)}`;
+  return `${requestOrigin(request)}/status/${encodeURIComponent(token)}`;
 }
 
 function publicStatusHeaders(): Headers {

@@ -62,6 +62,7 @@ interface AIRecognitionSettingsSectionProps {
   className?: string;
   settings: AiRecognitionSettings;
   onChange: (settings: AiRecognitionSettings) => void;
+  disabled?: boolean;
 }
 
 export function AIRecognitionSettingsSection({
@@ -69,6 +70,7 @@ export function AIRecognitionSettingsSection({
   className,
   settings,
   onChange,
+  disabled = false,
 }: AIRecognitionSettingsSectionProps) {
   const { t } = useI18n();
   const { toast } = useToast();
@@ -111,6 +113,7 @@ export function AIRecognitionSettingsSection({
   }, [canonicalSettings.apiKey, canonicalSettings.baseUrl, canonicalSettings.providerType, canonicalSettings.transportProtocol]);
 
   const update = (patch: Partial<AiRecognitionSettings>) => {
+    if (disabled) return;
     const providerType = patch.providerType ?? settings.providerType;
     const transportProtocol = canonicalAIRecognitionTransportProtocol(providerType);
     const next = { ...settings, ...patch, providerType, transportProtocol };
@@ -134,6 +137,7 @@ export function AIRecognitionSettingsSection({
   };
 
   const handleRefreshModels = async () => {
+    if (disabled) return;
     const baseUrl = canonicalSettings.baseUrl.trim();
     const apiKey = canonicalSettings.apiKey.trim();
     if (endpoint.baseUrlRequired && !baseUrl) {
@@ -175,6 +179,7 @@ export function AIRecognitionSettingsSection({
   };
 
   const handleModelInputModeChange = (modelInputMode: AiRecognitionSettings["modelInputMode"]) => {
+    if (disabled) return;
     update({ modelInputMode });
     if (
       modelInputMode === "select"
@@ -187,6 +192,7 @@ export function AIRecognitionSettingsSection({
   };
 
   const handleTestConnection = async () => {
+    if (disabled) return;
     if (testBlocker) {
       toast({
         title: t("aiRecognition.testBlockedTitle"),
@@ -227,7 +233,7 @@ export function AIRecognitionSettingsSection({
           variant="outline"
           className="relative shrink-0 gap-2 border-border"
           onClick={() => void handleTestConnection()}
-          disabled={testing}
+          disabled={disabled || testing}
           aria-busy={testing ? true : undefined}
         >
           <LoadingButtonContent loading={testing} loadingLabel={t("aiRecognition.testing")}>
@@ -259,7 +265,7 @@ export function AIRecognitionSettingsSection({
               <Label htmlFor="ai-provider-type">{t("aiRecognition.providerType")}</Label>
             </div>
             <div className="self-start md:order-3" data-testid="ai-provider-control-row">
-              <Select value={canonicalSettings.providerType} onValueChange={(value) => handleProviderTypeChange(value as AiRecognitionProviderType)}>
+              <Select value={canonicalSettings.providerType} disabled={disabled} onValueChange={(value) => handleProviderTypeChange(value as AiRecognitionProviderType)}>
                 <SelectTrigger id="ai-provider-type" className="border-border bg-secondary">
                   <SelectValue />
                 </SelectTrigger>
@@ -277,6 +283,7 @@ export function AIRecognitionSettingsSection({
               <Label htmlFor="ai-model">{t("aiRecognition.model")}</Label>
               <AIModelModeSwitch
                 mode={canonicalSettings.modelInputMode}
+                disabled={disabled}
                 onModeChange={handleModelInputModeChange}
               />
             </div>
@@ -292,6 +299,7 @@ export function AIRecognitionSettingsSection({
                 truncated={modelListState.truncated}
                 canAutoRefreshModels={canListAIModels(canonicalSettings)}
                 onRequestModels={() => void handleRefreshModels()}
+                disabled={disabled}
                 placeholder={t("aiRecognition.modelPlaceholder")}
               />
             </div>
@@ -304,6 +312,7 @@ export function AIRecognitionSettingsSection({
             <Input
               id="ai-base-url"
               value={canonicalSettings.baseUrl}
+              disabled={disabled}
               onChange={(event) => update({ baseUrl: event.target.value })}
               placeholder={endpoint.baseUrlRequired ? "https://api.example.com/v1" : t("aiRecognition.baseUrlPlaceholder")}
               className="border-border bg-secondary"
@@ -319,6 +328,7 @@ export function AIRecognitionSettingsSection({
               type="password"
               autoComplete="off"
               value={canonicalSettings.apiKey}
+              disabled={disabled}
               onChange={(event) => update({ apiKey: event.target.value })}
               placeholder={endpoint.apiKeyRequired ? "sk-..." : t("aiRecognition.apiKeyOptionalPlaceholder")}
               className="border-border bg-secondary"
@@ -333,7 +343,7 @@ export function AIRecognitionSettingsSection({
           <Brain className="h-4 w-4 text-primary" />
           {t("aiRecognition.defaultThinking")}
         </Label>
-        <Select value={selectedThinkingId} onValueChange={handleThinkingChange}>
+        <Select value={selectedThinkingId} disabled={disabled} onValueChange={handleThinkingChange}>
           <SelectTrigger id="ai-thinking" className="border-border bg-secondary md:max-w-md">
             <SelectValue />
           </SelectTrigger>

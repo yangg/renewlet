@@ -271,7 +271,11 @@ describe("public status worker handlers", () => {
     const disabledResponse = await readPublicStatusPage(authorizedRequest("/api/app/public-status-page"), env);
     expect(await disabledResponse.json()).toEqual({ publicStatusPage: { enabled: false, showPrices: false } });
 
-    const createResponse = await createPublicStatusPage(authorizedRequest("/api/app/public-status-page", { method: "POST", body: "{}" }), env);
+    const createResponse = await createPublicStatusPage(authorizedRequest("/api/app/public-status-page", {
+      method: "POST",
+      body: "{}",
+      headers: { "x-forwarded-host": "evil.example", "x-forwarded-proto": "http" },
+    }), env);
     const created = await createResponse.json() as { publicStatusPage: { enabled: boolean; pageUrl: string; showPrices: boolean } };
     expect(created.publicStatusPage).toMatchObject({
       enabled: true,

@@ -61,8 +61,16 @@ type healthResponse struct {
 	Time string `json:"time"`
 }
 
-// setupStatusResponse 描述初始化入口是否可用。
-// 前端会据此展示 setup 流程，因此字段缺失必须被 schema 拒绝。
+// appStatusResponse 是认证前 capability 真相源。
+// 登录页、setup 页和设置页 demo 限制都从这里读取；真正写入仍由各 route/hook 再次校验。
+type appStatusResponse struct {
+	SetupRequired bool `json:"setupRequired"`
+	SetupEnabled  bool `json:"setupEnabled"`
+	DemoMode      bool `json:"demoMode"`
+}
+
+// setupStatusResponse 描述旧 setup 入口是否可用。
+// 注意：新前端读取 /api/app/status；保留两字段响应，避免旧探针被 demoMode 额外字段打破。
 type setupStatusResponse struct {
 	SetupRequired bool `json:"setupRequired"`
 	SetupEnabled  bool `json:"setupEnabled"`

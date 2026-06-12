@@ -138,6 +138,9 @@ func handleSettingsUpdate(app core.App, e *core.RequestEvent) error {
 	if err != nil {
 		return e.BadRequestError(validationErrorMessage(locale, "common.invalidRequestBody", err), err)
 	}
+	if err := demoModePolicy.RejectSettingsSecretMutation(e, current, next); err != nil {
+		return err
+	}
 	if record == nil {
 		collection, err := app.FindCollectionByNameOrId("settings")
 		if err != nil {

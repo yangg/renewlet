@@ -76,6 +76,7 @@ export function SettingsScreen() {
     settings,
     effectiveThemeMode,
     accountEmail,
+    canManageUsers,
     canAccessPocketBaseAdmin,
     customConfig,
     subscriptionsQuery,
@@ -113,6 +114,7 @@ export function SettingsScreen() {
     publicStatusPage,
     password,
     passwordResetEnabled,
+    externalIntegrationsDisabled,
   } = useSettingsFormController();
 
   const {
@@ -219,6 +221,7 @@ export function SettingsScreen() {
                 id="settings-account"
                 className={SETTINGS_SECTION_SCROLL_CLASS}
                 accountEmail={accountEmail}
+                canManageUsers={canManageUsers}
                 canAccessPocketBaseAdmin={canAccessPocketBaseAdmin}
                 passwordResetEnabled={passwordResetEnabled}
                 passwordDialogOpen={passwordDialogOpen}
@@ -232,6 +235,7 @@ export function SettingsScreen() {
                 setConfirmPassword={setConfirmPassword}
                 isUpdatingPassword={isUpdatingPassword}
                 updatePassword={updatePassword}
+                passwordDisabled={externalIntegrationsDisabled}
               />
 
               {/* 外观设置 */}
@@ -290,6 +294,7 @@ export function SettingsScreen() {
                 className={SETTINGS_SECTION_SCROLL_CLASS}
                 settings={settings.aiRecognition}
                 onChange={(aiRecognition) => updateSetting('aiRecognition', aiRecognition)}
+                disabled={externalIntegrationsDisabled}
               />
 
               {/* 预算设置 */}
@@ -406,6 +411,7 @@ export function SettingsScreen() {
                 id="settings-cloud-backup"
                 className={SETTINGS_SECTION_SCROLL_CLASS}
                 controller={cloudBackup}
+                disabled={externalIntegrationsDisabled}
               />
 
               <ExchangeRatesSection
@@ -534,6 +540,7 @@ export function SettingsScreen() {
                       activeChannel={activeNotificationChannel}
                       onSelect={setSelectedNotificationChannel}
                       onToggle={handleNotificationChannelToggle}
+                      disabled={externalIntegrationsDisabled}
                     />
                     <NotificationChannelConfigPanel
                       channel={activeNotificationChannel}
@@ -542,6 +549,7 @@ export function SettingsScreen() {
                       updateSetting={updateSetting}
                       testingChannel={testingChannel}
                       onTest={handleTestConnection}
+                      disabled={externalIntegrationsDisabled}
                     />
                   </div>
 
@@ -556,6 +564,7 @@ export function SettingsScreen() {
                       autoComplete="tel"
                       placeholder={t("settings.testPhonePlaceholder")}
                       value={settings.testPhone}
+                      disabled={externalIntegrationsDisabled}
                       onChange={(e) => updateSetting('testPhone', e.target.value)}
                       className="border-border bg-secondary"
                     />

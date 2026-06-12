@@ -52,6 +52,7 @@ describe("Login page", () => {
     mocks.useSetupStatus.mockReturnValue({
       setupRequired: false,
       setupEnabled: true,
+      demoMode: false,
       isLoading: false,
     });
   });
@@ -67,6 +68,7 @@ describe("Login page", () => {
     mocks.useSetupStatus.mockReturnValue({
       setupRequired: true,
       setupEnabled: true,
+      demoMode: false,
       isLoading: false,
     });
 

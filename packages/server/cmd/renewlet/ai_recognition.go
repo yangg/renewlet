@@ -175,6 +175,9 @@ func prepareAIRecognitionRunContext(app core.App, e *core.RequestEvent) (aiRecog
 	if e.Auth == nil {
 		return aiRecognitionRunContext{}, e.UnauthorizedError(serverText(locale, "auth.loginRequired"), nil)
 	}
+	if err := demoModePolicy.RejectExternalSideEffect(e); err != nil {
+		return aiRecognitionRunContext{}, err
+	}
 	settings, err := currentUserSettings(app, e.Auth, nil)
 	if err != nil {
 		return aiRecognitionRunContext{}, e.BadRequestError(validationErrorMessage(locale, "notification.settingsInvalid", err), err)
@@ -254,6 +257,9 @@ func handleAIRecognitionTestConnection(app core.App, e *core.RequestEvent) error
 	locale := requestLocale(e.Request)
 	if e.Auth == nil {
 		return e.UnauthorizedError(serverText(locale, "auth.loginRequired"), nil)
+	}
+	if err := demoModePolicy.RejectExternalSideEffect(e); err != nil {
+		return err
 	}
 	body, err := decodeStrictJSON[aiRecognitionTestRequest](e.Request, locale)
 	if err != nil {

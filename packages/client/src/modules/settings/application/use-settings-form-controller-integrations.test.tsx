@@ -80,7 +80,8 @@ const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
   openWindow: vi.fn(),
   isCloudflareRuntime: false,
-  accountIdentity: { email: "alice@example.com" as string | null, role: "admin" },
+  accountIdentity: { email: "alice@example.com" as string | null, role: "admin", banned: false },
+  appStatus: { setupRequired: false, setupEnabled: true, demoMode: false, isLoading: false },
 }));
 
 vi.mock("@/hooks/use-toast", () => ({
@@ -96,6 +97,10 @@ vi.mock("@/hooks/use-settings", () => ({
   useUpdateSettings: () => ({
     mutateAsync: mocks.updateSettingsMutateAsync,
   }),
+}));
+
+vi.mock("@/hooks/use-setup-status", () => ({
+  useSetupStatus: () => mocks.appStatus,
 }));
 
 vi.mock("@/hooks/use-exchange-rates", () => ({
@@ -315,7 +320,8 @@ describe("useSettingsFormController integrations", () => {
     mocks.remoteSettings = BASE_SETTINGS;
     mocks.customConfig = DEFAULT_CUSTOM_CONFIG;
     mocks.isCloudflareRuntime = false;
-    mocks.accountIdentity = { email: "alice@example.com", role: "admin" };
+    mocks.accountIdentity = { email: "alice@example.com", role: "admin", banned: false };
+    mocks.appStatus = { setupRequired: false, setupEnabled: true, demoMode: false, isLoading: false };
     mocks.updateSettingsMutateAsync.mockImplementation(async (settings: AppSettings) => settings);
     mocks.saveConfig.mockImplementation(async (config: CustomConfig) => config);
     mocks.refreshRates.mockResolvedValue(undefined);

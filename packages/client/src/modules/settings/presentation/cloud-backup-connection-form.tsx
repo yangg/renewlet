@@ -26,6 +26,7 @@ interface CloudBackupConnectionFormProps {
   secretPlaceholder: string;
   onProviderChange: (provider: CloudBackupProvider) => void;
   onTextChange: (field: CloudBackupConnectionField, value: string) => void;
+  disabled?: boolean;
 }
 
 export function CloudBackupConnectionForm({
@@ -33,19 +34,26 @@ export function CloudBackupConnectionForm({
   secretPlaceholder,
   onProviderChange,
   onTextChange,
+  disabled = false,
 }: CloudBackupConnectionFormProps) {
   const { t } = useI18n();
 
   return (
     <div className="grid gap-4 border-t border-border pt-4">
       <SectionSubheader title={t("settings.cloudBackupConnection")} />
-      <Tabs value={form.provider} onValueChange={(value) => onProviderChange(value as CloudBackupProvider)} className="grid gap-4">
+      <Tabs
+        value={form.provider}
+        onValueChange={(value) => {
+          if (!disabled) onProviderChange(value as CloudBackupProvider);
+        }}
+        className="grid gap-4"
+      >
         <TabsList className="grid w-full grid-cols-2 sm:inline-flex sm:w-fit">
-          <TabsTrigger value="webdav" className="gap-2">
+          <TabsTrigger value="webdav" className="gap-2" disabled={disabled}>
             <Cloud className="h-4 w-4" />
             {t("settings.cloudBackupProviderWebdav")}
           </TabsTrigger>
-          <TabsTrigger value="s3" className="gap-2">
+          <TabsTrigger value="s3" className="gap-2" disabled={disabled}>
             <Database className="h-4 w-4" />
             {t("settings.cloudBackupProviderS3")}
           </TabsTrigger>
@@ -57,6 +65,7 @@ export function CloudBackupConnectionForm({
               <Input
                 id="cloudBackupWebdavUrl"
                 value={form.webdavUrl}
+                disabled={disabled}
                 onChange={(event) => onTextChange("webdavUrl", event.target.value)}
                 placeholder="https://dav.example.com/remote.php/dav/files/user"
                 className="h-9 border-border bg-background"
@@ -69,6 +78,7 @@ export function CloudBackupConnectionForm({
                 <Input
                   id="cloudBackupWebdavUsername"
                   value={form.webdavUsername}
+                  disabled={disabled}
                   onChange={(event) => onTextChange("webdavUsername", event.target.value)}
                   className="h-9 border-border bg-background"
                   autoComplete="username"
@@ -79,6 +89,7 @@ export function CloudBackupConnectionForm({
                   id="cloudBackupWebdavPassword"
                   type="password"
                   value={form.webdavPassword}
+                  disabled={disabled}
                   onChange={(event) => onTextChange("webdavPassword", event.target.value)}
                   placeholder={secretPlaceholder}
                   className="h-9 border-border bg-background"
@@ -90,6 +101,7 @@ export function CloudBackupConnectionForm({
               <Input
                 id="cloudBackupWebdavPath"
                 value={form.webdavPath}
+                disabled={disabled}
                 onChange={(event) => onTextChange("webdavPath", event.target.value)}
                 placeholder="renewlet"
                 className="h-9 border-border bg-background"
@@ -104,6 +116,7 @@ export function CloudBackupConnectionForm({
               <Input
                 id="cloudBackupS3Endpoint"
                 value={form.s3Endpoint}
+                disabled={disabled}
                 onChange={(event) => onTextChange("s3Endpoint", event.target.value)}
                 placeholder="https://<account>.r2.cloudflarestorage.com"
                 className="h-9 border-border bg-background"
@@ -116,6 +129,7 @@ export function CloudBackupConnectionForm({
                 <Input
                   id="cloudBackupS3Region"
                   value={form.s3Region}
+                  disabled={disabled}
                   onChange={(event) => onTextChange("s3Region", event.target.value)}
                   placeholder="auto"
                   className="h-9 border-border bg-background"
@@ -125,6 +139,7 @@ export function CloudBackupConnectionForm({
                 <Input
                   id="cloudBackupS3Bucket"
                   value={form.s3Bucket}
+                  disabled={disabled}
                   onChange={(event) => onTextChange("s3Bucket", event.target.value)}
                   className="h-9 border-border bg-background"
                 />
@@ -134,6 +149,7 @@ export function CloudBackupConnectionForm({
               <Input
                 id="cloudBackupS3Prefix"
                 value={form.s3Prefix}
+                disabled={disabled}
                 onChange={(event) => onTextChange("s3Prefix", event.target.value)}
                 placeholder="renewlet"
                 className="h-9 border-border bg-background"
@@ -144,6 +160,7 @@ export function CloudBackupConnectionForm({
                 <Input
                   id="cloudBackupS3AccessKey"
                   value={form.s3AccessKeyId}
+                  disabled={disabled}
                   onChange={(event) => onTextChange("s3AccessKeyId", event.target.value)}
                   className="h-9 border-border bg-background"
                   autoComplete="username"
@@ -154,6 +171,7 @@ export function CloudBackupConnectionForm({
                   id="cloudBackupS3Secret"
                   type="password"
                   value={form.s3SecretAccessKey}
+                  disabled={disabled}
                   onChange={(event) => onTextChange("s3SecretAccessKey", event.target.value)}
                   placeholder={secretPlaceholder}
                   className="h-9 border-border bg-background"

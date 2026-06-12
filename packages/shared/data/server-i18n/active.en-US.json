@@ -115,6 +115,7 @@
   "cloudBackup.snapshotInvalid": "Invalid cloud backup snapshot",
   "cloudBackup.testFailed": "Cloud backup connection test failed",
   "cloudBackup.webdavRequired": "WebDAV configuration is required",
+  "demo.operationDisabled": "Demo mode does not allow this operation.",
   "common.emptyBody": "Invalid request body",
   "common.internalError": "Internal server error",
   "common.invalidJson": "Invalid request body",

@@ -32,6 +32,7 @@ describe("Setup page", () => {
     mocks.useSetupStatus.mockReturnValue({
       setupRequired: true,
       setupEnabled: true,
+      demoMode: false,
       isLoading: false,
     });
   });

@@ -25,14 +25,13 @@ import { useExchangeRates } from "@/hooks/use-exchange-rates";
 import { useSettings, useUpdateSettings } from "@/hooks/use-settings";
 import { useSubscriptions } from "@/hooks/use-subscriptions";
 import { usePasswordResetAvailability } from "@/hooks/use-password-reset-availability";
+import { useSetupStatus } from "@/hooks/use-setup-status";
 import { useCalendarFeedStatus, useCreateCalendarFeed, useDeleteCalendarFeed } from "@/hooks/use-calendar-feed";
 import { useToast } from "@/hooks/use-toast";
 import { getDisplayErrorMessage } from "@/lib/display-error";
 import { applyThemeVariant } from "@/lib/theme-variant";
 import { openValidatedWebcalUrl } from "@/shared/browser/calendar-links";
 import {
-  readAppearancePendingFromStorage,
-  readSettingsAppearanceDraftFromStorage,
   clearSettingsAppearanceDraftFromStorage,
   writeAppearancePendingToStorage,
   writeCustomThemeColorToStorage,
@@ -53,6 +52,13 @@ import { useAccountIdentity } from "./use-account-email";
 import { useNotificationTest } from "./use-notification-test";
 import { usePasswordChange, type PasswordChangeController } from "./use-password-change";
 import {
+  areJsonSnapshotsEqual,
+  createDraftSettingsFromRemote,
+  createSavedSettingsBaseline,
+  EXTERNAL_INTEGRATION_SETTING_KEYS,
+  getExchangeRateProviderSaveErrorMessage,
+} from "./settings-form-controller-utils";
+import {
   usePublicStatusPageSettingsController,
   type SettingsPublicStatusPageController,
 } from "./use-public-status-page-settings-controller";
@@ -68,87 +74,6 @@ import {
 import { useI18n } from "@/i18n/I18nProvider";
 
 type UpdateSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
-
-function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function numericField(value: Record<string, unknown>, keys: string[]): number | null {
-  for (const key of keys) {
-    const candidate = value[key];
-    if (typeof candidate === "number") return candidate;
-  }
-  return null;
-}
-
-function stringField(value: Record<string, unknown>, keys: string[]): string | null {
-  for (const key of keys) {
-    const candidate = value[key];
-    if (typeof candidate === "string" && candidate.trim()) return candidate;
-  }
-  return null;
-}
-
-function isPocketBaseUpdateRecord400(error: unknown): boolean {
-  if (!isObjectRecord(error)) return false;
-
-  const response = isObjectRecord(error["response"]) ? error["response"] : null;
-  // PocketBase SDK/自定义 API 对错误对象包装不完全一致，因此这里从顶层和 response 双路径读取状态码。
-  const status = numericField(error, ["status", "statusCode"])
-    ?? (response ? numericField(response, ["status", "statusCode"]) : null);
-  if (status !== 400) return false;
-
-  const message = [
-    stringField(error, ["message", "detail", "error"]),
-    response ? stringField(response, ["message", "detail", "error"]) : null,
-  ].filter(Boolean).join(" ").toLowerCase();
-
-  return message.includes("failed to update record");
-}
-
-function getExchangeRateProviderSaveErrorMessage(error: unknown, t: ReturnType<typeof useI18n>["t"]) {
-  if (isPocketBaseUpdateRecord400(error)) {
-    return t("settings.exchangeRateProviderServerOutdated");
-  }
-  return getDisplayErrorMessage(error, t("settings.exchangeRateProviderSaveFailed"));
-}
-
-function areJsonSnapshotsEqual(left: unknown, right: unknown): boolean {
-  // settings/customConfig 都是由 schema 生成的稳定普通对象；用 JSON 快照比深比较依赖更轻量。
-  return JSON.stringify(left) === JSON.stringify(right);
-}
-
-function normalizeAccountRecipientEmail(accountEmail: string | null): string {
-  const email = (accountEmail ?? "").trim();
-  return email && email.includes("@") ? email : "";
-}
-
-function createDraftSettingsFromRemote(remoteSettings: AppSettings, accountEmail: string | null): AppSettings {
-  const recipientEmail = remoteSettings.recipientEmail.trim()
-    ? remoteSettings.recipientEmail
-    : normalizeAccountRecipientEmail(accountEmail);
-  const baseSettings: AppSettings = recipientEmail && recipientEmail !== remoteSettings.recipientEmail
-    ? { ...remoteSettings, recipientEmail }
-    : remoteSettings;
-
-  if (!readAppearancePendingFromStorage()) return baseSettings;
-  // Settings 外观草稿用独立 pending 存储恢复；不能读取 Header 的本机主题偏好，否则全局切换会污染表单 dirty。
-  const appearanceDraft = readSettingsAppearanceDraftFromStorage();
-  return {
-    ...baseSettings,
-    themeMode: appearanceDraft.themeMode ?? baseSettings.themeMode,
-    themeVariant: appearanceDraft.themeVariant ?? baseSettings.themeVariant,
-    themeCustomColor: appearanceDraft.themeCustomColor ?? baseSettings.themeCustomColor,
-  };
-}
-
-function createSavedSettingsBaseline(remoteSettings: AppSettings, draftSettings: AppSettings): AppSettings {
-  if (readAppearancePendingFromStorage()) return remoteSettings;
-  // 账号邮箱自动补全属于初始化默认值；只有外观 pending 草稿才应在进页时保留为未保存改动。
-  return draftSettings.recipientEmail !== remoteSettings.recipientEmail
-    ? { ...remoteSettings, recipientEmail: draftSettings.recipientEmail }
-    : remoteSettings;
-}
 
 interface SettingsSubscriptionsQuery {
   data: Subscription[] | undefined;
@@ -184,6 +109,7 @@ export interface SettingsFormController {
   settings: AppSettings;
   effectiveThemeMode: ThemeMode;
   accountEmail: string | null;
+  canManageUsers: boolean;
   canAccessPocketBaseAdmin: boolean;
   customConfig: CustomConfig;
   subscriptionsQuery: SettingsSubscriptionsQuery;
@@ -222,6 +148,7 @@ export interface SettingsFormController {
   publicStatusPage: SettingsPublicStatusPageController;
   password: PasswordChangeController;
   passwordResetEnabled: boolean;
+  externalIntegrationsDisabled: boolean;
 }
 
 /**
@@ -241,6 +168,7 @@ export function useSettingsFormController(): SettingsFormController {
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const accountIdentity = useAccountIdentity();
   const accountEmail = accountIdentity.email;
+  const canManageUsers = accountIdentity.role === "admin" && !accountIdentity.banned;
   const { data: remoteSettings } = useSettings();
   const subscriptionsQuery = useSubscriptions();
   const updateSettings = useUpdateSettings();
@@ -257,6 +185,8 @@ export function useSettingsFormController(): SettingsFormController {
   } = useExchangeRates(savedSettings.exchangeRateProvider);
   const { toast } = useToast();
   const { t, setLocale } = useI18n();
+  const appStatus = useSetupStatus();
+  const externalIntegrationsDisabled = appStatus.isLoading || appStatus.demoMode;
   const password = usePasswordChange();
   const passwordResetEnabled = usePasswordResetAvailability();
   const notificationTest = useNotificationTest(settings);
@@ -304,10 +234,11 @@ export function useSettingsFormController(): SettingsFormController {
   useEffect(() => {
     if (!remoteSettings) return;
     // 收件人邮箱默认值必须和远端 settings 同步在同一条 effect 里生成，避免 Cloudflare session 先恢复时被下一轮远端草稿覆盖。
-    const shouldDefaultRecipientEmail = !hasResolvedDefaultRecipientEmailRef.current;
+    const shouldDefaultRecipientEmail = !externalIntegrationsDisabled && !hasResolvedDefaultRecipientEmailRef.current;
     const nextDraft = createDraftSettingsFromRemote(
       remoteSettings,
       shouldDefaultRecipientEmail ? accountEmail : null,
+      shouldDefaultRecipientEmail,
     );
     const nextSavedSettings = createSavedSettingsBaseline(remoteSettings, nextDraft);
     const hasResolvedRecipientEmail = Boolean(nextDraft.recipientEmail.trim());
@@ -329,7 +260,7 @@ export function useSettingsFormController(): SettingsFormController {
     } else if (remoteSettings.recipientEmail.trim()) {
       hasResolvedDefaultRecipientEmailRef.current = true;
     }
-  }, [accountEmail, remoteSettings]);
+  }, [accountEmail, externalIntegrationsDisabled, remoteSettings]);
 
   useEffect(() => {
     const normalized = normalizeCustomConfig(persistedCustomConfig);
@@ -348,8 +279,10 @@ export function useSettingsFormController(): SettingsFormController {
   }, [hasInitializedCustomConfig, persistedCustomConfig]);
 
   const updateSetting = useCallback(<K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
+    // Demo 置灰只是体验层；controller 也阻止本地草稿改动外部集成字段，真正安全边界仍在后端 route/hook。
+    if (externalIntegrationsDisabled && EXTERNAL_INTEGRATION_SETTING_KEYS.has(key)) return;
     setSettings((prev) => ({ ...prev, [key]: value }));
-  }, []);
+  }, [externalIntegrationsDisabled]);
 
   const handleMonthlyBudgetInputChange = useCallback(
     (rawValue: string) => {
@@ -372,13 +305,14 @@ export function useSettingsFormController(): SettingsFormController {
   );
 
   const toggleChannel = useCallback((channel: NotificationChannel) => {
+    if (externalIntegrationsDisabled) return;
     setSettings((prev) => ({
       ...prev,
       enabledChannels: prev.enabledChannels.includes(channel)
         ? prev.enabledChannels.filter((c) => c !== channel)
         : [...prev.enabledChannels, channel],
     }));
-  }, []);
+  }, [externalIntegrationsDisabled]);
 
   const updateCategories = useCallback((items: ConfigItem[]) => {
     setCustomConfig((prev) => ({ ...prev, categories: items }));
@@ -711,11 +645,20 @@ export function useSettingsFormController(): SettingsFormController {
     [effectiveThemeMode, settings.themeVariant],
   );
 
+  const handleTestConnection = useCallback(
+    (channel: NotificationChannel) => {
+      if (externalIntegrationsDisabled) return;
+      return notificationTest.testConnection(channel);
+    },
+    [externalIntegrationsDisabled, notificationTest],
+  );
+
   return {
     settings,
     effectiveThemeMode,
     accountEmail,
-    canAccessPocketBaseAdmin: accountIdentity.role === "admin" && !isCloudflareRuntime,
+    canManageUsers,
+    canAccessPocketBaseAdmin: canManageUsers && !isCloudflareRuntime,
     customConfig,
     subscriptionsQuery,
     categoryUsageCount,
@@ -746,7 +689,7 @@ export function useSettingsFormController(): SettingsFormController {
     handleThemeVariantChange,
     handleThemeCustomColorChange,
     testingChannel: notificationTest.testingChannel,
-    handleTestConnection: notificationTest.testConnection,
+    handleTestConnection,
     notificationHistory,
     calendarFeed: {
       data: calendarFeedStatus.data,
@@ -764,5 +707,6 @@ export function useSettingsFormController(): SettingsFormController {
     publicStatusPage,
     password,
     passwordResetEnabled,
+    externalIntegrationsDisabled,
   };
 }

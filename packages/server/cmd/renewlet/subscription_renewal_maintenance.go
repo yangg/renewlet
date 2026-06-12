@@ -57,6 +57,10 @@ func renewAutoSubscriptionsForAllUsers(app core.App, now time.Time) (subscriptio
 			return result, err
 		}
 		for _, user := range users {
+			if demoModePolicy.IsUserRecord(user) {
+				// demo 数据靠固定 reset 周期回到基线；自动续订会让访客看到的日期随后台 tick 漂移。
+				continue
+			}
 			settings, err := currentUserSettings(app, user, nil)
 			if err != nil {
 				// settings 损坏不能让该用户永久跳过自动续订；回落默认时区后仍按持久层校验保存。
@@ -77,6 +81,10 @@ func renewAutoSubscriptionsForAllUsers(app core.App, now time.Time) (subscriptio
 
 func renewAutoSubscriptionsForUser(app core.App, userID string, timezone string, now time.Time) (int, error) {
 	if userID == "" {
+		return 0, nil
+	}
+	if demoModePolicy.IsUserID(app, userID) {
+		// 手动通知概览也会调用该 helper；这里统一跳过，避免 demo 只读预览路径产生写库副作用。
 		return 0, nil
 	}
 	today := todayDateOnly(now, timezone)

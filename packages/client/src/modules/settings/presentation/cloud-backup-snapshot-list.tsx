@@ -16,6 +16,7 @@ interface CloudBackupSnapshotListProps {
   snapshots: CloudBackupSnapshot[];
   isLoading: boolean;
   busy: boolean;
+  disabled?: boolean;
   restoringSnapshotKey: string | null;
   deletingSnapshotKey: string | null;
   canRefreshSnapshots: boolean;
@@ -31,6 +32,7 @@ export function CloudBackupSnapshotList({
   snapshots,
   isLoading,
   busy,
+  disabled = false,
   restoringSnapshotKey,
   deletingSnapshotKey,
   canRefreshSnapshots,
@@ -49,7 +51,7 @@ export function CloudBackupSnapshotList({
   const title = t("settings.cloudBackupSnapshots");
   const description = t("settings.cloudBackupSnapshotsHelp");
   const refreshLabel = t("settings.cloudBackupRefresh");
-  const refreshDisabled = busy || isRefreshingSnapshots || !canRefreshSnapshots;
+  const refreshDisabled = disabled || busy || isRefreshingSnapshots || !canRefreshSnapshots;
   const shouldRenderFullListOverlay = fullListOpen && !isLoading && (snapshots.length > 0 || snapshotsErrorMessage);
   const rowLabels = {
     restore: t("settings.cloudBackupRestore"),
@@ -89,7 +91,7 @@ export function CloudBackupSnapshotList({
           {/* 设置页只保留最近快照作为操作摘要；完整列表放进用户主动打开的二级界面，避免 provider 切换和大量快照重排整页。 */}
           <SnapshotRows
             snapshots={summarySnapshots}
-            busy={busy}
+            busy={disabled || busy}
             restoringSnapshotKey={restoringSnapshotKey}
             deletingSnapshotKey={deletingSnapshotKey}
             rowLabels={rowLabels}
@@ -120,6 +122,7 @@ export function CloudBackupSnapshotList({
           snapshots={snapshots}
           snapshotsErrorMessage={snapshotsErrorMessage}
           busy={busy}
+          disabled={disabled}
           restoringSnapshotKey={restoringSnapshotKey}
           deletingSnapshotKey={deletingSnapshotKey}
           rowLabels={rowLabels}
@@ -192,6 +195,7 @@ interface CloudBackupSnapshotListOverlayProps extends SnapshotRowsProps {
   refreshDisabled: boolean;
   isRefreshing: boolean;
   snapshotsErrorMessage: string | null;
+  disabled: boolean;
   onRefresh: () => void | Promise<void>;
   onOpenErrorDetails: () => void;
 }
@@ -208,6 +212,7 @@ function CloudBackupSnapshotListOverlay({
   isRefreshing,
   snapshots,
   snapshotsErrorMessage,
+  disabled,
   busy,
   restoringSnapshotKey,
   deletingSnapshotKey,
@@ -225,7 +230,7 @@ function CloudBackupSnapshotListOverlay({
       ) : (
         <SnapshotRows
           snapshots={snapshots}
-          busy={busy}
+          busy={disabled || busy}
           restoringSnapshotKey={restoringSnapshotKey}
           deletingSnapshotKey={deletingSnapshotKey}
           rowLabels={rowLabels}

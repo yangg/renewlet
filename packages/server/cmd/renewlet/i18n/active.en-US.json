@@ -125,6 +125,7 @@
   "common.notFound": "Not found",
   "common.requestBodyTooLarge": "Request body is too large",
   "common.requiredField": "{label} is required",
+  "demo.operationDisabled": "Demo mode does not allow this operation.",
   "email.billingDate": "Billing date",
   "email.brandTagline": "Notifications",
   "email.ctaOpenSettings": "Open notification settings",

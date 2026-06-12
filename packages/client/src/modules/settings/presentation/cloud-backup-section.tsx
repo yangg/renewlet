@@ -25,6 +25,7 @@ interface CloudBackupSectionProps {
   id?: string;
   className?: string;
   controller: CloudBackupController;
+  disabled?: boolean;
 }
 
 type CloudBackupStatus = "idle" | "success" | "failed";
@@ -34,6 +35,7 @@ export function CloudBackupSection({
   id,
   className,
   controller,
+  disabled = false,
 }: CloudBackupSectionProps) {
   const { t, formatDateTime } = useI18n();
   const [deleteTarget, setDeleteTarget] = useState<CloudBackupSnapshot | null>(null);
@@ -100,6 +102,7 @@ export function CloudBackupSection({
         <CloudBackupConnectionForm
           form={form}
           secretPlaceholder={secretPlaceholder}
+          disabled={disabled}
           onProviderChange={(provider) => updateForm("provider", provider)}
           onTextChange={(field: CloudBackupConnectionField, value) => updateForm(field, value)}
         />
@@ -110,6 +113,7 @@ export function CloudBackupSection({
           scheduleWeekday={form.scheduleWeekday}
           retention={form.retention}
           busy={busy}
+          disabled={disabled}
           onScheduleEnabledChange={(checked) => updateForm("scheduleEnabled", checked)}
           onFrequencyChange={(frequency) => updateForm("scheduleFrequency", frequency)}
           onScheduleTimeChange={(value) => updateForm("scheduleTime", value)}
@@ -124,6 +128,7 @@ export function CloudBackupSection({
           lastError={providerStatus?.lastError ?? null}
           saveLabel={saveLabel}
           busy={busy}
+          disabled={disabled}
           canCreateSnapshot={canCreateSnapshot}
           isSaving={isSaving}
           isTesting={isTesting}
@@ -136,6 +141,7 @@ export function CloudBackupSection({
           snapshots={snapshots}
           isLoading={isLoading}
           busy={busy}
+          disabled={disabled}
           restoringSnapshotKey={restoringSnapshotKey}
           deletingSnapshotKey={deletingSnapshotKey}
           canRefreshSnapshots={canCreateSnapshot}
@@ -157,12 +163,13 @@ export function CloudBackupSection({
             <AlertDialogDescription>{t("settings.cloudBackupDeleteDescription")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteDialogBusy}>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogCancel disabled={disabled || deleteDialogBusy}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
-              disabled={deleteDialogBusy}
+              disabled={disabled || deleteDialogBusy}
               aria-busy={deleteDialogBusy ? true : undefined}
               onClick={(event) => {
                 event.preventDefault();
+                if (disabled) return;
                 const snapshot = deleteTarget;
                 if (!snapshot) return;
                 void deleteSnapshot(snapshot).finally(() => setDeleteTarget(null));

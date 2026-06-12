@@ -77,6 +77,14 @@ http://localhost:3000/setup
 
 创建第一个管理员用户。部署脚本会生成 `docker-compose.yml`、`.env` 和 `data/`，并自动写入 `PB_ENCRYPTION_KEY` 与 `CRON_SECRET`。
 
+如果要部署公开演示实例，只需要在 `.env` 里设置：
+
+```env
+RENEWLET_DEMO_MODE="true"
+```
+
+Demo Mode 使用同一套 Docker 镜像、Compose 和登录页。访客用 `demo@renewlet.local` / `renewlet-demo` 登录；服务启动时会重置 demo 数据，之后每 2 小时自动重置一次，并会禁用初始化入口和真实外部副作用。
+
 如果 Docker Hub 拉取不可用，把 `.env` 里的镜像切到 GHCR：
 
 ```env
@@ -140,6 +148,7 @@ docker compose down
 | `TZ` | 容器时区，主要影响日志；提醒时间按用户设置的时区计算。 |
 | `PB_ENCRYPTION_KEY` | PocketBase 敏感设置加密密钥，部署后不要随意更换。 |
 | `CRON_SECRET` | 外部 Cron 调用 `/api/cron/notifications` 时使用的 Bearer 密钥。 |
+| `RENEWLET_DEMO_MODE` | Docker Demo Mode 开关，默认 `false`。 |
 | `NOTIFICATION_SCHEDULER_ENABLED` | 是否启用内置通知调度器，默认 `true`。 |
 
 完整 Docker 环境变量模板见 `.env.example`。

@@ -306,6 +306,10 @@ func processNotificationCronUser(app core.App, options notificationCronOptions, 
 	if userID == "" {
 		return notificationCronUserResult{Action: "skipped", Reason: "missing_user"}, nil
 	}
+	if demoModePolicy.IsUserID(app, userID) {
+		// demo 账号允许浏览通知概览，但 cron 不能代表访客向真实渠道发送消息或写入历史扰动。
+		return notificationCronUserResult{UserID: userID, Action: "skipped", Reason: "demo_user"}, nil
+	}
 	settings := settingsFromRecord(row)
 	// 通知内容生成前先做一次幂等续订维护，避免自动续订项刚过期就被同一轮 cron 当成 expired 通知。
 	if _, err := renewAutoSubscriptionsForUser(app, userID, settings.Timezone, options.Now); err != nil {

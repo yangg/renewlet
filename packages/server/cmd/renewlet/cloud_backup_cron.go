@@ -60,6 +60,10 @@ func runDueCloudBackups(app core.App, now time.Time) error {
 				markCloudBackupStatus(app, userID, target.Provider, cloudBackupStatusFailed, "CLOUD_BACKUP_USER_UNAVAILABLE")
 				continue
 			}
+			if demoModePolicy.IsUserRecord(user) {
+				// UI 已禁止 demo 配置云备份；cron 仍要防历史残留配置被后台 tick 上传到真实远端。
+				continue
+			}
 			settings, err := currentUserSettings(app, user, nil)
 			if err != nil {
 				settings = defaultAppSettings()

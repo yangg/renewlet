@@ -392,13 +392,7 @@ func newCalendarFeedToken() (string, error) {
 }
 
 func calendarFeedURL(request *http.Request, token string) string {
-	u := url.URL{
-		Scheme: externalRequestProto(request),
-		Host:   request.Host,
-		Path:   "/calendar/renewals.ics",
-	}
-	u.RawQuery = url.Values{"token": []string{token}}.Encode()
-	return u.String()
+	return externalRequestURL(request, "/calendar/renewals.ics", url.Values{"token": []string{token}})
 }
 
 func listCalendarFeedSubscriptions(app core.App, userID string) ([]calendarFeedSubscription, error) {

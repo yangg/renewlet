@@ -63,6 +63,9 @@ func main() {
 	if err := registerCloudBackupCron(app); err != nil {
 		log.Fatal(err)
 	}
+	if err := registerDemoResetCron(app); err != nil {
+		log.Fatal(err)
+	}
 	// Record hook 必须早于 Serve route 注册，这样 API、SDK 和管理后台写入都能共享同一套持久层校验。
 	registerRecordHooks(app)
 
@@ -73,7 +76,10 @@ func main() {
 		if err := e.App.RunAppMigrations(); err != nil {
 			return err
 		}
-		return ensureSchema(e.App)
+		if err := ensureSchema(e.App); err != nil {
+			return err
+		}
+		return ensureDemoMode(e.App)
 	})
 
 	registerAuthHooks(app)
@@ -194,39 +200,4 @@ func staticImageSources(request *http.Request) string {
 		return "https:"
 	}
 	return "http: https:"
-}
-
-func externalRequestProto(request *http.Request) string {
-	if proto := forwardedProto(request.Header.Get("Forwarded")); proto != "" {
-		return proto
-	}
-	if proto := strings.TrimSpace(request.Header.Get("X-Forwarded-Proto")); proto != "" {
-		if comma := strings.Index(proto, ","); comma >= 0 {
-			proto = proto[:comma]
-		}
-		proto = strings.ToLower(strings.TrimSpace(proto))
-		if proto == "http" || proto == "https" {
-			return proto
-		}
-	}
-	if request.TLS != nil {
-		return "https"
-	}
-	return "http"
-}
-
-func forwardedProto(value string) string {
-	for _, forwardedValue := range strings.Split(value, ",") {
-		for _, part := range strings.Split(forwardedValue, ";") {
-			pair := strings.SplitN(strings.TrimSpace(part), "=", 2)
-			if len(pair) != 2 || !strings.EqualFold(strings.TrimSpace(pair[0]), "proto") {
-				continue
-			}
-			proto := strings.ToLower(strings.Trim(strings.TrimSpace(pair[1]), `"`))
-			if proto == "http" || proto == "https" {
-				return proto
-			}
-		}
-	}
-	return ""
 }

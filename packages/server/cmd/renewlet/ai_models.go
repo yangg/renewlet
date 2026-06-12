@@ -119,6 +119,9 @@ func handleAIModelsList(app core.App, e *core.RequestEvent) error {
 	if e.Auth == nil {
 		return e.UnauthorizedError(serverText(locale, "auth.loginRequired"), nil)
 	}
+	if err := demoModePolicy.RejectExternalSideEffect(e); err != nil {
+		return err
+	}
 	// 请求体携带临时 provider 配置，必须保持严格 JSON，避免未知字段变成隐式模型代理配置。
 	body, err := decodeStrictJSON[aiModelListRequest](e.Request, locale)
 	if err != nil {

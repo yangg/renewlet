@@ -694,6 +694,36 @@ describe("CloudBackupSection", () => {
     expect(screen.getByText("备份中...")).toBeInTheDocument();
   });
 
+  it("disables cloud backup inputs and remote actions when requested", () => {
+    const snapshot = snapshotFixture({
+      id: "disabled-snapshot-id",
+      filename: "renewlet-disabled.zip",
+      sha256: "a".repeat(64),
+    });
+
+    render(<CloudBackupSection
+      controller={createController({
+        credentialSet: true,
+        canCreateSnapshot: true,
+        snapshots: [snapshot],
+      })}
+      disabled
+    />);
+
+    expect(screen.getByRole("tab", { name: "WebDAV" })).toBeDisabled();
+    expect(screen.getByLabelText("WebDAV 地址")).toBeDisabled();
+    expect(screen.getByLabelText("用户名")).toBeDisabled();
+    expect(screen.getByLabelText("密码")).toBeDisabled();
+    expect(screen.getByLabelText("定时自动备份")).toBeDisabled();
+    expect(screen.getByLabelText("保留数量")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "保存配置" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "测试连接" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "立即备份" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "刷新" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "恢复" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "删除" })).toBeDisabled();
+  });
+
   it("shows upstream response details for snapshot list failures", async () => {
     const user = userEvent.setup();
     const writeText = vi.fn(async () => undefined);

@@ -20,6 +20,7 @@ import { requireAuth } from "./auth";
 import { HttpError, json, ok, readJson, requestLocale } from "./http";
 import { serverFormat, serverText } from "./server-i18n";
 import { calendarFeedBuiltInCategoryLabelKey, calendarFeedBuiltInPaymentMethodLabelKey } from "./calendar-feed-built-in-labels";
+import { requestOrigin } from "./request-origin";
 import type { CalendarFeedRow, Env } from "./types";
 
 type CalendarFeedScope = CalendarFeedRow["scope"];
@@ -355,8 +356,7 @@ function calendarFeedStatus(row: CalendarFeedRow | null, request: Request) {
 }
 
 function calendarFeedUrl(request: Request, token: string): string {
-  const url = new URL(request.url);
-  return `${url.origin}/calendar/renewals.ics?token=${encodeURIComponent(token)}`;
+  return `${requestOrigin(request)}/calendar/renewals.ics?token=${encodeURIComponent(token)}`;
 }
 
 function calendarEvents(

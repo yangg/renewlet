@@ -13,6 +13,7 @@ interface CloudBackupActionsPanelProps {
   lastError?: string | null;
   saveLabel: string;
   busy: boolean;
+  disabled?: boolean;
   canCreateSnapshot: boolean;
   isSaving: boolean;
   isTesting: boolean;
@@ -30,6 +31,7 @@ export function CloudBackupActionsPanel({
   lastError,
   saveLabel,
   busy,
+  disabled = false,
   canCreateSnapshot,
   isSaving,
   isTesting,
@@ -63,7 +65,7 @@ export function CloudBackupActionsPanel({
           size="sm"
           className="h-9 w-full justify-center gap-2 sm:w-auto"
           onClick={() => void onSave()}
-          disabled={busy}
+          disabled={disabled || busy}
           aria-busy={isSaving ? true : undefined}
           aria-label={saveLabel}
         >
@@ -78,7 +80,7 @@ export function CloudBackupActionsPanel({
           size="sm"
           className="h-9 w-full justify-center gap-2 border-border sm:w-auto"
           onClick={() => void onTest()}
-          disabled={busy}
+          disabled={disabled || busy}
           aria-busy={isTesting ? true : undefined}
           aria-label={t("settings.cloudBackupTest")}
         >
@@ -93,7 +95,7 @@ export function CloudBackupActionsPanel({
           size="sm"
           className="h-9 w-full justify-center gap-2 border-border sm:w-auto"
           onClick={() => void onCreate()}
-          disabled={busy || !canCreateSnapshot}
+          disabled={disabled || busy || !canCreateSnapshot}
           aria-busy={isCreating ? true : undefined}
           aria-label={t("settings.cloudBackupCreateNow")}
         >

@@ -9,7 +9,6 @@ package main
 import (
 	"database/sql"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -250,21 +249,11 @@ func publicStatusPageStatusFromRecord(request *http.Request, record *core.Record
 }
 
 func publicStatusPageURL(request *http.Request, token string) string {
-	u := url.URL{
-		Scheme: externalRequestProto(request),
-		Host:   request.Host,
-		Path:   "/status/" + token,
-	}
-	return u.String()
+	return externalRequestURL(request, "/status/"+token, nil)
 }
 
 func publicStatusAssetURL(request *http.Request, token string, assetID string) string {
-	u := url.URL{
-		Scheme: externalRequestProto(request),
-		Host:   request.Host,
-		Path:   "/api/public/status/" + token + "/assets/" + assetID,
-	}
-	return u.String()
+	return externalRequestURL(request, "/api/public/status/"+token+"/assets/"+assetID, nil)
 }
 
 func buildPublicStatusResponse(app core.App, request *http.Request, page *core.Record) (publicStatusResponse, error) {
