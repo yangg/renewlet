@@ -308,6 +308,19 @@ pnpm cloudflare:config:ci
 pnpm exec wrangler d1 migrations apply DB --remote --config wrangler.generated.jsonc
 ```
 
+**ServerChan test notifications return HTTP 429?**
+
+This is ServerChan rejecting the request. The official ServerChan FAQ says `429` means the source IP exceeded the API call limit within 24 hours, and the fix is to stop calling the API and try again after 24 hours.
+
+When Renewlet runs on Cloudflare Workers, the ServerChan request is sent by the Worker. ServerChan counts the source IP that reaches ServerChan from the Worker egress path. The real cause is that this Cloudflare egress source IP has hit ServerChan's 24-hour limit; it is not a Renewlet notification payload format error.
+
+Use these fixes:
+
+- Stop repeated tests immediately, then try again after 24 hours.
+- If notifications are urgent, switch to SMTP, Telegram, Bark, or Webhook first.
+- If you use a ServerChan³ SendKey, prefer the [official ServerChan³ API endpoint](https://doc2.ft07.com/zh/serverchan3/server/api). [SCT forwarding](https://doc2.ft07.com/zh/serverchan3/compatibility/sct-forward) is only an official temporary compatibility path, not the long-term best path.
+- Do not route this through a public proxy to bypass the limit. Your SendKey would pass through that proxy, which means handing the notification secret to it.
+
 **Old `pb_data`?**
 
 Use a separate export/import flow.
