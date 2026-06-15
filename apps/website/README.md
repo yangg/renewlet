@@ -32,16 +32,23 @@ pnpm --filter @renewlet/website test:e2e
 2. `Build and deployment` 的 source 选择 `GitHub Actions`。
 3. 推送到 `main`，或手动运行 `Website Pages` workflow。
 
-workflow 会设置 `GITHUB_PAGES=true`，Vite `base` 会变成 `/renewlet/`，用于 `https://<user>.github.io/renewlet/` 这类仓库页路径。
+workflow 会先运行 `actions/configure-pages`，再把 GitHub Pages 当前配置里的 `base_url` 和 `base_path` 交给 Vite。自定义域会构建成根路径资源，默认仓库页会构建成仓库子路径资源。
 
-本地模拟仓库页构建：
+本地模拟自定义域构建：
 
 ```bash
-GITHUB_PAGES=true pnpm --filter @renewlet/website build
+RENEWLET_WEBSITE_BASE_URL=https://renewlet.olyq.org RENEWLET_WEBSITE_BASE_PATH= pnpm --filter @renewlet/website build
 pnpm --filter @renewlet/website preview
 ```
 
-如果后续绑定自定义域名并部署在域名根路径，需要把 `apps/website/vite.config.ts` 的 base 策略改成 `/`，或在 workflow 中区分自定义域名和仓库页。
+本地模拟默认仓库页构建：
+
+```bash
+RENEWLET_WEBSITE_BASE_URL=https://zhiyingzzhou.github.io/renewlet RENEWLET_WEBSITE_BASE_PATH=/renewlet pnpm --filter @renewlet/website build
+pnpm --filter @renewlet/website preview
+```
+
+`apps/website/vite.config.ts` 不判断部署平台名称，只消费 Pages 当前发布 URL；切换自定义域或默认域名后重新运行 workflow 即可得到匹配的资源路径。
 
 ## Cloudflare Pages
 
@@ -98,7 +105,7 @@ NGINX 配置在 `apps/website/nginx.conf`：
 
 ## 常见问题
 
-- GitHub Pages 页面空白或资源 404：确认 workflow 构建时设置了 `GITHUB_PAGES=true`。
-- Cloudflare Pages 资源 404：确认没有设置 `GITHUB_PAGES=true`。
+- GitHub Pages 页面空白或资源 404：确认 workflow 里的 `actions/configure-pages` 输出了符合当前 Pages 设置的 `base_url` 和 `base_path`。
+- Cloudflare Pages 资源 404：确认没有设置 `RENEWLET_WEBSITE_BASE_PATH=/renewlet` 这类 GitHub Pages 仓库子路径。
 - Docker 深链刷新 404：确认镜像使用 `apps/website/nginx.conf`，并且 `location /` fallback 到 `/index.html`。
 - 修改截图或字体后仍看到旧资源：重新构建并清理部署平台缓存。
