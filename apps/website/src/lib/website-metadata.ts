@@ -21,6 +21,9 @@ function normalizeBaseUrl(rawBaseUrl: string | undefined) {
   const candidate = rawBaseUrl?.trim() || LOCAL_PREVIEW_BASE_URL
   const url = new URL(candidate)
 
+  if (url.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) {
+    url.protocol = 'https:'
+  }
   url.hash = ''
   url.search = ''
   return url.toString().replace(/\/+$/, '')
