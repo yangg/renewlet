@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -19,46 +20,40 @@ import (
 )
 
 type fakeSystemReleaseClient struct {
-	release     *githubRelease
-	releases    [][]githubRelease
+	release     *systemRelease
+	releases    []systemRelease
 	fetchDelay  time.Duration
 	fetchCount  int32
-	latestCount int32
-	listCount   int32
+	probeCount  int32
 	downloadFn  func(targetPath string) error
 	checksumTxt []byte
+	probeAssets []systemReleaseAsset
 }
 
-func (client *fakeSystemReleaseClient) FetchLatestRelease(ctx context.Context) (*githubRelease, error) {
+func (client *fakeSystemReleaseClient) FetchReleases(ctx context.Context) ([]systemRelease, error) {
 	atomic.AddInt32(&client.fetchCount, 1)
-	atomic.AddInt32(&client.latestCount, 1)
 	if client.fetchDelay > 0 {
 		select {
 		case <-time.After(client.fetchDelay):
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
+	}
+	if client.releases != nil {
+		return append([]systemRelease(nil), client.releases...), nil
 	}
 	if client.release == nil {
 		return nil, errors.New("missing release")
 	}
-	return client.release, nil
+	return []systemRelease{*client.release}, nil
 }
 
-func (client *fakeSystemReleaseClient) FetchReleases(ctx context.Context, page int, _ int) ([]githubRelease, error) {
-	atomic.AddInt32(&client.fetchCount, 1)
-	atomic.AddInt32(&client.listCount, 1)
-	if client.fetchDelay > 0 {
-		select {
-		case <-time.After(client.fetchDelay):
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
+func (client *fakeSystemReleaseClient) ProbeReleaseAssets(_ context.Context, _ string, _ string) []systemReleaseAsset {
+	atomic.AddInt32(&client.probeCount, 1)
+	if client.probeAssets != nil {
+		return append([]systemReleaseAsset(nil), client.probeAssets...)
 	}
-	if page <= 0 || page > len(client.releases) {
-		return []githubRelease{}, nil
-	}
-	return client.releases[page-1], nil
+	return nil
 }
 
 func (client *fakeSystemReleaseClient) DownloadFile(_ context.Context, _ string, targetPath string, _ int64) error {
@@ -120,7 +115,7 @@ func TestSystemRCVersionComparison(t *testing.T) {
 
 func TestSelectSystemUpdateAssets(t *testing.T) {
 	archiveName := systemArchiveName("1.2.3")
-	archive, checksum, err := selectSystemUpdateAssets([]githubAsset{
+	archive, checksum, err := selectSystemUpdateAssets([]systemReleaseAsset{
 		{Name: archiveName, BrowserDownloadURL: "https://github.com/zhiyingzzhou/renewlet/releases/download/v1.2.3/" + archiveName},
 		{Name: "checksums.txt", BrowserDownloadURL: "https://github.com/zhiyingzzhou/renewlet/releases/download/v1.2.3/checksums.txt"},
 	}, "1.2.3")
@@ -132,83 +127,143 @@ func TestSelectSystemUpdateAssets(t *testing.T) {
 	}
 }
 
-func TestGitHubReleaseRequestUsesVersionedAPIHeadersAndOptionalToken(t *testing.T) {
-	t.Setenv(systemUpdateGitHubTokenEnv, "ghp_test")
+func TestSystemReleaseAssetProbeUsesDeterministicReleaseURLs(t *testing.T) {
+	archiveName := systemArchiveName("1.2.3")
+	seen := map[string]*http.Request{}
+	client := &httpSystemReleaseClient{
+		downloadClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			seen[request.URL.Path] = request
+			if request.Method != http.MethodHead {
+				t.Fatalf("method = %s, want HEAD", request.Method)
+			}
+			if got := request.Header.Get("Authorization"); got != "" {
+				t.Fatalf("Authorization = %q", got)
+			}
+			status := http.StatusOK
+			size := int64(123)
+			if strings.HasSuffix(request.URL.Path, "/checksums.txt") {
+				size = 45
+			}
+			return &http.Response{
+				StatusCode:    status,
+				Status:        "200 OK",
+				Header:        make(http.Header),
+				ContentLength: size,
+				Body:          io.NopCloser(strings.NewReader("")),
+				Request:       request,
+			}, nil
+		})},
+	}
+
+	assets := client.ProbeReleaseAssets(context.Background(), "v1.2.3", "1.2.3")
+	if len(assets) != 2 {
+		t.Fatalf("assets = %#v, want 2 assets", assets)
+	}
+	if assets[0].Name != archiveName || assets[0].Size != 123 {
+		t.Fatalf("archive asset = %#v", assets[0])
+	}
+	if assets[1].Name != "checksums.txt" || assets[1].Size != 45 {
+		t.Fatalf("checksum asset = %#v", assets[1])
+	}
+	if seen["/zhiyingzzhou/renewlet/releases/download/v1.2.3/"+archiveName] == nil || seen["/zhiyingzzhou/renewlet/releases/download/v1.2.3/checksums.txt"] == nil {
+		t.Fatalf("unexpected probed paths: %#v", seen)
+	}
+}
+
+func TestSystemReleaseAssetProbeOmitsMissingAssets(t *testing.T) {
+	client := &httpSystemReleaseClient{
+		downloadClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			status := http.StatusOK
+			if strings.HasSuffix(request.URL.Path, "/checksums.txt") {
+				status = http.StatusNotFound
+			}
+			return &http.Response{
+				StatusCode: status,
+				Status:     fmt.Sprintf("%d", status),
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader("")),
+				Request:    request,
+			}, nil
+		})},
+	}
+
+	assets := client.ProbeReleaseAssets(context.Background(), "v1.2.3", "1.2.3")
+	if len(assets) != 1 || assets[0].Name != systemArchiveName("1.2.3") {
+		t.Fatalf("assets = %#v, want only archive asset", assets)
+	}
+}
+
+func TestGitHubReleaseFeedRequestUsesAtomWithoutAuthorization(t *testing.T) {
 	var captured *http.Request
 	client := &httpSystemReleaseClient{
-		apiClient: &http.Client{
+		metadataClient: &http.Client{
 			Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 				captured = request
 				return &http.Response{
 					StatusCode: http.StatusOK,
 					Status:     "200 OK",
 					Header:     make(http.Header),
-					Body: io.NopCloser(strings.NewReader(`{
-						"tag_name":"v1.2.3",
-						"name":"Renewlet 1.2.3",
-						"body":"",
-						"published_at":"2026-05-27T00:00:00Z",
-						"html_url":"https://github.com/zhiyingzzhou/renewlet/releases/tag/v1.2.3",
-						"prerelease":false,
-						"draft":false,
-						"assets":[]
-					}`)),
+					Body:       io.NopCloser(strings.NewReader(systemReleaseAtomFixture("v1.2.3", "2026-05-27T00:00:00Z"))),
 				}, nil
 			}),
 		},
 	}
-	if _, err := client.FetchLatestRelease(context.Background()); err != nil {
+	releases, err := client.FetchReleases(context.Background())
+	if err != nil {
 		t.Fatal(err)
 	}
 	if captured == nil {
 		t.Fatal("expected request to be captured")
 	}
-	if got := captured.Header.Get("Accept"); got != "application/vnd.github+json" {
+	if captured.URL.Host != "github.com" || captured.URL.Path != "/zhiyingzzhou/renewlet/releases.atom" {
+		t.Fatalf("request URL = %s", captured.URL.String())
+	}
+	if got := captured.Header.Get("Accept"); got != "application/atom+xml" {
 		t.Fatalf("Accept = %q", got)
 	}
-	if got := captured.Header.Get("X-GitHub-Api-Version"); got != systemUpdateGitHubAPIVersion {
+	if got := captured.Header.Get("X-GitHub-Api-Version"); got != "" {
 		t.Fatalf("X-GitHub-Api-Version = %q", got)
 	}
 	if got := captured.Header.Get("User-Agent"); got == "" || !strings.HasPrefix(got, "Renewlet/") {
 		t.Fatalf("User-Agent = %q", got)
 	}
-	if got := captured.Header.Get("Authorization"); got != "Bearer ghp_test" {
+	if got := captured.Header.Get("Authorization"); got != "" {
 		t.Fatalf("Authorization = %q", got)
+	}
+	if len(releases) != 1 || releases[0].TagName != "v1.2.3" || releases[0].Body == "" {
+		t.Fatalf("unexpected parsed releases: %#v", releases)
 	}
 }
 
 func TestSystemVersionWarningDoesNotExposeGitHubStatus(t *testing.T) {
 	service := newSystemUpdateService(&fakeSystemReleaseClient{})
 	service.now = func() time.Time { return time.Unix(1_779_820_800, 0) }
-	warning := service.versionCheckWarning(localeZhCN, &githubAPIError{
-		statusCode:  http.StatusForbidden,
-		status:      "403 Forbidden",
-		rateLimited: true,
-		retryAt:     service.now().Add(time.Hour),
+	warning := service.versionCheckWarning(localeZhCN, &systemReleaseCheckError{
+		statusCode: http.StatusForbidden,
+		status:     "403 Forbidden",
 	})
 
 	if strings.Contains(warning, "403") || strings.Contains(warning, "Forbidden") {
 		t.Fatalf("warning leaked HTTP status: %q", warning)
 	}
-	if !strings.Contains(warning, systemUpdateGitHubTokenEnv) {
-		t.Fatalf("warning should mention token fallback, got %q", warning)
+	if strings.Contains(strings.ToLower(warning), "token") || strings.Contains(warning, "API") {
+		t.Fatalf("warning should not mention REST/token fallback, got %q", warning)
 	}
 }
 
 func TestSystemVersionFailureIncludesOneShotUpstreamDetailsWithoutCachingRawBody(t *testing.T) {
-	t.Setenv(systemUpdateGitHubTokenEnv, "ghp_test")
 	oldVersion, oldBuildType := Version, BuildType
 	Version, BuildType = "0.1.0", "release"
 	t.Cleanup(func() {
 		Version, BuildType = oldVersion, oldBuildType
 	})
 
-	service := newSystemUpdateService(&fakeSystemReleaseClient{release: &githubRelease{
+	service := newSystemUpdateService(&fakeSystemReleaseClient{release: &systemRelease{
 		TagName:     "v0.1.0",
 		Name:        "Renewlet 0.1.0",
 		PublishedAt: "2026-06-04T00:00:00Z",
 		HTMLURL:     "https://github.com/zhiyingzzhou/renewlet/releases/tag/v0.1.0",
-		Assets:      []githubAsset{},
+		Assets:      []systemReleaseAsset{},
 	}})
 	service.now = func() time.Time { return time.Unix(1_779_820_800, 0) }
 	if _, err := service.CheckVersion(context.Background(), localeZhCN, true); err != nil {
@@ -216,12 +271,12 @@ func TestSystemVersionFailureIncludesOneShotUpstreamDetailsWithoutCachingRawBody
 	}
 
 	service.client = &httpSystemReleaseClient{
-		apiClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		metadataClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusForbidden,
 				Status:     "403 Forbidden",
 				Header:     http.Header{"Content-Type": []string{"text/plain"}},
-				Body:       io.NopCloser(strings.NewReader("rate limited ghp_test")),
+				Body:       io.NopCloser(strings.NewReader("release feed unavailable")),
 				Request:    request,
 			}, nil
 		})},
@@ -234,11 +289,11 @@ func TestSystemVersionFailureIncludesOneShotUpstreamDetailsWithoutCachingRawBody
 	if failed.ErrorDetails == nil || failed.ErrorDetails.RawResponseText == nil {
 		t.Fatalf("expected one-shot upstream details, got %#v", failed.ErrorDetails)
 	}
-	if *failed.ErrorDetails.RawResponseText != "rate limited [redacted]" {
+	if *failed.ErrorDetails.RawResponseText != "release feed unavailable" {
 		t.Fatalf("expected redacted upstream body, got %#v", failed.ErrorDetails.RawResponseText)
 	}
-	if payload, _ := json.Marshal(failed.ErrorDetails); strings.Contains(string(payload), "ghp_test") {
-		t.Fatalf("upstream details leaked GitHub token: %s", payload)
+	if payload, _ := json.Marshal(failed.ErrorDetails); strings.Contains(string(payload), "Authorization") {
+		t.Fatalf("upstream details leaked request metadata: %s", payload)
 	}
 
 	cached, err := service.CheckVersion(context.Background(), localeZhCN, false)
@@ -342,16 +397,15 @@ func TestSelfUpdateCapabilityMatrix(t *testing.T) {
 	}
 }
 
-func TestStableVersionUsesLatestReleaseEndpointAndIgnoresPrereleaseTargets(t *testing.T) {
+func TestStableVersionSkipsRCEntriesFromFeed(t *testing.T) {
 	oldVersion, oldBuildType := Version, BuildType
 	Version, BuildType = "0.1.0", "release"
 	t.Cleanup(func() {
 		Version, BuildType = oldVersion, oldBuildType
 	})
 
-	client := &fakeSystemReleaseClient{release: &githubRelease{
-		TagName:    "v0.2.0-rc.1",
-		Prerelease: true,
+	client := &fakeSystemReleaseClient{release: &systemRelease{
+		TagName: "v0.2.0-rc.1",
 	}}
 	service := newSystemUpdateService(client)
 
@@ -359,18 +413,40 @@ func TestStableVersionUsesLatestReleaseEndpointAndIgnoresPrereleaseTargets(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := atomic.LoadInt32(&client.latestCount); got != 1 {
-		t.Fatalf("FetchLatestRelease calls = %d, want 1", got)
-	}
-	if got := atomic.LoadInt32(&client.listCount); got != 0 {
-		t.Fatalf("FetchReleases calls = %d, want 0", got)
+	if got := atomic.LoadInt32(&client.fetchCount); got != 1 {
+		t.Fatalf("FetchReleases calls = %d, want 1", got)
 	}
 	if !response.CheckSucceeded || response.HasUpdate {
 		t.Fatalf("stable version should not accept prerelease target: %#v", response)
 	}
 }
 
-func TestRCVersionSelectsHighestNewerPrerelease(t *testing.T) {
+func TestStableVersionSelectsLatestStableReleaseFromFeed(t *testing.T) {
+	oldVersion, oldBuildType := Version, BuildType
+	Version, BuildType = "0.1.0", "release"
+	t.Cleanup(func() {
+		Version, BuildType = oldVersion, oldBuildType
+	})
+
+	client := &fakeSystemReleaseClient{releases: []systemRelease{
+		releaseFixture("v0.2.0-rc.1"),
+		releaseFixture("v0.1.1"),
+	}}
+	service := newSystemUpdateService(client)
+
+	response, err := service.CheckVersion(context.Background(), localeZhCN, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !response.CheckSucceeded || !response.HasUpdate {
+		t.Fatalf("expected stable update from feed, got %#v", response)
+	}
+	if response.LatestVersion != "0.1.1" {
+		t.Fatalf("latestVersion = %q, want 0.1.1", response.LatestVersion)
+	}
+}
+
+func TestRCVersionSelectsHighestNewerRC(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("self-update capability depends on linux Docker binary semantics")
 	}
@@ -388,24 +464,20 @@ func TestRCVersionSelectsHighestNewerPrerelease(t *testing.T) {
 		Version, BuildType = oldVersion, oldBuildType
 	})
 
-	client := &fakeSystemReleaseClient{releases: [][]githubRelease{{
-		releaseFixture("v0.1.0", false, false),
-		releaseFixture("v0.1.0-rc.2", true, false),
-		releaseFixture("v0.2.0-rc.1", true, false),
-		releaseFixture("v0.2.0-beta.1", true, false),
-		releaseFixture("v9.9.9-rc.1", true, true),
-		releaseFixture("v0.1.0-rc.1", true, false),
-	}}}
+	client := &fakeSystemReleaseClient{releases: []systemRelease{
+		releaseFixture("v0.1.0"),
+		releaseFixture("v0.1.0-rc.2"),
+		releaseFixture("v0.2.0-rc.1"),
+		releaseFixture("v0.2.0-beta.1"),
+		releaseFixture("v0.1.0-rc.1"),
+	}}
 	service := newSystemUpdateService(client)
 
 	response, err := service.CheckVersion(context.Background(), localeZhCN, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := atomic.LoadInt32(&client.latestCount); got != 0 {
-		t.Fatalf("FetchLatestRelease calls = %d, want 0", got)
-	}
-	if got := atomic.LoadInt32(&client.listCount); got == 0 {
+	if got := atomic.LoadInt32(&client.fetchCount); got != 1 {
 		t.Fatalf("FetchReleases should be used for rc versions")
 	}
 	if !response.CheckSucceeded || !response.HasUpdate {
@@ -427,16 +499,15 @@ func TestSystemVersionReleaseAssetsStayArrayWhenEmpty(t *testing.T) {
 	})
 	t.Setenv("RENEWLET_SELF_UPDATE_ENABLED", "false")
 
-	service := newSystemUpdateService(&fakeSystemReleaseClient{releases: [][]githubRelease{{
+	service := newSystemUpdateService(&fakeSystemReleaseClient{releases: []systemRelease{
 		{
 			TagName:     "v0.1.0-rc.2",
 			Name:        "Renewlet 0.1.0-rc.2",
 			PublishedAt: "2026-06-04T00:00:00Z",
 			HTMLURL:     "https://github.com/zhiyingzzhou/renewlet/releases/tag/v0.1.0-rc.2",
-			Prerelease:  true,
 			Assets:      nil,
 		},
-	}}})
+	}})
 
 	first, err := service.CheckVersion(context.Background(), localeZhCN, true)
 	if err != nil {
@@ -474,17 +545,17 @@ func TestSystemVersionDisablesInAppUpdateWhenReleaseAssetsMissing(t *testing.T) 
 
 	cases := []struct {
 		name           string
-		assets         []githubAsset
+		assets         []systemReleaseAsset
 		wantReasonPart string
 	}{
 		{
 			name:           "missing platform archive",
-			assets:         []githubAsset{{Name: "renewlet-docker-v0.1.0-rc.2.zip"}},
+			assets:         []systemReleaseAsset{{Name: "renewlet-docker-v0.1.0-rc.2.zip"}},
 			wantReasonPart: systemArchiveName("0.1.0-rc.2"),
 		},
 		{
 			name:           "missing checksums",
-			assets:         []githubAsset{{Name: systemArchiveName("0.1.0-rc.2")}},
+			assets:         []systemReleaseAsset{{Name: systemArchiveName("0.1.0-rc.2")}},
 			wantReasonPart: "checksums.txt",
 		},
 	}
@@ -501,15 +572,14 @@ func TestSystemVersionDisablesInAppUpdateWhenReleaseAssetsMissing(t *testing.T) 
 			t.Setenv("RENEWLET_SELF_UPDATE_BACKUP_DIR", filepath.Join(tempDir, "backups"))
 			Version, BuildType = "0.1.0-rc.1", "release"
 
-			service := newSystemUpdateService(&fakeSystemReleaseClient{releases: [][]githubRelease{{
+			service := newSystemUpdateService(&fakeSystemReleaseClient{releases: []systemRelease{
 				{
-					TagName:    "v0.1.0-rc.2",
-					Name:       "Renewlet 0.1.0-rc.2",
-					HTMLURL:    "https://github.com/zhiyingzzhou/renewlet/releases/tag/v0.1.0-rc.2",
-					Prerelease: true,
-					Assets:     tc.assets,
+					TagName: "v0.1.0-rc.2",
+					Name:    "Renewlet 0.1.0-rc.2",
+					HTMLURL: "https://github.com/zhiyingzzhou/renewlet/releases/tag/v0.1.0-rc.2",
+					Assets:  tc.assets,
 				},
-			}}})
+			}})
 
 			response, err := service.CheckVersion(context.Background(), localeZhCN, true)
 			if err != nil {
@@ -538,7 +608,7 @@ func TestStableCurrentVersionDoesNotUpdateToRC(t *testing.T) {
 		Version, BuildType = oldVersion, oldBuildType
 	})
 
-	release := releaseFixture("v0.2.0-rc.1", true, false)
+	release := releaseFixture("v0.2.0-rc.1")
 	service := newSystemUpdateService(&fakeSystemReleaseClient{release: &release})
 
 	response, err := service.CheckVersion(context.Background(), localeZhCN, true)
@@ -557,11 +627,11 @@ func TestRCVersionReportsLatestWhenNoNewerCandidateExists(t *testing.T) {
 		Version, BuildType = oldVersion, oldBuildType
 	})
 
-	service := newSystemUpdateService(&fakeSystemReleaseClient{releases: [][]githubRelease{{
-		releaseFixture("v0.1.0", false, false),
-		releaseFixture("v0.1.0-rc.1", true, false),
-		releaseFixture("v0.2.0-beta.1", true, false),
-	}}})
+	service := newSystemUpdateService(&fakeSystemReleaseClient{releases: []systemRelease{
+		releaseFixture("v0.1.0"),
+		releaseFixture("v0.1.0-rc.1"),
+		releaseFixture("v0.2.0-beta.1"),
+	}})
 
 	response, err := service.CheckVersion(context.Background(), localeZhCN, true)
 	if err != nil {
@@ -596,10 +666,10 @@ func TestRCUpdateWithoutNewerCandidateReturnsAlreadyLatest(t *testing.T) {
 		Version, BuildType = oldVersion, oldBuildType
 	})
 
-	service := newSystemUpdateService(&fakeSystemReleaseClient{releases: [][]githubRelease{{
-		releaseFixture("v0.1.0-rc.1", true, false),
-		releaseFixture("v0.1.0", false, false),
-	}}})
+	service := newSystemUpdateService(&fakeSystemReleaseClient{releases: []systemRelease{
+		releaseFixture("v0.1.0-rc.1"),
+		releaseFixture("v0.1.0"),
+	}})
 
 	_, err := service.PerformUpdate(context.Background(), localeZhCN)
 	if !errors.Is(err, errSystemUpdateNoUpdate) {
@@ -656,9 +726,9 @@ func TestSystemUpdateRejectsConcurrentRun(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("self-update execution is only supported for linux Docker images")
 	}
-	release := &githubRelease{
+	release := &systemRelease{
 		TagName: "v9.9.9",
-		Assets: []githubAsset{
+		Assets: []systemReleaseAsset{
 			{Name: systemArchiveName("9.9.9"), BrowserDownloadURL: "https://github.com/zhiyingzzhou/renewlet/releases/download/v9.9.9/" + systemArchiveName("9.9.9")},
 			{Name: "checksums.txt", BrowserDownloadURL: "https://github.com/zhiyingzzhou/renewlet/releases/download/v9.9.9/checksums.txt"},
 		},
@@ -703,9 +773,9 @@ func TestSystemUpdateWaitsForExplicitRestart(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("self-update execution is only supported for linux Docker images")
 	}
-	release := &githubRelease{
+	release := &systemRelease{
 		TagName: "v9.9.9",
-		Assets: []githubAsset{
+		Assets: []systemReleaseAsset{
 			{Name: systemArchiveName("9.9.9"), BrowserDownloadURL: "https://github.com/zhiyingzzhou/renewlet/releases/download/v9.9.9/" + systemArchiveName("9.9.9")},
 			{Name: "checksums.txt", BrowserDownloadURL: "https://github.com/zhiyingzzhou/renewlet/releases/download/v9.9.9/checksums.txt"},
 		},
@@ -754,4 +824,16 @@ func TestSystemRestartRejectedBeforeSuccessfulUpdate(t *testing.T) {
 	if !errors.Is(err, errSystemRestartNotPending) {
 		t.Fatalf("ConfirmRestart error = %v, want restart not pending", err)
 	}
+}
+
+func systemReleaseAtomFixture(tag string, updated string) string {
+	return `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <updated>` + updated + `</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/zhiyingzzhou/renewlet/releases/tag/` + tag + `"/>
+    <title>` + tag + `</title>
+    <content type="html">&lt;p&gt;Release notes&lt;/p&gt;</content>
+  </entry>
+</feed>`
 }

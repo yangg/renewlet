@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useBuiltInIconIndexStatus, useCheckBuiltInIconIndexProvider, useRefreshBuiltInIconIndexProvider } from "@/hooks/use-built-in-icon-index";
 import { useToast } from "@/hooks/use-toast";
 import { getDisplayErrorMessage } from "@/lib/display-error";
@@ -16,6 +16,8 @@ export interface SettingsBuiltInIconIndexController {
   errorDetails: RawErrorResponseDetails | null;
   errorDetailsOpen: boolean;
   setErrorDetailsOpen: (open: boolean) => void;
+  openProviderStatus: (provider: BuiltInIconProvider) => Promise<void>;
+  closeProviderStatus: (provider: BuiltInIconProvider) => void;
   checkAllProviders: () => Promise<void>;
   checkProvider: (provider: BuiltInIconProvider) => Promise<void>;
   refreshProvider: (provider: BuiltInIconProvider) => Promise<void>;
@@ -32,6 +34,8 @@ export function useSettingsBuiltInIconIndexController(canManage: boolean): Setti
   const [refreshingProvider, setRefreshingProvider] = useState<BuiltInIconProvider | null>(null);
   const [errorDetails, setErrorDetails] = useState<RawErrorResponseDetails | null>(null);
   const [errorDetailsOpen, setErrorDetailsOpen] = useState(false);
+  const openedProviderStatusChecksRef = useRef<Set<BuiltInIconProvider>>(new Set());
+  const providerStatuses = status.data?.providers;
 
   const runProviderCheck = useCallback(async (provider: BuiltInIconProvider) => {
     setCheckingProvider(provider);
@@ -52,6 +56,27 @@ export function useSettingsBuiltInIconIndexController(canManage: boolean): Setti
     if (!canManage || checkProvider.isPending) return;
     await runProviderCheck(provider);
   }, [canManage, checkProvider.isPending, runProviderCheck]);
+
+  const handleOpenProviderStatus = useCallback(async (provider: BuiltInIconProvider) => {
+    if (!canManage) return;
+    if (openedProviderStatusChecksRef.current.has(provider)) return;
+    // Popover 打开只预检 GitHub metadata；先锁住本次打开周期，避免焦点重入或重渲染重复打共享出口。
+    openedProviderStatusChecksRef.current.add(provider);
+    const providerStatus = providerStatuses?.find((item) => item.provider === provider);
+    if (
+      checkProvider.isPending ||
+      checkingProvider === provider ||
+      refreshingProvider === provider ||
+      Boolean(providerStatus?.refreshing)
+    ) {
+      return;
+    }
+    await runProviderCheck(provider);
+  }, [canManage, checkProvider.isPending, checkingProvider, providerStatuses, refreshingProvider, runProviderCheck]);
+
+  const handleCloseProviderStatus = useCallback((provider: BuiltInIconProvider) => {
+    openedProviderStatusChecksRef.current.delete(provider);
+  }, []);
 
   const handleCheckAllProviders = useCallback(async () => {
     if (!canManage || checkProvider.isPending) return;
@@ -100,6 +125,8 @@ export function useSettingsBuiltInIconIndexController(canManage: boolean): Setti
     errorDetails,
     errorDetailsOpen,
     setErrorDetailsOpen,
+    openProviderStatus: handleOpenProviderStatus,
+    closeProviderStatus: handleCloseProviderStatus,
     checkAllProviders: handleCheckAllProviders,
     checkProvider: handleCheckProvider,
     refreshProvider: handleRefreshProvider,

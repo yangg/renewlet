@@ -12,6 +12,9 @@
       "DB": {
         "description": "D1 database for app data and notification jobs."
       },
+      "ASSETS": {
+        "description": "Workers Static Assets binding for built-in icon seed indexes and the React app."
+      },
       "ASSETS_BUCKET": {
         "description": "Private R2 bucket for uploaded logos and icons."
       },

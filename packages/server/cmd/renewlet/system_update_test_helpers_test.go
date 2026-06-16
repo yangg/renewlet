@@ -56,17 +56,15 @@ func writeTarGz(path string, files map[string]string) error {
 	return os.WriteFile(path, buffer.Bytes(), 0o644)
 }
 
-func releaseFixture(tag string, prerelease bool, draft bool) githubRelease {
+func releaseFixture(tag string) systemRelease {
 	version := strings.TrimPrefix(tag, "v")
-	// fixture 固定 GitHub Release 资产命名，保护 Docker 页面内更新对 archive/checksums 的查找契约。
-	return githubRelease{
+	// fixture 固定 Release 资产命名，保护 Docker 页面内更新对 archive/checksums 的查找契约。
+	return systemRelease{
 		TagName:     tag,
 		Name:        "Renewlet " + version,
 		PublishedAt: "2026-06-04T00:00:00Z",
 		HTMLURL:     "https://github.com/zhiyingzzhou/renewlet/releases/tag/" + tag,
-		Prerelease:  prerelease,
-		Draft:       draft,
-		Assets: []githubAsset{
+		Assets: []systemReleaseAsset{
 			{Name: systemArchiveName(version), BrowserDownloadURL: "https://github.com/zhiyingzzhou/renewlet/releases/download/" + tag + "/" + systemArchiveName(version)},
 			{Name: "checksums.txt", BrowserDownloadURL: "https://github.com/zhiyingzzhou/renewlet/releases/download/" + tag + "/checksums.txt"},
 		},
