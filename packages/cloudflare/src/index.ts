@@ -20,6 +20,7 @@ import {
   createSubscriptionCalendarFeed,
   deleteCalendarFeed,
   deleteSubscriptionCalendarFeed,
+  downloadSubscriptionCalendarIcs,
   readCalendarFeed,
   readSubscriptionCalendarFeed,
 } from "./calendar-feed";
@@ -221,6 +222,9 @@ async function routeApp(request: Request, env: Env, url: URL): Promise<Response>
       POST: () => createSubscriptionCalendarFeed(request, env, second),
       DELETE: () => deleteSubscriptionCalendarFeed(request, env, second),
     });
+  }
+  if (head === "subscriptions" && second && third === "calendar.ics") {
+    return routeMethods(request, { GET: () => downloadSubscriptionCalendarIcs(request, env, second) });
   }
   if (head === "subscriptions" && second && third === "renew") {
     return routeMethods(request, { POST: () => renewSubscription(request, env, second) });

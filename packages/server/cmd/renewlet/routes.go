@@ -277,6 +277,7 @@ func registerRoutes(app core.App, router *router.Router[*core.RequestEvent]) {
 	auth.PATCH("/public-status-page", func(e *core.RequestEvent) error { return handlePublicStatusPageUpdate(app, e) })
 	auth.DELETE("/public-status-page", func(e *core.RequestEvent) error { return handlePublicStatusPageDelete(app, e) })
 	auth.POST("/subscriptions/{id}/renew", func(e *core.RequestEvent) error { return handleSubscriptionRenew(app, e) })
+	auth.GET("/subscriptions/{id}/calendar.ics", func(e *core.RequestEvent) error { return handleSubscriptionCalendarICSDownload(app, e) })
 	auth.GET("/subscriptions/{id}/calendar-feed", func(e *core.RequestEvent) error { return handleSubscriptionCalendarFeedStatus(app, e) })
 	auth.POST("/subscriptions/{id}/calendar-feed", func(e *core.RequestEvent) error { return handleSubscriptionCalendarFeedCreate(app, e) })
 	auth.DELETE("/subscriptions/{id}/calendar-feed", func(e *core.RequestEvent) error { return handleSubscriptionCalendarFeedDelete(app, e) })
