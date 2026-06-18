@@ -245,6 +245,45 @@ describe("Statistics page", () => {
     ).not.toHaveLength(0);
   });
 
+  it("keeps the personal cost basis switch in the overview heading row", async () => {
+    const user = userEvent.setup();
+    mocks.useSubscriptions.mockReturnValue({
+      data: [
+        subscription({
+          id: "family-plan",
+          price: 100,
+          status: "active",
+          costSharing: {
+            enabled: true,
+            splitMode: "custom",
+            members: [
+              { id: "member", name: "Member", currency: "CNY", customAmount: 60 },
+            ],
+          },
+        }),
+      ],
+      isPending: false,
+    });
+
+    renderStatistics();
+
+    const overviewHeading = screen.getByRole("heading", { name: "总体统计" });
+    const personalCostBasisSwitch = screen.getByRole("switch", { name: "按我的份额统计" });
+    const overviewHeadingRow = overviewHeading.parentElement;
+
+    if (!overviewHeadingRow) {
+      throw new Error("Expected overview heading to be rendered inside a heading row.");
+    }
+
+    expect(overviewHeadingRow).toContainElement(personalCostBasisSwitch);
+    expect(overviewHeadingRow).toHaveClass("sm:flex-row", "sm:justify-between");
+    expect(screen.getAllByText("¥100").length).toBeGreaterThan(0);
+
+    await user.click(personalCostBasisSwitch);
+
+    expect(await screen.findAllByText("¥40")).not.toHaveLength(0);
+  });
+
   it("disables position animation for all chart tooltips", () => {
     renderStatistics();
 
@@ -398,11 +437,11 @@ describe("Statistics page", () => {
     expect(screen.getByText("停用年节省")).toBeInTheDocument();
     expect(screen.getByText("¥360")).toBeInTheDocument();
 
-    await user.tab();
-    await user.tab();
-    await user.tab();
-
     const annualHelp = screen.getByRole("button", { name: "说明：停用年节省" });
+    for (let attempt = 0; attempt < 10 && document.activeElement !== annualHelp; attempt += 1) {
+      await user.tab();
+    }
+
     expect(annualHelp).toHaveFocus();
     expect(await screen.findAllByText("停用月节省乘以 12，用于估算一年少支出的订阅费用。")).not.toHaveLength(0);
   });
