@@ -23,7 +23,7 @@ https://<worker-name>.<workers-dev-subdomain>.workers.dev/setup
 
 ### 升级办法
 
-使用 GitHub 入口的一键部署会在你的 GitHub 账号下生成一个仓库。以后升级，更新这个仓库，不要重新点一键部署按钮。
+一键部署会在你的 GitHub 账号下生成一个仓库。以后升级，更新这个仓库，不要重新点一键部署按钮。
 
 先在 Cloudflare Dashboard 打开 Renewlet Worker，进入 `Settings` -> `Builds`，找到连接的生成仓库。Cloudflare 生成仓库不是标准 GitHub fork，所以不会有 GitHub 原生的 `Sync fork` 按钮。
 

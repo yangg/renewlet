@@ -23,7 +23,7 @@ If you are using a proxy/VPN node, a corporate or school network, or another sha
 
 ### Upgrade
 
-One-click deploy creates a repository in your GitHub account when you use the Deploy Button with GitHub. To upgrade later, update that repository. Do not click the one-click button again.
+One-click deploy creates a repository in your GitHub account. To upgrade later, update that repository. Do not click the one-click button again.
 
 Open the Renewlet Worker in the Cloudflare dashboard, go to `Settings` -> `Builds`, and find the connected repository. The Cloudflare generated repository is not a standard GitHub fork, so it will not have GitHub's native `Sync fork` button.
 
