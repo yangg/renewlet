@@ -47,6 +47,7 @@ type SubscriptionBaseForService = Pick<
   | "repeatReminderEnabled"
   | "repeatReminderInterval"
   | "repeatReminderWindow"
+  | "costSharing"
   | "extra"
 >;
 type LegacySubscriptionRecord = Record<string, unknown> & { id: string };
@@ -88,6 +89,15 @@ function normalizeCustomCycleUnit(value: unknown): CustomCycleUnit {
     : "day";
 }
 
+function normalizeCostSharingParticipation(costSharing: Subscription["costSharing"]): Subscription["costSharing"] {
+  if (!costSharing) return costSharing;
+  // 当前 UI 没有排除成员入口；读写边界强制全员 included，避免历史/导入数据让表单展示和统计口径分叉。
+  return {
+    ...costSharing,
+    members: costSharing.members.map((member) => ({ ...member, included: true })),
+  };
+}
+
 function normalizeSubscriptionRecord(row: unknown): unknown {
   if (!isRecord(row)) return row;
   // 旧 PocketBase record 与产品 API row 不完全同形；历史输入先收敛字段，再交给 shared schema。
@@ -123,6 +133,7 @@ function normalizeSubscriptionRecord(row: unknown): unknown {
     }
   }
   if (Array.isArray(row["tags"])) normalized["tags"] = row["tags"];
+  if (isRecord(row["costSharing"])) normalized["costSharing"] = row["costSharing"];
 
   for (const key of ["logo", "paymentMethod", "trialEndDate", "website", "notes"] as const) {
     const value = optionalNonEmptyString(row[key]);
@@ -171,6 +182,7 @@ export function fromApiSubscription(row: ApiSubscription | LegacySubscriptionRec
     repeatReminderEnabled: parsedRow.repeatReminderEnabled,
     repeatReminderInterval: parsedRow.repeatReminderInterval,
     repeatReminderWindow: parsedRow.repeatReminderWindow,
+    costSharing: normalizeCostSharingParticipation(parsedRow.costSharing),
     extra: parsedRow.extra,
   } satisfies SubscriptionBaseForService;
   if (parsedRow.billingCycle === "custom") {
@@ -239,6 +251,7 @@ export function toSubscriptionWritePayload(sub: SubscriptionDraft | Subscription
     repeatReminderEnabled: sub.repeatReminderEnabled,
     repeatReminderInterval: sub.repeatReminderInterval,
     repeatReminderWindow: sub.repeatReminderWindow,
+    costSharing: normalizeCostSharingParticipation(sub.costSharing) ?? null,
     // extra 是导入/seed 的幂等通道；编辑普通字段时必须随记录保留，避免重复导入失效。
     extra: sub.extra ?? {},
   };

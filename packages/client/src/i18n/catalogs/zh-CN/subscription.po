@@ -2767,3 +2767,108 @@ msgstr "默认提醒：提前 {days} 天"
 #: src/i18n/descriptors/subscription.ts:199
 msgid "subscriptions.sort.default"
 msgstr "默认顺序"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:94
+msgid "subscription.costSharing.help"
+msgstr "为这项订阅维护共享成员，并计算你的实际份额。"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:99
+msgid "subscription.costSharing.payer"
+msgstr "付款人"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:110
+msgid "subscription.costSharing.yourShare"
+msgstr "你的份额"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:95
+msgid "subscription.costSharing.splitMode"
+msgstr "分摊方式"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:106
+msgid "subscription.costSharing.included"
+msgstr "参与"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:111
+msgid "subscription.costSharing.recoverableAmount"
+msgstr "可回收金额"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:104
+msgid "subscription.costSharing.memberNotePlaceholder"
+msgstr "备注"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:93
+msgid "subscription.costSharing.title"
+msgstr "家庭共享"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:109
+msgid "subscription.costSharing.familyContribution"
+msgstr "家庭成员贡献"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:96
+msgid "subscription.costSharing.equal"
+msgstr "平均分摊"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:101
+msgid "subscription.costSharing.memberDefault"
+msgstr "成员 {index}"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:102
+msgid "subscription.costSharing.memberName"
+msgstr "成员名称"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:103
+msgid "subscription.costSharing.memberNote"
+msgstr "成员备注"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:105
+msgid "subscription.costSharing.memberCurrency"
+msgstr "成员金额货币"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:98
+msgid "subscription.costSharing.selfMember"
+msgstr "我"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:100
+msgid "subscription.costSharing.self"
+msgstr "我"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:505
+msgid "statistics.personalCostBasis"
+msgstr "按我的份额统计"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:108
+msgid "subscription.costSharing.addMember"
+msgstr "添加成员"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:97
+msgid "subscription.costSharing.custom"
+msgstr "自定义"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:107
+msgid "subscription.costSharing.customAmount"
+msgstr "自定义金额"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:68
+msgid "subscription.validation.costSharingInvalid"
+msgstr "请检查共享成员，并确保自定义金额合计等于订阅价格。"

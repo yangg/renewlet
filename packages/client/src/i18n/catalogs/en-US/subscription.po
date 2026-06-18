@@ -2767,3 +2767,108 @@ msgstr "Default reminder: {days} days before"
 #: src/i18n/descriptors/subscription.ts:199
 msgid "subscriptions.sort.default"
 msgstr "Default order"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:94
+msgid "subscription.costSharing.help"
+msgstr "Split this subscription with members and track your share."
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:99
+msgid "subscription.costSharing.payer"
+msgstr "Payer"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:110
+msgid "subscription.costSharing.yourShare"
+msgstr "Your share"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:95
+msgid "subscription.costSharing.splitMode"
+msgstr "Split"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:106
+msgid "subscription.costSharing.included"
+msgstr "Included"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:111
+msgid "subscription.costSharing.recoverableAmount"
+msgstr "Recoverable"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:104
+msgid "subscription.costSharing.memberNotePlaceholder"
+msgstr "Note"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:93
+msgid "subscription.costSharing.title"
+msgstr "Family sharing"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:109
+msgid "subscription.costSharing.familyContribution"
+msgstr "Family contribution"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:96
+msgid "subscription.costSharing.equal"
+msgstr "Equal"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:101
+msgid "subscription.costSharing.memberDefault"
+msgstr "Member {index}"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:102
+msgid "subscription.costSharing.memberName"
+msgstr "Member name"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:103
+msgid "subscription.costSharing.memberNote"
+msgstr "Member note"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:105
+msgid "subscription.costSharing.memberCurrency"
+msgstr "Member amount currency"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:98
+msgid "subscription.costSharing.selfMember"
+msgstr "Me"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:100
+msgid "subscription.costSharing.self"
+msgstr "Me"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:505
+msgid "statistics.personalCostBasis"
+msgstr "Use my share"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:108
+msgid "subscription.costSharing.addMember"
+msgstr "Add member"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:97
+msgid "subscription.costSharing.custom"
+msgstr "Custom"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:107
+msgid "subscription.costSharing.customAmount"
+msgstr "Custom amount"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:68
+msgid "subscription.validation.costSharingInvalid"
+msgstr "Check sharing members and make sure custom amounts equal the subscription price."

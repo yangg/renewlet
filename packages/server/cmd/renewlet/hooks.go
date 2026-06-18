@@ -346,6 +346,12 @@ func normalizeSubscriptionRecord(record *core.Record) error {
 	}
 	record.Set("tags", tags)
 
+	costSharing, err := normalizeCostSharing(record.Get("costSharing"), price, currency)
+	if err != nil {
+		return err
+	}
+	record.Set("costSharing", costSharing)
+
 	if record.Get("extra") == nil || strings.TrimSpace(record.GetString("extra")) == "" {
 		// 统一空 JSON 为 `{}`，避免前端 schema 在 null/空字符串之间做额外兼容。
 		record.Set("extra", emptyJSONPayload{})
