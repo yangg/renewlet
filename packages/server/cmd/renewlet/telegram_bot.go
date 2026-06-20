@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -118,7 +119,7 @@ func handleTelegramBotCommandsInstall(app core.App, e *core.RequestEvent) error 
 	if err := requireEmptyRequestBody(e.Request); err != nil {
 		return e.BadRequestError(validationErrorMessage(locale, "common.invalidRequestBody", err), err)
 	}
-	origin, err := telegramBotExternalOrigin(app, e.Request)
+	origin, err := telegramBotExternalOrigin(e.Request)
 	if err != nil || origin.Scheme != "https" {
 		return telegramBotBadRequest(e, "TELEGRAM_BOT_HTTPS_REQUIRED", serverText(locale, "common.invalidRequestParameters"), err)
 	}
@@ -715,8 +716,8 @@ func (id *telegramChatID) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func telegramBotExternalOrigin(app core.App, request *http.Request) (url.URL, error) {
-	_ = app
+func telegramBotExternalOrigin(request *http.Request) (url.URL, error) {
+	origin := externalRequestOrigin(request)
 	if raw := strings.TrimSpace(os.Getenv("APP_URL")); raw != "" {
 		parsed, err := url.Parse(raw)
 		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
@@ -725,9 +726,22 @@ func telegramBotExternalOrigin(app core.App, request *http.Request) (url.URL, er
 		parsed.Path = ""
 		parsed.RawQuery = ""
 		parsed.Fragment = ""
+		// Telegram webhook 复用公开链接 origin；Docker 默认本地 APP_URL 不能抢占反代还原出的 HTTPS 公网地址。
+		if telegramBotLocalAppURLOrigin(*parsed) {
+			return origin, nil
+		}
 		return *parsed, nil
 	}
-	return externalRequestOrigin(request), nil
+	return origin, nil
+}
+
+func telegramBotLocalAppURLOrigin(origin url.URL) bool {
+	hostname := strings.ToLower(origin.Hostname())
+	if hostname == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(hostname)
+	return ip != nil && ip.IsLoopback()
 }
 
 func telegramBotWebhookURL(origin url.URL, bindingID string) string {

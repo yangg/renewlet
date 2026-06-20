@@ -18,7 +18,61 @@ type telegramBotAPITestCall struct {
 	Payload json.RawMessage
 }
 
+func TestTelegramBotExternalOriginUsesPublicLinkOriginForLocalAppURL(t *testing.T) {
+	t.Setenv("APP_URL", "http://localhost:3000")
+	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:3000/api/app/telegram-bot/commands", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("X-Forwarded-Proto", "https")
+	request.Header.Set("X-Forwarded-Host", "renewlet.example.com")
+
+	origin, err := telegramBotExternalOrigin(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := origin.String(); got != "https://renewlet.example.com" {
+		t.Fatalf("telegramBotExternalOrigin() = %q, want https://renewlet.example.com", got)
+	}
+}
+
+func TestTelegramBotExternalOriginKeepsExplicitPublicAppURL(t *testing.T) {
+	t.Setenv("APP_URL", "https://configured.example.com/app?ignored=true")
+	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:3000/api/app/telegram-bot/commands", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Forwarded", `proto=https;host=forwarded.example.com`)
+
+	origin, err := telegramBotExternalOrigin(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := origin.String(); got != "https://configured.example.com" {
+		t.Fatalf("telegramBotExternalOrigin() = %q, want https://configured.example.com", got)
+	}
+}
+
+func TestTelegramBotExternalOriginKeepsExplicitHTTPPublicAppURLForHTTPSGate(t *testing.T) {
+	t.Setenv("APP_URL", "http://configured.example.com")
+	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:3000/api/app/telegram-bot/commands", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("X-Forwarded-Proto", "https")
+	request.Header.Set("X-Forwarded-Host", "forwarded.example.com")
+
+	origin, err := telegramBotExternalOrigin(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := origin.String(); got != "http://configured.example.com" {
+		t.Fatalf("telegramBotExternalOrigin() = %q, want http://configured.example.com", got)
+	}
+}
+
 func TestTelegramBotCommandsInstallWebhookAndDelete(t *testing.T) {
+	t.Setenv("APP_URL", "http://localhost:3000")
 	app := newSchemaTestApp(t)
 	if err := ensureSchema(app); err != nil {
 		t.Fatal(err)
