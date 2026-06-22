@@ -38,6 +38,7 @@ Sign in with `demo@renewlet.local` / `renewlet-demo`. The demo resets regularly,
 - Subscription records with billing cycles, statuses, tags, websites, notes, logos, categories, and payment methods.
 - Reminder jobs based on each user's IANA time zone, local notification time, reminder days, repeat reminders, delivery history, and failed-send retries.
 - Notifications through Telegram, Notifyx, Webhook, WeCom Bot, SMTP email, Bark, and ServerChan.
+- Account security with authenticator codes, one-time recovery codes, and passkey sign-in.
 - Monthly and yearly cost normalization, budget usage, category charts, payment-method charts, and inactive-subscription savings.
 - AI recognition for bill screenshots, notes, CSV/TSV, and pasted table text; drafts are reviewed before import.
 - Global private ICS feed and per-subscription calendar feeds.
@@ -195,10 +196,6 @@ Docker/Go deployments inject this at runtime, so changing the environment variab
 ## Contributing
 
 Issues, documentation fixes, tests, and pull requests are welcome. For larger changes, open an issue first with the goal, use case, and rough approach.
-
-## Acknowledgements
-
-- [LINUX DO](https://linux.do/): Renewlet thanks the LINUX DO community for open-source project discussion.
 
 ## License
 
