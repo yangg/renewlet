@@ -83,6 +83,193 @@ type setupCreateRequest struct {
 	Password string `json:"password"`
 }
 
+// authUserResponse 是登录态用户安全视图；密码、tokenKey 和 session metadata 不能出站。
+type authUserResponse struct {
+	ID     string `json:"id"`
+	Email  string `json:"email"`
+	Name   string `json:"name"`
+	Role   string `json:"role"`
+	Banned bool   `json:"banned"`
+}
+
+type appSessionTokenResponse struct {
+	ID        string `json:"id"`
+	ExpiresAt string `json:"expiresAt"`
+}
+
+type sessionResponse struct {
+	Type    string                  `json:"type"`
+	Session appSessionTokenResponse `json:"session"`
+	User    authUserResponse        `json:"user"`
+}
+
+type mfaRequiredResponse struct {
+	Type      string   `json:"type"`
+	TicketID  string   `json:"ticketId"`
+	ExpiresAt string   `json:"expiresAt"`
+	Methods   []string `json:"methods"`
+}
+
+type mfaStatusResponse struct {
+	Enabled                bool     `json:"enabled"`
+	Methods                []string `json:"methods"`
+	RecoveryCodesRemaining int      `json:"recoveryCodesRemaining"`
+	PasskeyCount           int      `json:"passkeyCount"`
+}
+
+type mfaTotpSetupResponse struct {
+	SetupID    string `json:"setupId"`
+	Secret     string `json:"secret"`
+	OtpauthURL string `json:"otpauthUrl"`
+	ExpiresAt  string `json:"expiresAt"`
+}
+
+type mfaRecoveryCodesResponse struct {
+	Type          string                  `json:"type"`
+	Session       appSessionTokenResponse `json:"session"`
+	User          authUserResponse        `json:"user"`
+	RecoveryCodes []string                `json:"recoveryCodes"`
+}
+
+type passkeyResponse struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	CreatedAt string `json:"createdAt"`
+}
+
+type passkeysResponse struct {
+	Passkeys []passkeyResponse `json:"passkeys"`
+}
+
+type passkeyWebAuthnOptionsResponse struct {
+	ChallengeID string `json:"challengeId"`
+	ExpiresAt   string `json:"expiresAt"`
+	Options     any    `json:"options"`
+}
+
+type loginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+func (r *loginRequest) Validate(locale appLocale) error {
+	r.Email = strings.TrimSpace(r.Email)
+	if !isValidEmailAddress(r.Email) || r.Password == "" || len(r.Password) > 72 {
+		return errors.New(serverText(locale, "auth.invalidEmailOrPassword"))
+	}
+	return nil
+}
+
+type mfaTotpEnableRequest struct {
+	SetupID         string `json:"setupId"`
+	Code            string `json:"code"`
+	CurrentPassword string `json:"currentPassword"`
+}
+
+func (r *mfaTotpEnableRequest) Validate(locale appLocale) error {
+	r.SetupID = strings.TrimSpace(r.SetupID)
+	r.Code = strings.TrimSpace(r.Code)
+	if r.SetupID == "" || !isSixDigitCode(r.Code) || r.CurrentPassword == "" || len(r.CurrentPassword) > 72 {
+		return errors.New(serverText(locale, "common.invalidRequestParameters"))
+	}
+	return nil
+}
+
+type mfaCurrentPasswordRequest struct {
+	CurrentPassword string `json:"currentPassword"`
+}
+
+func (r *mfaCurrentPasswordRequest) Validate(locale appLocale) error {
+	if r.CurrentPassword == "" || len(r.CurrentPassword) > 72 {
+		return errors.New(serverText(locale, "auth.currentPasswordIncorrect"))
+	}
+	return nil
+}
+
+type passkeyRegisterOptionsRequest struct {
+	Name            string `json:"name"`
+	CurrentPassword string `json:"currentPassword"`
+}
+
+func (r *passkeyRegisterOptionsRequest) Validate(locale appLocale) error {
+	r.Name = strings.TrimSpace(r.Name)
+	if r.Name == "" || len(r.Name) > 80 || r.CurrentPassword == "" || len(r.CurrentPassword) > 72 {
+		return errors.New(serverText(locale, "common.invalidRequestParameters"))
+	}
+	return nil
+}
+
+type passkeyRegisterVerifyRequest struct {
+	ChallengeID string          `json:"challengeId"`
+	Name        string          `json:"name"`
+	Response    json.RawMessage `json:"response"`
+}
+
+func (r *passkeyRegisterVerifyRequest) Validate(locale appLocale) error {
+	r.ChallengeID = strings.TrimSpace(r.ChallengeID)
+	r.Name = strings.TrimSpace(r.Name)
+	if r.ChallengeID == "" || r.Name == "" || len(r.Name) > 80 || len(r.Response) == 0 {
+		return errors.New(serverText(locale, "common.invalidRequestParameters"))
+	}
+	return nil
+}
+
+type mfaVerifyRequest struct {
+	Method   string `json:"method"`
+	TicketID string `json:"ticketId"`
+	Code     string `json:"code,omitempty"`
+}
+
+func (r *mfaVerifyRequest) Validate(locale appLocale) error {
+	r.Method = strings.TrimSpace(r.Method)
+	r.TicketID = strings.TrimSpace(r.TicketID)
+	r.Code = strings.TrimSpace(r.Code)
+	switch r.Method {
+	case mfaMethodTOTP:
+		if r.TicketID == "" || !isSixDigitCode(r.Code) {
+			return errors.New(serverText(locale, "common.invalidRequestParameters"))
+		}
+	case mfaMethodRecoveryCode:
+		if r.TicketID == "" || len(r.Code) < 6 || len(r.Code) > 64 {
+			return errors.New(serverText(locale, "common.invalidRequestParameters"))
+		}
+	default:
+		return errors.New(serverText(locale, "common.invalidRequestParameters"))
+	}
+	return nil
+}
+
+type passkeyAuthenticateOptionsRequest struct{}
+
+func (r *passkeyAuthenticateOptionsRequest) Validate(locale appLocale) error {
+	return nil
+}
+
+type passkeyAuthenticateVerifyRequest struct {
+	ChallengeID string          `json:"challengeId"`
+	Response    json.RawMessage `json:"response"`
+}
+
+func (r *passkeyAuthenticateVerifyRequest) Validate(locale appLocale) error {
+	r.ChallengeID = strings.TrimSpace(r.ChallengeID)
+	if r.ChallengeID == "" || len(r.Response) == 0 {
+		return errors.New(serverText(locale, "common.invalidRequestParameters"))
+	}
+	return nil
+}
+
+func isSixDigitCode(value string) bool {
+	if len(value) != 6 {
+		return false
+	}
+	for _, ch := range value {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // Validate 校验首次管理员信息，并在边界处完成 trim。
 func (r *setupCreateRequest) Validate(locale appLocale) error {
 	r.Name = strings.TrimSpace(r.Name)

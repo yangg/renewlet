@@ -4,7 +4,7 @@ package main
 //
 // 架构位置：
 //   - 负责启动 PocketBase、注册 schema migration、record hooks、cron 和自定义 HTTP route。
-//   - 静态前端由 embedded FS 提供，自定义 API 复用 PocketBase auth/session。
+//   - 静态前端由 embedded FS 提供，自定义 API 使用 Renewlet 产品 session。
 //   - 具体请求/响应 DTO 在 api_contracts.go，通知任务在 notifications.go，文件资产在 assets.go。
 //
 // 注意： 这里的 route 是前端 API schema 的后端真相来源；新增字段时必须同步 Zod schema 和 route 测试。
@@ -117,8 +117,26 @@ func registerAuthHooks(app core.App) {
 		}
 		return nil
 	}
+	rejectMFAProtectedAuthRecord := func(request *http.Request, collection *core.Collection, record *core.Record) error {
+		if collection == nil || collection.Name != "users" || record == nil {
+			return nil
+		}
+		enabled, err := productAuthProtectedForUser(app, record.Id)
+		if err != nil {
+			return err
+		}
+		if enabled {
+			// 启用认证器或通行密钥后只能走产品认证 API；PocketBase 原生 JWT 不携带 MFA/Passkey 完成状态。
+			return apis.NewUnauthorizedError(serverText(requestLocale(request), "auth.loginRequired"), nil)
+		}
+		return nil
+	}
+	// PocketBase 原生 password、refresh 和通用 auth hook 都要拦；少拦一个就可能绕过产品 session 的 MFA 完成状态。
 	app.OnRecordAuthWithPasswordRequest().BindFunc(func(e *core.RecordAuthWithPasswordRequestEvent) error {
 		if err := rejectBannedAuthRecord(e.Request, e.Collection, e.Record); err != nil {
+			return err
+		}
+		if err := rejectMFAProtectedAuthRecord(e.Request, e.Collection, e.Record); err != nil {
 			return err
 		}
 		return e.Next()
@@ -127,10 +145,16 @@ func registerAuthHooks(app core.App) {
 		if err := rejectBannedAuthRecord(e.Request, e.Collection, e.Record); err != nil {
 			return err
 		}
+		if err := rejectMFAProtectedAuthRecord(e.Request, e.Collection, e.Record); err != nil {
+			return err
+		}
 		return e.Next()
 	})
 	app.OnRecordAuthRequest().BindFunc(func(e *core.RecordAuthRequestEvent) error {
 		if err := rejectBannedAuthRecord(e.Request, e.Collection, e.Record); err != nil {
+			return err
+		}
+		if err := rejectMFAProtectedAuthRecord(e.Request, e.Collection, e.Record); err != nil {
 			return err
 		}
 		return e.Next()

@@ -26,7 +26,7 @@ func TestPublicStatusPageLifecycleAndPublicRoute(t *testing.T) {
 	createCalendarFeedTestSettings(t, app, user, settings)
 	createCalendarFeedTestCustomConfig(t, app, user.Id)
 
-	assetID := createPublicStatusTestAsset(t, app, token, user.Id, "visible.svg")
+	assetID := createPublicStatusTestAsset(t, app, token, "visible.svg")
 	visible := createCalendarFeedTestSubscription(t, app, user.Id, calendarFeedTestSubscription{
 		Name:            "Visible Plan",
 		Price:           12,
@@ -73,7 +73,7 @@ func TestPublicStatusPageLifecycleAndPublicRoute(t *testing.T) {
 		Status:          "active",
 		NextBillingDate: "2000-01-01",
 	})
-	unreferencedAssetID := createPublicStatusTestAsset(t, app, token, user.Id, "unused.svg")
+	unreferencedAssetID := createPublicStatusTestAsset(t, app, token, "unused.svg")
 
 	statusRes := serveTestRequest(t, app, http.MethodGet, "/api/app/public-status-page", "", token)
 	if statusRes.Code != http.StatusOK || !strings.Contains(statusRes.Body.String(), `"enabled":false`) {
@@ -180,35 +180,32 @@ func TestPublicStatusPageLifecycleAndPublicRoute(t *testing.T) {
 	}
 }
 
-func createPublicStatusTestAsset(t *testing.T, app core.App, token string, userID string, filename string) string {
+func createPublicStatusTestAsset(t *testing.T, app core.App, token string, filename string) string {
 	t.Helper()
-	// 公开资产代理的前提是资产先作为私有 /api/app/assets 写入；测试必须复刻 owner 关系，不能直接伪造 URL。
+	// 公开资产代理的前提是资产先作为产品私有 /api/app/assets 写入；测试不能回退到 PocketBase 原生 REST/JWT。
 	res := serveMultipartTestRequest(
 		t,
 		app,
-		"/api/collections/assets/records",
+		"/api/app/assets",
 		token,
 		map[string]string{
-			"user": userID,
 			"kind": "logo",
 		},
 		"file",
 		filename,
 		`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>`,
 	)
-	if res.Code != http.StatusOK {
-		t.Fatalf("expected SVG asset create 200, got %d: %s", res.Code, res.Body.String())
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected SVG asset create 201, got %d: %s", res.Code, res.Body.String())
 	}
-	var body struct {
-		ID string `json:"id"`
-	}
+	var body uploadAssetResponse
 	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	if body.ID == "" {
-		t.Fatalf("expected uploaded asset id: %s", res.Body.String())
+	if !strings.HasPrefix(body.URL, "/api/app/assets/") {
+		t.Fatalf("expected uploaded asset URL, got %s", res.Body.String())
 	}
-	return body.ID
+	return strings.TrimPrefix(body.URL, "/api/app/assets/")
 }
 
 func publicStatusTokenFromURL(t *testing.T, rawURL string) string {

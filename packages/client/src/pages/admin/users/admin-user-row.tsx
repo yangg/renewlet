@@ -6,7 +6,8 @@
  *
  * 注意： 前端禁用是体验层保护，不可替代后端“至少保留一个管理员”的约束。
  */
-import { Trash2 } from "lucide-react";
+import { KeyRound, ShieldCheck, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -22,6 +23,8 @@ export interface AdminUserRowProps {
   onRoleChange: (user: AdminUser, role: UserRole) => void;
   onStatusChange: (user: AdminUser, enabled: boolean) => void;
   onResetPassword: (user: AdminUser) => void;
+  onResetMfa: (user: AdminUser) => void;
+  onResetPasskeys: (user: AdminUser) => void;
   onDelete: (user: AdminUser) => void;
 }
 
@@ -33,6 +36,8 @@ export function AdminUserRow({
   onRoleChange,
   onStatusChange,
   onResetPassword,
+  onResetMfa,
+  onResetPasskeys,
   onDelete,
 }: AdminUserRowProps) {
   const { t } = useI18n();
@@ -47,10 +52,13 @@ export function AdminUserRow({
   const protectedMessageId = protectionMessage ? "admin-user-" + user.id + "-protection" : undefined;
   const shouldDisableRoleAndStatus = isUpdating || isCurrentUser || isLastEnabledAdmin;
   const shouldDisableDelete = isUpdating || isCurrentUser || isLastEnabledAdmin;
+  const shouldDisableMfaReset = isUpdating || isCurrentUser || !user.mfaEnabled;
+  const shouldDisablePasskeysReset = isUpdating || isCurrentUser || !user.passkeysEnabled;
   const passwordActionLabel = isCurrentUser ? t("settings.changePassword") : t("admin.resetPassword");
+  const mfaMethodCount = user.mfaMethods.length;
 
   return (
-    <div className="border-b border-border px-4 py-5 last:border-b-0 sm:px-5 lg:grid lg:grid-cols-[minmax(0,1fr)_140px_120px_260px] lg:items-center lg:gap-4 lg:py-4">
+    <div className="border-b border-border px-4 py-5 last:border-b-0 sm:px-5 lg:grid lg:grid-cols-[minmax(0,1fr)_120px_108px_132px_132px_430px] lg:items-center lg:gap-4 lg:py-4">
       <div className="min-w-0">
         <div className="truncate font-medium text-foreground">{user.name}</div>
         <div className="break-words text-sm text-muted-foreground">{user.email}</div>
@@ -90,12 +98,36 @@ export function AdminUserRow({
         </div>
       </div>
       <div className="mt-4 grid gap-2 lg:mt-0 lg:gap-0">
+        <span className="text-xs font-medium text-muted-foreground lg:hidden">{t("admin.mfa")}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={user.mfaEnabled ? "default" : "secondary"} className="gap-1">
+            <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+            {user.mfaEnabled ? t("admin.mfaEnabled") : t("admin.mfaDisabled")}
+          </Badge>
+          {user.mfaEnabled ? (
+            <span className="text-xs text-muted-foreground">{t("admin.mfaMethodCount", { count: mfaMethodCount })}</span>
+          ) : null}
+        </div>
+      </div>
+      <div className="mt-4 grid gap-2 lg:mt-0 lg:gap-0">
+        <span className="text-xs font-medium text-muted-foreground lg:hidden">{t("admin.passkeys")}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={user.passkeysEnabled ? "default" : "secondary"} className="gap-1">
+            <KeyRound className="h-3 w-3" aria-hidden="true" />
+            {user.passkeysEnabled ? t("admin.passkeysEnabled") : t("admin.passkeysDisabled")}
+          </Badge>
+          {user.passkeysEnabled ? (
+            <span className="text-xs text-muted-foreground">{t("admin.passkeyCount", { count: user.passkeyCount })}</span>
+          ) : null}
+        </div>
+      </div>
+      <div className="mt-4 grid gap-2 lg:mt-0 lg:gap-0">
         <span className="text-xs font-medium text-muted-foreground lg:hidden">{t("admin.actions")}</span>
-        <div className="grid gap-2 lg:flex lg:items-center">
+        <div className="grid gap-2 lg:grid-cols-2">
           <Button
             type="button"
             variant="outline"
-            className="w-full lg:flex-1"
+            className="w-full"
             disabled={isUpdating}
             onClick={() => onResetPassword(user)}
           >
@@ -103,8 +135,30 @@ export function AdminUserRow({
           </Button>
           <Button
             type="button"
+            variant="outline"
+            className="w-full"
+            disabled={shouldDisableMfaReset}
+            aria-describedby={protectedMessageId}
+            onClick={() => onResetMfa(user)}
+          >
+            <ShieldCheck className="h-4 w-4" />
+            {t("admin.resetMfa")}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            disabled={shouldDisablePasskeysReset}
+            aria-describedby={protectedMessageId}
+            onClick={() => onResetPasskeys(user)}
+          >
+            <KeyRound className="h-4 w-4" />
+            {t("admin.resetPasskeys")}
+          </Button>
+          <Button
+            type="button"
             variant="destructive"
-            className="w-full lg:flex-1"
+            className="w-full"
             disabled={shouldDisableDelete}
             aria-describedby={protectedMessageId}
             onClick={() => onDelete(user)}

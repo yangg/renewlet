@@ -1,5 +1,23 @@
 import { changePasswordBodySchema } from "@renewlet/shared/schemas/account";
-import { loginBodySchema, setupCreateBodySchema, type SessionResponse } from "@renewlet/shared/schemas/auth";
+import {
+  loginBodySchema,
+  mfaCurrentPasswordBodySchema,
+  mfaRecoveryCodesResponseSchema,
+  mfaStatusResponseSchema,
+  mfaTotpEnableBodySchema,
+  mfaTotpSetupResponseSchema,
+  mfaVerifyBodySchema,
+  passkeyAuthenticateOptionsBodySchema,
+  passkeyAuthenticateVerifyBodySchema,
+  passkeyDeleteBodySchema,
+  passkeyRegisterOptionsBodySchema,
+  passkeyRegisterVerifyBodySchema,
+  passkeysResponseSchema,
+  passkeyWebAuthnOptionsResponseSchema,
+  sessionResponseSchema,
+  setupCreateBodySchema,
+  type SessionResponse,
+} from "@renewlet/shared/schemas/auth";
 import { appStatusResponseSchema } from "@renewlet/shared/schemas/app";
 import { adminCreateUserBodySchema, adminPatchUserBodySchema } from "@renewlet/shared/schemas/admin";
 import { bearerToken, HttpError, json, ok, readJson, requestLocale, type AppLocale } from "./http";
@@ -18,6 +36,26 @@ import {
 } from "./db";
 import { hashPassword, randomToken, sha256, verifyPassword } from "./crypto";
 import type { AuthContext, Env, SessionAuthRow, UserRow } from "./types";
+import {
+  createMfaAuthTicket,
+  deleteMfaAuthTicketsForUser,
+  deletePasskeyForCurrentUser,
+  deletePasskeysForUser,
+  disableAuthenticatorMfaForCurrentUser,
+  disableAuthenticatorMfaForUser,
+  enableTotp,
+  finishPasskeyAuthentication,
+  finishPasskeyRegistration,
+  listPasskeysForUser,
+  mfaStatusForUser,
+  regenerateRecoveryCodes,
+  startPasskeyAuthentication,
+  startPasskeyRegistration,
+  startTotpSetup,
+  verifyMfaLogin,
+  authenticatorMfaMethodsForUser,
+} from "./mfa";
+import { isAccountSecuritySchemaError } from "./account-security-schema";
 
 const DEFAULT_SESSION_TTL_DAYS = 30;
 
@@ -89,6 +127,17 @@ export async function login(request: Request, env: Env): Promise<Response> {
     throw new HttpError(403, serverText(locale, "auth.accountDisabled"));
   }
   await ensureSettings(env, user.id, locale);
+  const mfaMethods = await authenticatorMfaMethodsForUser(env, user.id);
+  if (mfaMethods.length > 0) {
+    // MFA 用户密码正确后只签短期 ticket，不签产品 session；第二因素完成前前端仍是未登录态。
+    const ticket = await createMfaAuthTicket(env, user.id, mfaMethods);
+    return json({
+      type: "mfa_required",
+      ticketId: ticket.ticketId,
+      expiresAt: ticket.expiresAt,
+      methods: ticket.methods,
+    });
+  }
   const token = randomToken();
   const timestamp = nowIso();
   const expires = new Date(Date.now() + sessionTtlDays(env) * 24 * 60 * 60 * 1000).toISOString();
@@ -97,7 +146,7 @@ export async function login(request: Request, env: Env): Promise<Response> {
     INSERT INTO sessions (id, token_hash, user_id, expires_at, created_at, last_seen_at)
     VALUES (?, ?, ?, ?, ?, ?)
   `).bind(newId("ses"), await sha256(token), user.id, expires, timestamp, timestamp).run();
-  return json(toSessionResponse(token, user));
+  return json(toSessionResponse(token, user, expires));
 }
 
 /**
@@ -107,7 +156,7 @@ export async function login(request: Request, env: Env): Promise<Response> {
  */
 export async function session(request: Request, env: Env): Promise<Response> {
   const auth = await requireAuth(request, env);
-  return json(toSessionResponse(auth.token, auth.user));
+  return json(toSessionResponse(auth.token, auth.user, auth.session.expires_at));
 }
 
 /**
@@ -122,6 +171,130 @@ export async function logout(request: Request, env: Env): Promise<Response> {
     await env.DB.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(await sha256(token)).run();
   }
   return ok();
+}
+
+export async function mfaVerify(request: Request, env: Env): Promise<Response> {
+  const locale = requestLocale(request);
+  const body = await readJson(request, mfaVerifyBodySchema, locale);
+  return await verifyMfaLogin(env, body, locale).catch((error: unknown) => {
+    if (isAccountSecuritySchemaError(error)) throw error;
+    // ticket 过期、方法不匹配和 OTP/恢复码错误统一成 401，避免暴露可枚举的认证器状态。
+    throw new HttpError(401, serverText(locale, "auth.sessionExpired"));
+  });
+}
+
+export async function mfaStatus(request: Request, env: Env): Promise<Response> {
+  const auth = await requireAuth(request, env);
+  return json(mfaStatusResponseSchema.parse(await mfaStatusForUser(env, auth.user.id)));
+}
+
+export async function mfaTotpSetup(request: Request, env: Env): Promise<Response> {
+  const auth = await requireAuth(request, env);
+  // setup 只生成短期加密 seed；真正启用还要当前密码和验证码，避免打开弹窗就改变账号安全状态。
+  return json(mfaTotpSetupResponseSchema.parse(await startTotpSetup(env, auth.user)));
+}
+
+export async function mfaTotpEnable(request: Request, env: Env): Promise<Response> {
+  const locale = requestLocale(request);
+  const auth = await requireAuth(request, env);
+  const body = await readJson(request, mfaTotpEnableBodySchema, locale);
+  if (!(await verifyPassword(body.currentPassword, auth.user.password_hash))) {
+    throw new HttpError(400, serverText(locale, "auth.currentPasswordIncorrect"));
+  }
+  // 敏感账号安全操作成功后会续签产品 session；前端必须写入新 bearer 后再刷新设置页状态。
+  const response = await enableTotp(env, auth.user, body.setupId, body.code).catch(() => {
+    throw new HttpError(400, serverText(locale, "common.invalidRequestParameters"));
+  });
+  return json(mfaRecoveryCodesResponseSchema.parse(response));
+}
+
+export async function mfaRecoveryRegenerate(request: Request, env: Env): Promise<Response> {
+  const locale = requestLocale(request);
+  const auth = await requireAuth(request, env);
+  const body = await readJson(request, mfaCurrentPasswordBodySchema, locale);
+  if (!(await verifyPassword(body.currentPassword, auth.user.password_hash))) {
+    throw new HttpError(400, serverText(locale, "auth.currentPasswordIncorrect"));
+  }
+  if ((await authenticatorMfaMethodsForUser(env, auth.user.id)).length === 0) {
+    throw new HttpError(400, serverText(locale, "common.invalidRequestParameters"));
+  }
+  // 恢复码明文只在这次响应出现；重新生成同时续签 session，让旧 bearer 和旧恢复码一起失效。
+  const response = await regenerateRecoveryCodes(env, auth.user);
+  return json(mfaRecoveryCodesResponseSchema.parse(response));
+}
+
+export async function passkeys(request: Request, env: Env): Promise<Response> {
+  const auth = await requireAuth(request, env);
+  return json(passkeysResponseSchema.parse(await listPasskeysForUser(env, auth.user.id)));
+}
+
+export async function passkeyRegisterOptions(request: Request, env: Env): Promise<Response> {
+  const locale = requestLocale(request);
+  const auth = await requireAuth(request, env);
+  const body = await readJson(request, passkeyRegisterOptionsBodySchema, locale);
+  if (!(await verifyPassword(body.currentPassword, auth.user.password_hash))) {
+    throw new HttpError(400, serverText(locale, "auth.currentPasswordIncorrect"));
+  }
+  // Passkey 是独立登录方式；注册要求当前密码，但不要求先启用 TOTP，避免制造半成品二因素依赖。
+  const response = await startPasskeyRegistration(env, request, auth.user).catch(() => {
+    throw new HttpError(400, serverText(locale, "common.invalidRequestParameters"));
+  });
+  return json(passkeyWebAuthnOptionsResponseSchema.parse(response));
+}
+
+export async function passkeyRegisterVerify(request: Request, env: Env): Promise<Response> {
+  const locale = requestLocale(request);
+  const auth = await requireAuth(request, env);
+  const body = await readJson(request, passkeyRegisterVerifyBodySchema, locale);
+  const response = await finishPasskeyRegistration(env, request, auth.user, body.challengeId, body.name, body.response).catch(() => {
+    throw new HttpError(400, serverText(locale, "common.invalidRequestParameters"));
+  });
+  return json(sessionResponseSchema.parse(response));
+}
+
+export async function passkeyAuthenticateOptions(request: Request, env: Env): Promise<Response> {
+  const locale = requestLocale(request);
+  await readJson(request, passkeyAuthenticateOptionsBodySchema, locale);
+  // Passkey options 是认证前 challenge 创建；初始化失败不能冒充 session 过期，否则会触发前端清登录态。
+  const response = await startPasskeyAuthentication(env, request).catch(() => {
+    throw new HttpError(400, serverText(locale, "common.invalidRequestParameters"));
+  });
+  return json(passkeyWebAuthnOptionsResponseSchema.parse(response));
+}
+
+export async function passkeyAuthenticateVerify(request: Request, env: Env): Promise<Response> {
+  const locale = requestLocale(request);
+  const body = await readJson(request, passkeyAuthenticateVerifyBodySchema, locale);
+  const response = await finishPasskeyAuthentication(env, request, body.challengeId, body.response).catch((error: unknown) => {
+    if (isAccountSecuritySchemaError(error)) throw error;
+    throw new HttpError(401, serverText(locale, "auth.sessionExpired"));
+  });
+  return json(sessionResponseSchema.parse(response));
+}
+
+export async function passkeyDelete(request: Request, env: Env, passkeyId: string): Promise<Response> {
+  const locale = requestLocale(request);
+  const auth = await requireAuth(request, env);
+  const body = await readJson(request, passkeyDeleteBodySchema, locale);
+  if (!(await verifyPassword(body.currentPassword, auth.user.password_hash))) {
+    throw new HttpError(400, serverText(locale, "auth.currentPasswordIncorrect"));
+  }
+  const response = await deletePasskeyForCurrentUser(env, auth.user, passkeyId).catch(() => {
+    throw new HttpError(400, serverText(locale, "common.invalidRequestParameters"));
+  });
+  return json(sessionResponseSchema.parse(response));
+}
+
+export async function mfaDisable(request: Request, env: Env): Promise<Response> {
+  const locale = requestLocale(request);
+  const auth = await requireAuth(request, env);
+  const body = await readJson(request, mfaCurrentPasswordBodySchema, locale);
+  if (!(await verifyPassword(body.currentPassword, auth.user.password_hash))) {
+    throw new HttpError(400, serverText(locale, "auth.currentPasswordIncorrect"));
+  }
+  // 关闭 MFA 是敏感账号生命周期操作；自助路径续签当前 session，管理员 reset 才全量踢下线。
+  const response = await disableAuthenticatorMfaForCurrentUser(env, auth.user);
+  return json(sessionResponseSchema.parse(response));
 }
 
 /**
@@ -164,7 +337,17 @@ export async function passwordResetStatus(): Promise<Response> {
 export async function adminListUsers(request: Request, env: Env): Promise<Response> {
   await requireAdmin(request, env);
   const users = await listUsers(env);
-  return json({ users: users.map(toAdminUser) });
+  return json({
+    users: await Promise.all(users.map(async (user) => {
+      const status = await mfaStatusForUser(env, user.id);
+      return toAdminUser(user, {
+        mfaEnabled: status.enabled,
+        mfaMethods: status.methods,
+        passkeysEnabled: status.passkeyCount > 0,
+        passkeyCount: status.passkeyCount,
+      });
+    })),
+  });
 }
 
 /**
@@ -227,8 +410,10 @@ export async function adminPatchUser(request: Request, env: Env, userId: string)
     timestamp,
     user.id,
   );
-  // 禁用账号立即踢下线；否则旧 token 会在 TTL 内继续通过 session 校验。
-  if (nextBanned) {
+  // 管理员重置密码或禁用账号立即踢下线；否则旧 token 会在 TTL 内继续通过 session 校验。
+  if (nextBanned || body.newPassword) {
+    // MFA ticket 属于账号安全 schema；走统一 helper 才能在旧 D1 漂移时先补表再清理。
+    await deleteMfaAuthTicketsForUser(env, user.id);
     await env.DB.batch([
       updateUser,
       env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id),
@@ -236,6 +421,27 @@ export async function adminPatchUser(request: Request, env: Env, userId: string)
   } else {
     await updateUser.run();
   }
+  return ok();
+}
+
+export async function adminResetUserMfa(request: Request, env: Env, userId: string): Promise<Response> {
+  const locale = requestLocale(request);
+  const auth = await requireAdmin(request, env);
+  const user = await findUserById(env, userId);
+  if (!user) throw new HttpError(404, serverText(locale, "auth.userNotFound"));
+  // 管理员不能 reset 自己的 2FA；自救必须走设置页并提供当前密码，避免单一已登录 session 自降安全级别。
+  if (user.id === auth.user.id) throw new HttpError(400, serverText(locale, "common.invalidRequestParameters"));
+  await disableAuthenticatorMfaForUser(env, user.id);
+  return ok();
+}
+
+export async function adminResetUserPasskeys(request: Request, env: Env, userId: string): Promise<Response> {
+  const locale = requestLocale(request);
+  const auth = await requireAdmin(request, env);
+  const user = await findUserById(env, userId);
+  if (!user) throw new HttpError(404, serverText(locale, "auth.userNotFound"));
+  if (user.id === auth.user.id) throw new HttpError(400, serverText(locale, "common.invalidRequestParameters"));
+  await deletePasskeysForUser(env, user.id);
   return ok();
 }
 
@@ -301,10 +507,11 @@ export async function requireAdmin(request: Request, env: Env): Promise<AuthCont
   return auth;
 }
 
-function toSessionResponse(token: string, user: UserRow): SessionResponse {
+function toSessionResponse(token: string, user: UserRow, expiresAt: string): SessionResponse {
   return {
+    type: "session",
     // 前端把 session.id 当 Bearer token 保存；不要替换成 D1 session row id。
-    session: { id: token },
+    session: { id: token, expiresAt },
     user: {
       id: user.id,
       email: user.email,

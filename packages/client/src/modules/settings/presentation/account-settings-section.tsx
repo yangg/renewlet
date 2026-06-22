@@ -1,10 +1,11 @@
 /**
  * 账号设置展示区。
  *
- * 架构位置：只渲染邮箱、密码弹窗和 PocketBase Admin 入口；密码修改流程由 application hook 管理。
+ * 架构位置：渲染邮箱、密码、账号安全与 PocketBase Admin 入口；密码修改流程由 application hook 管理。
  *
  * 注意： 不要在展示层缓存密码字段，关闭弹窗时必须交给 controller 清理。
  */
+import { useState } from "react";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +13,10 @@ import Link from '@/components/router-link';
 import { useI18n } from '@/i18n/I18nProvider';
 import { ExternalLink } from 'lucide-react';
 import { PasswordChangeDialog } from './password-change-dialog';
+import { AccountMfaSection } from './account-mfa-section';
+import { AccountPasskeysSection } from './account-passkeys-section';
+import { AccountSecurityDialogs } from "./account-security-dialogs";
+import type { AccountSecurityDialogState } from "./account-security-dialog-state";
 import { getSettingsSectionClassName } from './settings-layout';
 
 export interface AccountSettingsSectionProps {
@@ -56,6 +61,8 @@ export function AccountSettingsSection({
   passwordDisabled = false,
 }: AccountSettingsSectionProps) {
   const { t } = useI18n();
+  // 身份验证器仍走短生命周期状态机；通行密钥完整管理内聚在自身弹窗，避免两个安全能力串线。
+  const [accountSecurityDialog, setAccountSecurityDialog] = useState<AccountSecurityDialogState>({ type: "none" });
 
   return (
     <>
@@ -126,6 +133,14 @@ export function AccountSettingsSection({
                         <p className="text-xs text-muted-foreground">{t("settings.passwordHelp")}</p>
                       </div>
                     </div>
+                    <div className="mt-6 grid gap-4">
+                      <AccountMfaSection
+                        disabled={passwordDisabled}
+                        onSetupReady={(setup) => setAccountSecurityDialog({ type: "mfa_setup", setup })}
+                        onPasswordAction={(action) => setAccountSecurityDialog({ type: "mfa_password", action })}
+                      />
+                      <AccountPasskeysSection disabled={passwordDisabled} />
+                    </div>
                   </section>
       
                   <PasswordChangeDialog
@@ -139,6 +154,10 @@ export function AccountSettingsSection({
                     onConfirmPasswordChange={setConfirmPassword}
                     isUpdating={isUpdatingPassword}
                     onSubmit={updatePassword}
+                  />
+                  <AccountSecurityDialogs
+                    state={accountSecurityDialog}
+                    onStateChange={setAccountSecurityDialog}
                   />
       
     </>

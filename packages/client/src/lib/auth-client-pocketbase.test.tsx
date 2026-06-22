@@ -1,26 +1,22 @@
-// PocketBase 认证测试保护本地 authStore 只作为待验证凭据，避免数据重置后旧 token 继续放行私有页面。
+// PocketBase 运行时认证测试保护“彻底切换”：Docker 前端也只能走 Renewlet 产品认证 API。
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readProductSession, writeProductSession } from "@/services/product-session";
+import type { SessionData } from "./auth-client";
+
+type FetchMock = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 const mocks = vi.hoisted(() => ({
   authRefresh: vi.fn(),
-  authStoreClear: vi.fn(),
-  authStoreOnChange: vi.fn(),
-  authStoreSave: vi.fn(),
   authWithPassword: vi.fn(),
+  fetch: vi.fn<FetchMock>(),
   pb: {
     authStore: {
       isValid: true,
-      record: {
-        id: "user-1",
-        email: "alice@example.com",
-        name: "Alice",
-        role: "admin",
-        banned: false,
-      } as Record<string, unknown> | null,
-      token: "token-1",
+      record: null as Record<string, unknown> | null,
+      token: "pb-token",
       onChange: vi.fn(),
       clear: vi.fn(),
       save: vi.fn(),
@@ -38,6 +34,18 @@ vi.mock("@/lib/pocketbase", () => ({
   pb: mocks.pb,
 }));
 
+const sessionFixture: SessionData = {
+  type: "session",
+  session: { id: "product-token", expiresAt: "2026-07-03T00:00:00.000Z" },
+  user: {
+    id: "user-1",
+    email: "alice@example.com",
+    name: "Alice",
+    role: "admin",
+    banned: false,
+  },
+};
+
 function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -53,234 +61,95 @@ function createWrapper() {
   return Wrapper;
 }
 
-function useTwoSessions(authClient: typeof import("./auth-client").authClient) {
-  const first = authClient.useSession();
-  const second = authClient.useSession();
-  return { first, second };
+function sessionResponse(session: SessionData) {
+  return new Response(JSON.stringify(session), { status: 200 });
 }
 
-function createDeferred<T = void>() {
-  let resolve!: (value: T | PromiseLike<T>) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve;
-    reject = promiseReject;
-  });
-  return { promise, resolve, reject };
-}
-
-describe("authClient.useSession for PocketBase", () => {
+describe("authClient in PocketBase runtime", () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.stubGlobal("fetch", mocks.fetch);
     mocks.authRefresh.mockReset();
-    mocks.authStoreClear.mockReset();
-    mocks.authStoreOnChange.mockReset();
-    mocks.authStoreSave.mockReset();
     mocks.authWithPassword.mockReset();
-    mocks.pb.authStore.isValid = true;
-    mocks.pb.authStore.record = {
-      id: "user-1",
-      email: "alice@example.com",
-      name: "Alice",
-      role: "admin",
-      banned: false,
-    };
-    mocks.pb.authStore.token = "token-1";
-    mocks.pb.authStore.onChange = mocks.authStoreOnChange;
-    mocks.pb.authStore.clear = mocks.authStoreClear;
-    mocks.pb.authStore.save = mocks.authStoreSave.mockImplementation((token: string, record: Record<string, unknown> | null) => {
-      mocks.pb.authStore.token = token;
-      mocks.pb.authStore.record = record;
+    mocks.fetch.mockReset();
+    mocks.pb.collection.mockReset().mockReturnValue({
+      authRefresh: mocks.authRefresh,
+      authWithPassword: mocks.authWithPassword,
     });
-    mocks.pb.collection.mockImplementation((name: string) => {
-      if (name !== "users") throw new Error(`Unexpected collection ${name}`);
-      return {
-        authRefresh: mocks.authRefresh,
-        authWithPassword: mocks.authWithPassword,
-      };
-    });
+    window.localStorage.clear();
   });
 
-  it("keeps restored authStore pending until authRefresh confirms the token", async () => {
-    const deferred = createDeferred();
-    mocks.authRefresh.mockReturnValue(deferred.promise);
-    mocks.authStoreOnChange.mockImplementation((listener: () => void) => {
-      listener();
-      return vi.fn();
-    });
+  it("validates restored product sessions through the product API instead of PocketBase authRefresh", async () => {
+    writeProductSession(sessionFixture, { verifiedAt: Date.now() - 120_000 });
+    mocks.fetch.mockResolvedValue(sessionResponse(sessionFixture));
     const { authClient } = await import("./auth-client");
 
     const { result } = renderHook(() => authClient.useSession(), { wrapper: createWrapper() });
 
-    expect(result.current.data).toBeNull();
-    expect(result.current.isPending).toBe(true);
-    expect(mocks.authRefresh).toHaveBeenCalledTimes(1);
-    expect(mocks.authRefresh).toHaveBeenCalledWith({ body: {} });
-
-    deferred.resolve();
-
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+    expect(mocks.fetch.mock.calls[0]?.[0]).toBe("/api/app/auth/session");
+    expect(mocks.authRefresh).not.toHaveBeenCalled();
     await waitFor(() => {
-      expect(result.current.isPending).toBe(false);
-      expect(result.current.data?.session.id).toBe("token-1");
-    });
-  });
-
-  it("deduplicates simultaneous PocketBase authRefresh consumers", async () => {
-    const deferred = createDeferred();
-    mocks.authRefresh.mockReturnValue(deferred.promise);
-    mocks.authStoreOnChange.mockImplementation((listener: () => void) => {
-      listener();
-      return vi.fn();
-    });
-    const { authClient } = await import("./auth-client");
-
-    const { result } = renderHook(() => useTwoSessions(authClient), { wrapper: createWrapper() });
-
-    expect(mocks.authRefresh).toHaveBeenCalledTimes(1);
-    deferred.resolve();
-
-    await waitFor(() => {
-      expect(result.current.first.isPending).toBe(false);
-      expect(result.current.second.isPending).toBe(false);
-    });
-    expect(result.current.first.data?.user.email).toBe("alice@example.com");
-    expect(result.current.second.data?.user.email).toBe("alice@example.com");
-  });
-
-  it("treats the token returned by authRefresh as the verified session token", async () => {
-    mocks.authRefresh.mockImplementation(() => {
-      mocks.pb.authStore.token = "token-2";
-      return Promise.resolve();
-    });
-    mocks.authStoreOnChange.mockImplementation((listener: () => void) => {
-      listener();
-      listener();
-      return vi.fn();
-    });
-    const { authClient } = await import("./auth-client");
-
-    const { result } = renderHook(() => authClient.useSession(), { wrapper: createWrapper() });
-
-    await waitFor(() => {
-      expect(result.current.isPending).toBe(false);
-      expect(result.current.data?.session.id).toBe("token-2");
-    });
-    expect(mocks.authRefresh).toHaveBeenCalledTimes(1);
-  });
-
-  it("clears stale PocketBase authStore when authRefresh fails", async () => {
-    mocks.authRefresh.mockRejectedValue(new Error("missing user"));
-    mocks.authStoreOnChange.mockImplementation((listener: () => void) => {
-      listener();
-      return vi.fn();
-    });
-    const { authClient } = await import("./auth-client");
-
-    const { result } = renderHook(() => authClient.useSession(), { wrapper: createWrapper() });
-
-    await waitFor(() => {
+      expect(result.current.data?.session.id).toBe("product-token");
       expect(result.current.isPending).toBe(false);
     });
-    expect(result.current.data).toBeNull();
-    expect(mocks.authStoreClear).toHaveBeenCalledTimes(1);
   });
 
-  it("does not let an older authRefresh overwrite a newer password login", async () => {
-    const deferred = createDeferred();
-    mocks.authRefresh.mockImplementation(() => deferred.promise.then(() => {
-      mocks.pb.authStore.token = "token-1-refreshed";
+  it("signs in with the product login endpoint instead of authWithPassword", async () => {
+    mocks.fetch.mockResolvedValue(sessionResponse(sessionFixture));
+    const { authClient } = await import("./auth-client");
+
+    const result = await authClient.signIn.email({ email: "alice@example.com", password: "password123" });
+
+    expect(result).toMatchObject({ error: null, data: { type: "session", session: { id: "product-token" } } });
+    expect(mocks.fetch).toHaveBeenCalledWith("/api/app/auth/login", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ email: "alice@example.com", password: "password123" }),
     }));
-    mocks.authWithPassword.mockImplementation(() => {
-      mocks.pb.authStore.token = "token-login";
-      return Promise.resolve();
-    });
-    mocks.authStoreOnChange.mockImplementation((listener: () => void) => {
-      listener();
-      return vi.fn();
-    });
-    const { authClient } = await import("./auth-client");
-    renderHook(() => authClient.useSession(), { wrapper: createWrapper() });
-
-    await authClient.signIn.email({ email: "alice@example.com", password: "password123" });
-    deferred.resolve();
-
-    await waitFor(() => {
-      expect(mocks.authStoreSave).toHaveBeenCalledWith("token-login", expect.objectContaining({ id: "user-1" }));
-    });
-    expect(mocks.pb.authStore.token).toBe("token-login");
-    expect(mocks.authStoreClear).not.toHaveBeenCalled();
+    expect(mocks.authWithPassword).not.toHaveBeenCalled();
+    expect(readProductSession()?.session.id).toBe("product-token");
   });
 
-  it("does not clear a newer password login when an older authRefresh fails", async () => {
-    const deferred = createDeferred();
-    mocks.authRefresh.mockReturnValue(deferred.promise);
-    mocks.authWithPassword.mockImplementation(() => {
-      mocks.pb.authStore.token = "token-login";
-      return Promise.resolve();
-    });
-    mocks.authStoreOnChange.mockImplementation((listener: () => void) => {
-      listener();
-      return vi.fn();
-    });
+  it("keeps MFA tickets in memory by not writing mfa_required responses to product session storage", async () => {
+    mocks.fetch.mockResolvedValue(new Response(JSON.stringify({
+      type: "mfa_required",
+      ticketId: "ticket-1",
+      expiresAt: "2026-06-03T00:05:00.000Z",
+      methods: ["totp", "recovery_code"],
+    }), { status: 200 }));
     const { authClient } = await import("./auth-client");
-    const { result: pendingRefreshResult } = renderHook(() => authClient.useSession(), {
-      wrapper: createWrapper(),
-    });
 
-    await expect(
-      authClient.signIn.email({ email: "alice@example.com", password: "password123" }),
-    ).resolves.toMatchObject({
-      data: { session: { id: "token-login" } },
-      error: null,
-    });
-    deferred.reject(new Error("expired token"));
+    const result = await authClient.signIn.email({ email: "alice@example.com", password: "password123" });
 
-    await waitFor(() => {
-      expect(pendingRefreshResult.current.isPending).toBe(false);
-    });
-    expect(mocks.pb.authStore.token).toBe("token-login");
-    expect(mocks.authStoreClear).not.toHaveBeenCalled();
-
-    const { result } = renderHook(() => authClient.useSession(), { wrapper: createWrapper() });
-    await waitFor(() => {
-      expect(result.current.data?.session.id).toBe("token-login");
-      expect(result.current.isPending).toBe(false);
-    });
-    expect(mocks.authRefresh).toHaveBeenCalledTimes(1);
+    expect(result.data?.type).toBe("mfa_required");
+    expect(readProductSession()).toBeNull();
   });
 
-  it("does not restore an older authRefresh after sign out", async () => {
-    const deferred = createDeferred();
-    mocks.authRefresh.mockImplementation(() => deferred.promise.then(() => {
-      mocks.pb.authStore.token = "token-1-refreshed";
+  it("stores the product session only after MFA verification succeeds", async () => {
+    mocks.fetch.mockResolvedValue(sessionResponse(sessionFixture));
+    const { authClient } = await import("./auth-client");
+
+    const result = await authClient.verifyMfa({ method: "totp", ticketId: "ticket-1", code: "123456" });
+
+    expect(result).toMatchObject({ error: null, data: { session: { id: "product-token" } } });
+    expect(mocks.fetch).toHaveBeenCalledWith("/api/app/auth/mfa/verify", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ method: "totp", ticketId: "ticket-1", code: "123456" }),
     }));
-    mocks.authStoreOnChange.mockImplementation((listener: () => void) => {
-      listener();
-      return vi.fn();
-    });
+    expect(readProductSession()?.session.id).toBe("product-token");
+  });
+
+  it("logs out through the product API and clears product session storage", async () => {
+    writeProductSession(sessionFixture);
+    mocks.fetch.mockResolvedValue(new Response("{}", { status: 200 }));
     const { authClient } = await import("./auth-client");
-    renderHook(() => authClient.useSession(), { wrapper: createWrapper() });
 
     await authClient.signOut();
-    deferred.resolve();
 
-    await waitFor(() => {
-      expect(mocks.authStoreClear).toHaveBeenCalledTimes(2);
+    expect(mocks.fetch).toHaveBeenCalledWith("/api/app/auth/logout", {
+      method: "POST",
+      headers: { Authorization: "Bearer product-token" },
     });
-    expect(mocks.authStoreSave).not.toHaveBeenCalled();
-  });
-
-  it("marks password login as verified immediately", async () => {
-    mocks.authStoreOnChange.mockImplementation((_listener: () => void) => vi.fn());
-    mocks.authWithPassword.mockResolvedValue(undefined);
-    const { authClient } = await import("./auth-client");
-
-    await expect(authClient.signIn.email({ email: "alice@example.com", password: "password123" })).resolves.toMatchObject({
-      data: {
-        session: { id: "token-1" },
-      },
-      error: null,
-    });
-    expect(mocks.authWithPassword).toHaveBeenCalledWith("alice@example.com", "password123");
+    expect(readProductSession()).toBeNull();
   });
 });

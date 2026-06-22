@@ -54,6 +54,65 @@ export interface SessionAuthRow extends UserRow {
   session_last_seen_at: string;
 }
 
+/** TOTP credential 只保存加密 seed 和最后成功 step；验证路径负责防重放。 */
+export interface MfaTotpCredentialRow {
+  user_id: string;
+  secret_ciphertext: string;
+  last_accepted_step: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 恢复码行只保存 HMAC；明文只在生成响应出现一次。 */
+export interface MfaRecoveryCodeRow {
+  id: string;
+  user_id: string;
+  code_hash: string;
+  used_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** MFA ticket 是登录二阶段短期状态，不是 session。 */
+export interface MfaAuthTicketRow {
+  id: string;
+  user_id: string;
+  ticket_hash: string;
+  expires_at: string;
+  attempts: number;
+  methods_json: string;
+  payload_ciphertext: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Passkey credential 保存独立登录必需的 public key/counter/transports；它不属于身份验证器 MFA 方法。 */
+export interface PasskeyCredentialRow {
+  id: string;
+  user_id: string;
+  name: string;
+  credential_id: string;
+  public_key: string;
+  credential_json: string;
+  counter: number;
+  transports_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Passkey challenge 必须短期持久化；独立登录开始时 user_id 为空，finish 后由 credential 反查账号。 */
+export interface PasskeyChallengeRow {
+  id: string;
+  user_id: string | null;
+  challenge_id_hash: string;
+  kind: "registration" | "authentication";
+  challenge: string;
+  session_data_json: string;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
 /** Public API token 行只保存 hash/prefix；明文 token 不进入 D1、备份或导出。 */
 export interface ApiTokenRow {
   id: string;

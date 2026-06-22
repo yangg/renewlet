@@ -278,6 +278,82 @@ export function ResetPasswordDialog({
   );
 }
 
+export interface ResetMfaDialogProps {
+  target: AdminUser | null;
+  updatingUserIds: Set<string>;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void | Promise<void>;
+}
+
+export function ResetMfaDialog({
+  target,
+  updatingUserIds,
+  onOpenChange,
+  onConfirm,
+}: ResetMfaDialogProps) {
+  const { t } = useI18n();
+  const isResetting = target ? updatingUserIds.has(target.id) : false;
+
+  return (
+    <AlertDialog open={Boolean(target)} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t("admin.resetMfaTitle")}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {target
+              ? t("admin.resetMfaDescription", { name: target.name, email: target.email })
+              : t("admin.resetMfaFallback")}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm} disabled={isResetting}>
+            {isResetting ? t("common.saving") : t("admin.confirmResetMfa")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+export interface ResetPasskeysDialogProps {
+  target: AdminUser | null;
+  updatingUserIds: Set<string>;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void | Promise<void>;
+}
+
+export function ResetPasskeysDialog({
+  target,
+  updatingUserIds,
+  onOpenChange,
+  onConfirm,
+}: ResetPasskeysDialogProps) {
+  const { t } = useI18n();
+  const isResetting = target ? updatingUserIds.has(target.id) : false;
+
+  return (
+    <AlertDialog open={Boolean(target)} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t("admin.resetPasskeysTitle")}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {target
+              ? t("admin.resetPasskeysDescription", { name: target.name, email: target.email })
+              : t("admin.resetPasskeysFallback")}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm} disabled={isResetting}>
+            {isResetting ? t("common.saving") : t("admin.confirmResetPasskeys")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 export interface DeleteUserDialogProps {
   target: AdminUser | null;
   updatingUserIds: Set<string>;

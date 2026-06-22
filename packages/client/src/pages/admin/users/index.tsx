@@ -23,6 +23,8 @@ import { apiFetch, ApiError } from "@/lib/api-client";
 import {
   adminDeleteUserResponseSchema,
   adminPatchUserResponseSchema,
+  adminResetUserPasskeysResponseSchema,
+  adminResetUserMfaResponseSchema,
   adminUserResponseSchema,
   adminUsersResponseSchema,
   type AdminUser,
@@ -34,7 +36,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { usePasswordChange } from "@/modules/settings/application/use-password-change";
 import { PasswordChangeDialog } from "@/modules/settings/presentation/password-change-dialog";
 import { AdminUserRow } from "./admin-user-row";
-import { CreateUserDialog, DeleteUserDialog, ResetPasswordDialog } from "./user-dialogs";
+import { CreateUserDialog, DeleteUserDialog, ResetMfaDialog, ResetPasskeysDialog, ResetPasswordDialog } from "./user-dialogs";
 import {
   DEFAULT_CREATE_FORM,
   emailPattern,
@@ -68,6 +70,8 @@ export default function AdminUsersPage() {
   const [resetConfirmPassword, setResetConfirmPassword] = useState("");
   const [resetPasswordErrors, setResetPasswordErrors] = useState<ResetPasswordErrors>({});
   const [deleteUserTarget, setDeleteUserTarget] = useState<AdminUser | null>(null);
+  const [resetMfaTarget, setResetMfaTarget] = useState<AdminUser | null>(null);
+  const [resetPasskeysTarget, setResetPasskeysTarget] = useState<AdminUser | null>(null);
   const [updatingUserIds, setUpdatingUserIds] = useState<Set<string>>(() => new Set());
   const passwordChange = usePasswordChange();
   const { setPasswordDialogOpen } = passwordChange;
@@ -320,6 +324,26 @@ export default function AdminUsersPage() {
     setDeleteUserTarget(user);
   }, []);
 
+  const handleResetMfaDialogOpenChange = useCallback((open: boolean) => {
+    if (!open) setResetMfaTarget(null);
+  }, []);
+
+  const handleResetPasskeysDialogOpenChange = useCallback((open: boolean) => {
+    if (!open) setResetPasskeysTarget(null);
+  }, []);
+
+  const openResetMfaDialog = useCallback((user: AdminUser) => {
+    // 当前管理员不能从用户列表 reset 自己的 2FA；自证关闭必须走设置页当前密码流程。
+    if (user.id === sessionData?.user?.id || !user.mfaEnabled) return;
+    setResetMfaTarget(user);
+  }, [sessionData?.user?.id]);
+
+  const openResetPasskeysDialog = useCallback((user: AdminUser) => {
+    // Passkey 是独立登录验证能力；管理员 reset 自己仍必须走设置页自证流程。
+    if (user.id === sessionData?.user?.id || !user.passkeysEnabled) return;
+    setResetPasskeysTarget(user);
+  }, [sessionData?.user?.id]);
+
   const confirmDeleteUser = async () => {
     if (!deleteUserTarget) return;
     if (updatingUserIds.has(deleteUserTarget.id)) return;
@@ -338,6 +362,54 @@ export default function AdminUsersPage() {
       setUpdatingUserIds((prev) => {
         const next = new Set(prev);
         next.delete(deleteUserTarget.id);
+        return next;
+      });
+    }
+  };
+
+  const confirmResetMfa = async () => {
+    if (!resetMfaTarget) return;
+    if (updatingUserIds.has(resetMfaTarget.id)) return;
+
+    setUpdatingUserIds((prev) => new Set(prev).add(resetMfaTarget.id));
+    try {
+      await apiFetch(`/api/app/admin/users/${resetMfaTarget.id}/mfa/reset`, adminResetUserMfaResponseSchema, {
+        method: "POST",
+        body: "{}",
+      });
+      toast.success(t("admin.resetMfaSuccess"));
+      setResetMfaTarget(null);
+      await loadUsers();
+    } catch (error: unknown) {
+      showErrorToast(t("admin.resetMfaFailed"), error, t("admin.resetMfaFailedDescription"));
+    } finally {
+      setUpdatingUserIds((prev) => {
+        const next = new Set(prev);
+        next.delete(resetMfaTarget.id);
+        return next;
+      });
+    }
+  };
+
+  const confirmResetPasskeys = async () => {
+    if (!resetPasskeysTarget) return;
+    if (updatingUserIds.has(resetPasskeysTarget.id)) return;
+
+    setUpdatingUserIds((prev) => new Set(prev).add(resetPasskeysTarget.id));
+    try {
+      await apiFetch(`/api/app/admin/users/${resetPasskeysTarget.id}/passkeys/reset`, adminResetUserPasskeysResponseSchema, {
+        method: "POST",
+        body: "{}",
+      });
+      toast.success(t("admin.resetPasskeysSuccess"));
+      setResetPasskeysTarget(null);
+      await loadUsers();
+    } catch (error: unknown) {
+      showErrorToast(t("admin.resetPasskeysFailed"), error, t("admin.resetPasskeysFailedDescription"));
+    } finally {
+      setUpdatingUserIds((prev) => {
+        const next = new Set(prev);
+        next.delete(resetPasskeysTarget.id);
         return next;
       });
     }
@@ -429,11 +501,27 @@ export default function AdminUsersPage() {
           onConfirm={confirmDeleteUser}
         />
 
+        <ResetMfaDialog
+          target={resetMfaTarget}
+          updatingUserIds={updatingUserIds}
+          onOpenChange={handleResetMfaDialogOpenChange}
+          onConfirm={confirmResetMfa}
+        />
+
+        <ResetPasskeysDialog
+          target={resetPasskeysTarget}
+          updatingUserIds={updatingUserIds}
+          onOpenChange={handleResetPasskeysDialogOpenChange}
+          onConfirm={confirmResetPasskeys}
+        />
+
         <section className="overflow-hidden rounded-xl border border-border bg-card" aria-busy={isInitialLoading || isRefreshingUsers}>
-          <div className="hidden grid-cols-[minmax(0,1fr)_140px_120px_260px] gap-4 border-b border-border px-5 py-3 text-sm font-medium text-muted-foreground lg:grid">
+          <div className="hidden grid-cols-[minmax(0,1fr)_120px_108px_132px_132px_430px] gap-4 border-b border-border px-5 py-3 text-sm font-medium text-muted-foreground lg:grid">
             <span>{t("admin.user")}</span>
             <span>{t("admin.role")}</span>
             <span>{t("admin.status")}</span>
+            <span>{t("admin.mfa")}</span>
+            <span>{t("admin.passkeys")}</span>
             <span>{t("admin.actions")}</span>
           </div>
           {isInitialLoading ? (
@@ -449,6 +537,8 @@ export default function AdminUsersPage() {
                 onRoleChange={handleRoleChange}
                 onStatusChange={handleStatusChange}
                 onResetPassword={openResetPasswordDialog}
+                onResetMfa={openResetMfaDialog}
+                onResetPasskeys={openResetPasskeysDialog}
                 onDelete={openDeleteUserDialog}
               />
             ))

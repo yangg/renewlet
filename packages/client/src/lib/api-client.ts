@@ -3,7 +3,7 @@
  *
  * 架构位置：
  * - React hooks/application 层通过这里调用 Go/PocketBase 自定义 API。
- * - PocketBase 原生 token 通过 Authorization header 发送给自定义路由。
+ * - Renewlet 产品 session token 通过 Authorization header 发送给登录后 API。
  *
  * 请求/校验流转：
  * ```mermaid
@@ -51,10 +51,13 @@ export class ApiError extends Error {
   }
 }
 
-/** 请求级 fetch 配置；`timeoutMs` 只在本 client 内消费，不透传给浏览器 fetch。 */
+export type ApiAuthMode = "required" | "optional" | "none";
+
+/** 请求级 fetch 配置；`timeoutMs`、`streamIdleTimeoutMs` 和 `authMode` 只在本 client 内消费。 */
 export type ApiFetchInit = RequestInit & {
   timeoutMs?: number;
   streamIdleTimeoutMs?: number;
+  authMode?: ApiAuthMode;
 };
 
 const DEFAULT_JSON_TIMEOUT_MS = 30_000;
@@ -266,7 +269,8 @@ function getErrorCode(payload: unknown): string | undefined {
   return getStringField(payload, ["code"]);
 }
 
-function shouldClearAuthSession(status: number, payload: unknown): boolean {
+function shouldClearAuthSession(status: number, payload: unknown, authMode: ApiAuthMode, tokenSnapshot: string | null): tokenSnapshot is string {
+  if (authMode !== "required" || !tokenSnapshot) return false;
   if (status !== 401) return false;
   const code = getErrorCode(payload);
   // 模型列表代理会透传 provider 401；它是业务错误，只展示，不应清 Renewlet 登录态。
@@ -282,7 +286,16 @@ function getClientTimeZoneHeader(): string | null {
   }
 }
 
-function buildApiHeaders(headersInit: HeadersInit | undefined, body: BodyInit | null | undefined): Headers {
+function bearerTokenFromHeaders(headers: Headers): string | null {
+  const value = headers.get("authorization")?.trim() ?? "";
+  const match = /^Bearer\s+(.+)$/i.exec(value);
+  return match?.[1]?.trim() || null;
+}
+
+function buildApiHeaders(headersInit: HeadersInit | undefined, body: BodyInit | null | undefined, authMode: ApiAuthMode): {
+  headers: Headers;
+  tokenSnapshot: string | null;
+} {
   const headers = new Headers(headersInit);
   const isFormDataBody = typeof FormData !== "undefined" && body instanceof FormData;
   const hasBody = body !== null && body !== undefined;
@@ -297,20 +310,31 @@ function buildApiHeaders(headersInit: HeadersInit | undefined, body: BodyInit | 
   for (const [key, value] of Object.entries(getLocaleHeaders())) {
     if (!headers.has(key)) headers.set(key, value);
   }
-  // 认证 header 由运行面适配层提供：Docker 读 PocketBase authStore，Cloudflare 读本地 session cache。
+  if (authMode === "none") {
+    headers.delete("authorization");
+    return { headers, tokenSnapshot: null };
+  }
+  // 清 session 必须绑定“请求发出时实际携带的 token”；认证前/旧请求不能清掉刚写入的新会话。
   for (const [key, value] of Object.entries(getAuthHeader())) {
     if (!headers.has(key)) headers.set(key, value);
   }
-  return headers;
+  return { headers, tokenSnapshot: bearerTokenFromHeaders(headers) };
 }
 
 async function fetchWithApiBoundary(input: RequestInfo, init?: ApiFetchInit): Promise<{
   abort: ReturnType<typeof createAbortSignal>;
+  authMode: ApiAuthMode;
+  tokenSnapshot: string | null;
   response: Response;
 }> {
-  const { timeoutMs = DEFAULT_JSON_TIMEOUT_MS, signal: externalSignal, ...fetchInit } = init ?? {};
-  delete (fetchInit as { streamIdleTimeoutMs?: number }).streamIdleTimeoutMs;
-  const headers = buildApiHeaders(init?.headers, fetchInit.body ?? null);
+  const {
+    timeoutMs = DEFAULT_JSON_TIMEOUT_MS,
+    signal: externalSignal,
+    streamIdleTimeoutMs: _streamIdleTimeoutMs,
+    authMode = "required",
+    ...fetchInit
+  } = init ?? {};
+  const { headers, tokenSnapshot } = buildApiHeaders(fetchInit.headers, fetchInit.body ?? null, authMode);
   const abort = createAbortSignal(externalSignal, timeoutMs);
   try {
     const requestInit: RequestInit = {
@@ -320,7 +344,7 @@ async function fetchWithApiBoundary(input: RequestInfo, init?: ApiFetchInit): Pr
       ...(abort.signal ? { signal: abort.signal } : {}),
     };
     const response = await fetch(input, requestInit);
-    return { abort, response };
+    return { abort, authMode, tokenSnapshot, response };
   } catch (e: unknown) {
     abort.cleanup();
     if (abort.didTimeout()) {
@@ -347,15 +371,15 @@ export async function apiFetch<Schema extends z.ZodType>(
   responseSchema: Schema,
   init?: ApiFetchInit,
 ): Promise<z.infer<Schema>> {
-  const { abort, response: res } = await fetchWithApiBoundary(input, init);
+  const { abort, authMode, tokenSnapshot, response: res } = await fetchWithApiBoundary(input, init);
   try {
     const payload = await readResponsePayload(res);
     const json = payload.json;
 
     if (!res.ok) {
       const message = getErrorMessage(json) || res.statusText || "Request failed";
-      if (shouldClearAuthSession(res.status, json)) {
-        clearAuthSession();
+      if (shouldClearAuthSession(res.status, json, authMode, tokenSnapshot)) {
+        clearAuthSession(tokenSnapshot);
       }
       throw new ApiError(message, res.status, json, getErrorCode(json), payload.text);
     }
@@ -381,14 +405,14 @@ export async function apiFetch<Schema extends z.ZodType>(
 
 /** 二进制下载也复用 API 认证/错误边界；调用方只接收已经通过 HTTP ok 校验的 Blob。 */
 export async function apiFetchBlob(input: RequestInfo, init?: ApiFetchInit): Promise<Blob> {
-  const { abort, response } = await fetchWithApiBoundary(input, init);
+  const { abort, authMode, tokenSnapshot, response } = await fetchWithApiBoundary(input, init);
   try {
     if (!response.ok) {
       const payload = await readResponsePayload(response);
       const json = payload.json;
       const message = getErrorMessage(json) || response.statusText || "Request failed";
-      if (shouldClearAuthSession(response.status, json)) {
-        clearAuthSession();
+      if (shouldClearAuthSession(response.status, json, authMode, tokenSnapshot)) {
+        clearAuthSession(tokenSnapshot);
       }
       throw new ApiError(message, response.status, json, getErrorCode(json), payload.text);
     }
@@ -403,7 +427,7 @@ export async function apiFetchStream<T>(
   init: ApiFetchInit,
   consume: (response: Response) => Promise<T>,
 ): Promise<T> {
-  const { abort, response } = await fetchWithApiBoundary(input, init);
+  const { abort, authMode, tokenSnapshot, response } = await fetchWithApiBoundary(input, init);
   abort.clearTimeout();
   // 流式 API 的首包和后续 chunk 是两类风险：拿到响应头后只保留 idle watchdog，避免真实 SSE 仍在推进时被总时长计时器误杀。
   const idleWatchdog = createStreamIdleWatchdog(abort, init.streamIdleTimeoutMs);
@@ -412,8 +436,8 @@ export async function apiFetchStream<T>(
       const payload = await readResponsePayload(response);
       const json = payload.json;
       const message = getErrorMessage(json) || response.statusText || "Request failed";
-      if (shouldClearAuthSession(response.status, json)) {
-        clearAuthSession();
+      if (shouldClearAuthSession(response.status, json, authMode, tokenSnapshot)) {
+        clearAuthSession(tokenSnapshot);
       }
       throw new ApiError(message, response.status, json, getErrorCode(json), payload.text);
     }

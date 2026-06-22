@@ -30,11 +30,11 @@ func newDemoModeTestApp(t *testing.T) (core.App, *core.Record, string) {
 	if user == nil {
 		t.Fatal("expected demo user to be created")
 	}
-	token, err := user.NewAuthToken()
+	token, _, err := createAppSession(app, user.Id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return app, user, token
+	return app, user, "Bearer " + token
 }
 
 func countUserRecords(t *testing.T, app core.App, collection string, userID string) int64 {

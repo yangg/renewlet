@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { writeCloudflareSession } from "@/services/cloudflare-session";
+import { readProductSession, writeProductSession } from "@/services/product-session";
 import type { SessionData } from "./auth-client";
 import { authClient } from "./auth-client";
 
@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   fetch: vi.fn<FetchMock>(),
   authStoreOnChange: vi.fn(),
   authStoreClear: vi.fn(),
+  authenticatePasskey: vi.fn(),
+  cancelActivePasskeyCeremony: vi.fn(),
 }));
 
 vi.mock("@/services/runtime", () => ({
@@ -33,8 +35,16 @@ vi.mock("@/lib/pocketbase", () => ({
   },
 }));
 
+vi.mock("@/services/passkey-service", () => ({
+  passkeyService: {
+    authenticate: mocks.authenticatePasskey,
+    cancelActiveCeremony: mocks.cancelActivePasskeyCeremony,
+  },
+}));
+
 const sessionFixture: SessionData = {
-  session: { id: "token-1" },
+  type: "session",
+  session: { id: "token-1", expiresAt: "2026-07-03T00:00:00.000Z" },
   user: {
     id: "user-1",
     email: "alice@example.com",
@@ -83,11 +93,13 @@ describe("authClient.useSession", () => {
     mocks.fetch.mockReset();
     mocks.authStoreOnChange.mockReset();
     mocks.authStoreClear.mockReset();
+    mocks.authenticatePasskey.mockReset().mockResolvedValue(sessionFixture);
+    mocks.cancelActivePasskeyCeremony.mockReset();
     window.localStorage.clear();
   });
 
   it("deduplicates simultaneous Cloudflare session validation across consumers", async () => {
-    writeCloudflareSession(sessionFixture, { verifiedAt: Date.now() - 120_000 });
+    writeProductSession(sessionFixture, { verifiedAt: Date.now() - 120_000 });
     const deferred = createDeferred<Response>();
     mocks.fetch.mockImplementation(() => deferred.promise);
 
@@ -113,7 +125,7 @@ describe("authClient.useSession", () => {
   });
 
   it("keeps a verified Cloudflare session fresh across route remounts and page reloads", async () => {
-    writeCloudflareSession(sessionFixture);
+    writeProductSession(sessionFixture);
     mocks.fetch.mockImplementation(() => Promise.resolve(sessionResponse(sessionFixture)));
 
     const firstRender = renderHook(() => authClient.useSession(), { wrapper: createWrapper() });
@@ -139,7 +151,7 @@ describe("authClient.useSession", () => {
     expect(result.current.data).toBeNull();
     expect(result.current.isPending).toBe(false);
 
-    writeCloudflareSession(sessionFixture);
+    writeProductSession(sessionFixture);
 
     await waitFor(() => {
       expect(result.current.data?.session.id).toBe("token-1");
@@ -147,8 +159,50 @@ describe("authClient.useSession", () => {
     expect(mocks.fetch).not.toHaveBeenCalled();
   });
 
+  it("stores the product session after passkey sign-in succeeds", async () => {
+    const result = await authClient.signIn.passkey();
+
+    expect(result).toMatchObject({ error: null, data: { type: "session", session: { id: "token-1" } } });
+    expect(mocks.authenticatePasskey).toHaveBeenCalledTimes(1);
+    expect(readProductSession()?.session.id).toBe("token-1");
+  });
+
+  it("allows stale conditional passkey sessions to be ignored before persistence", async () => {
+    const result = await authClient.signIn.passkey({
+      useBrowserAutofill: true,
+      shouldPersistSession: () => false,
+    });
+
+    expect(result).toMatchObject({ error: null, data: { type: "session", session: { id: "token-1" } } });
+    expect(mocks.authenticatePasskey).toHaveBeenCalledWith({ useBrowserAutofill: true });
+    expect(readProductSession()).toBeNull();
+  });
+
+  it("delegates browser WebAuthn ceremony cancellation to the passkey service", () => {
+    authClient.cancelPasskeyCeremony();
+
+    expect(mocks.cancelActivePasskeyCeremony).toHaveBeenCalledTimes(1);
+    expect(readProductSession()).toBeNull();
+  });
+
+  it("allows stale MFA verification sessions to be ignored before persistence", async () => {
+    mocks.fetch.mockResolvedValueOnce(sessionResponse(sessionFixture));
+
+    const result = await authClient.verifyMfa(
+      { method: "totp", ticketId: "ticket-1", code: "123456" },
+      { shouldPersistSession: () => false },
+    );
+
+    expect(result).toMatchObject({ error: null, data: { type: "session", session: { id: "token-1" } } });
+    expect(mocks.fetch).toHaveBeenCalledWith("/api/app/auth/mfa/verify", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ method: "totp", ticketId: "ticket-1", code: "123456" }),
+    }));
+    expect(readProductSession()).toBeNull();
+  });
+
   it("deduplicates stale validation across separate query clients", async () => {
-    writeCloudflareSession(sessionFixture, { verifiedAt: Date.now() - 120_000 });
+    writeProductSession(sessionFixture, { verifiedAt: Date.now() - 120_000 });
     const deferred = createDeferred<Response>();
     mocks.fetch.mockImplementation(() => deferred.promise);
 

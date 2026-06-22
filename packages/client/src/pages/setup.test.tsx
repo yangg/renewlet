@@ -91,6 +91,7 @@ describe("Setup page", () => {
     await user.click(screen.getByRole("button", { name: "创建管理员" }));
 
     expect(mocks.apiFetch).toHaveBeenCalledWith("/api/app/setup", expect.anything(), {
+      authMode: "none",
       method: "POST",
       body: JSON.stringify({ name: "Root Admin", email: "admin@example.com", password: "password123" }),
     });
