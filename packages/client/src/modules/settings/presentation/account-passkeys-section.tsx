@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { KeyRound, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,15 @@ export function AccountPasskeysSection({
   const passkeys = passkeysQuery.data ?? [];
   const hasPasskeys = passkeys.length > 0;
   const countLabel = passkeysQuery.isLoading ? t("common.loading") : t("settings.passkeyCount", { count: passkeys.length });
+  const handleManagerOpenChange = (open: boolean) => {
+    if (disabled && open) return;
+    setManagerOpen(open);
+  };
+
+  useEffect(() => {
+    // demo 状态可能在页面已打开后回流；切到只读时关闭管理弹窗，避免添加/删除流程继续悬挂。
+    if (disabled) setManagerOpen(false);
+  }, [disabled]);
 
   return (
     <>
@@ -50,7 +59,8 @@ export function AccountPasskeysSection({
             size="sm"
             variant="outline"
             className="w-full justify-center gap-2 border-border sm:w-auto"
-            onClick={() => setManagerOpen(true)}
+            disabled={disabled}
+            onClick={() => handleManagerOpenChange(true)}
           >
             <SlidersHorizontal className="h-4 w-4" />
             {t("settings.passkeysManage")}
@@ -60,7 +70,7 @@ export function AccountPasskeysSection({
       <AccountPasskeysManagerDialog
         disabled={disabled}
         open={managerOpen}
-        onOpenChange={setManagerOpen}
+        onOpenChange={handleManagerOpenChange}
         passkeys={passkeys}
         isLoading={passkeysQuery.isLoading}
       />

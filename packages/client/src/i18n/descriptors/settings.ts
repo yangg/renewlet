@@ -680,4 +680,5 @@ export const messages = [
   msg({ id: "settings.testChannel.bark", message: "测试 {channel} 通知" }),
   msg({ id: "settings.testChannel.serverchan", message: "测试 {channel} 通知" }),
   msg({ id: "settings.testing", message: "测试中..." }),
+  msg({ id: "settings.accountSecurityDemoDisabled", message: "演示模式仅供浏览，不能修改身份验证器或通行密钥。" }),
 ] as const;

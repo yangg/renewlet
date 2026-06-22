@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Plus, Trash2 } from "lucide-react";
 import {
@@ -100,11 +100,21 @@ export function AccountPasskeysManagerDialog({
   });
 
   const handleOpenChange = (nextOpen: boolean) => {
+    if (disabled && nextOpen) return;
     if (!nextOpen && (registerMutation.isPending || deleteMutation.isPending)) return;
     onOpenChange(nextOpen);
   };
 
   const isBusy = registerMutation.isPending || deleteMutation.isPending;
+  useEffect(() => {
+    // 管理弹窗内部也要响应 demo 只读回流，避免确认弹窗绕过入口禁用继续提交账号安全 mutation。
+    if (!disabled || isBusy) return;
+    setPasskeyName("");
+    setPasskeyPassword("");
+    setDeleteTarget(null);
+    setDeletePasskeyPassword("");
+  }, [disabled, isBusy]);
+
   const canRegister = !disabled && !isBusy && passkeyName.trim().length > 0 && passkeyPassword.length > 0;
   const formattedCreatedAt = (passkey: Passkey) =>
     formatDateTime(passkey.createdAt, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -250,17 +260,17 @@ export function AccountPasskeysManagerDialog({
                 value={deletePasskeyPassword}
                 onChange={(event) => setDeletePasskeyPassword(event.target.value)}
                 placeholder={t("settings.currentPasswordPlaceholder")}
-                disabled={deleteMutation.isPending}
+                disabled={disabled || deleteMutation.isPending}
               />
             )}
           </FormField>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteMutation.isPending}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
-              disabled={deleteMutation.isPending || !deleteTarget || !deletePasskeyPassword}
+              disabled={disabled || deleteMutation.isPending || !deleteTarget || !deletePasskeyPassword}
               onClick={(event) => {
                 event.preventDefault();
-                if (!deleteTarget || !deletePasskeyPassword) return;
+                if (disabled || !deleteTarget || !deletePasskeyPassword) return;
                 deleteMutation.mutate({ passkey: deleteTarget, currentPassword: deletePasskeyPassword });
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"

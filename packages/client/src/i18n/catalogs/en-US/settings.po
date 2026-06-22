@@ -2674,6 +2674,11 @@ msgid "settings.telegramBotCommandsDemoDisabled"
 msgstr "External Telegram commands cannot be installed in demo mode."
 
 #. js-lingui-explicit-id
+#: src/i18n/descriptors/settings.ts:683
+msgid "settings.accountSecurityDemoDisabled"
+msgstr "Demo mode is view-only. Authenticator and passkey settings cannot be changed."
+
+#. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:415
 msgid "settings.cloudBackupStatusActions"
 msgstr "Status & actions"

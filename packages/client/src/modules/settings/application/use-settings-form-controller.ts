@@ -165,6 +165,8 @@ export interface SettingsFormController {
   password: PasswordChangeController;
   passwordResetEnabled: boolean;
   externalIntegrationsDisabled: boolean;
+  sensitiveAccountActionsDisabled: boolean;
+  sensitiveAccountActionsDemoDisabled: boolean;
 }
 
 /**
@@ -204,6 +206,9 @@ export function useSettingsFormController(): SettingsFormController {
   const { t, setLocale } = useI18n();
   const appStatus = useSetupStatus();
   const externalIntegrationsDisabled = appStatus.isLoading || appStatus.demoMode;
+  // demo 模式同时禁用外部集成和账号安全写操作；这里拆成两个语义，避免后续把密码/MFA/Passkey 误归到外部集成策略里。
+  const sensitiveAccountActionsDisabled = appStatus.isLoading || appStatus.demoMode;
+  const sensitiveAccountActionsDemoDisabled = appStatus.demoMode;
   const password = usePasswordChange();
   const passwordResetEnabled = usePasswordResetAvailability();
   const notificationTest = useNotificationTest(settings);
@@ -747,5 +752,7 @@ export function useSettingsFormController(): SettingsFormController {
     password,
     passwordResetEnabled,
     externalIntegrationsDisabled,
+    sensitiveAccountActionsDisabled,
+    sensitiveAccountActionsDemoDisabled,
   };
 }

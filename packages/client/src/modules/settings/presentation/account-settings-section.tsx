@@ -38,6 +38,7 @@ export interface AccountSettingsSectionProps {
   isUpdatingPassword: boolean;
   updatePassword: () => void | Promise<void>;
   passwordDisabled?: boolean;
+  accountSecurityDemoDisabled?: boolean;
 }
 
 export function AccountSettingsSection({
@@ -59,6 +60,7 @@ export function AccountSettingsSection({
   isUpdatingPassword,
   updatePassword,
   passwordDisabled = false,
+  accountSecurityDemoDisabled = false,
 }: AccountSettingsSectionProps) {
   const { t } = useI18n();
   // 身份验证器仍走短生命周期状态机；通行密钥完整管理内聚在自身弹窗，避免两个安全能力串线。
@@ -134,6 +136,11 @@ export function AccountSettingsSection({
                       </div>
                     </div>
                     <div className="mt-6 grid gap-4">
+                      {accountSecurityDemoDisabled ? (
+                        <p className="text-xs leading-5 text-muted-foreground">
+                          {t("settings.accountSecurityDemoDisabled")}
+                        </p>
+                      ) : null}
                       <AccountMfaSection
                         disabled={passwordDisabled}
                         onSetupReady={(setup) => setAccountSecurityDialog({ type: "mfa_setup", setup })}

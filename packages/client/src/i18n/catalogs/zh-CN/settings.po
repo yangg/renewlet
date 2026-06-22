@@ -2674,6 +2674,11 @@ msgid "settings.telegramBotCommandsDemoDisabled"
 msgstr "演示模式下不能安装外部 Telegram 命令。"
 
 #. js-lingui-explicit-id
+#: src/i18n/descriptors/settings.ts:683
+msgid "settings.accountSecurityDemoDisabled"
+msgstr "演示模式仅供浏览，不能修改身份验证器或通行密钥。"
+
+#. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:415
 msgid "settings.cloudBackupStatusActions"
 msgstr "状态与操作"

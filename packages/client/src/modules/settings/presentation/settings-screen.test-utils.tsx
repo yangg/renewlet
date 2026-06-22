@@ -1,4 +1,5 @@
 // SettingsScreen 测试夹具集中托管，避免页面主体测试和目录状态机测试再次长成单文件门禁问题。
+import { useState } from "react";
 import { act, render } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, useLocation } from "react-router-dom";
@@ -11,6 +12,7 @@ import { DEFAULT_SETTINGS, type AppSettings, type NotificationChannel } from "@/
 import type { ThemeMode } from "@/types/theme";
 import { BUILT_IN_ICON_PROVIDERS, type BuiltInIconProvider } from "@renewlet/shared/built-in-icons";
 import { SettingsScreen } from "./settings-screen";
+import { NotificationChannelConfigPanel } from "./notification-channel-config-panel";
 import type { UploadedAssetsManagerController } from "../application/use-uploaded-assets-manager";
 import type { SettingsTelegramBotCommandsController } from "../application/use-telegram-bot-commands-controller";
 
@@ -43,6 +45,56 @@ export const SETTINGS_SECTION_IDS = [
 export const TEST_MOBILE_ANCHOR_LINE_PX = 208;
 export const TEST_ACTIVE_SECTION_TOP_PX = TEST_MOBILE_ANCHOR_LINE_PX - 24;
 export const TEST_NEXT_SECTION_TOP_PX = TEST_MOBILE_ANCHOR_LINE_PX + 160;
+
+export function StatefulEmailNotificationPanel({ initialPort = "" }: { initialPort?: string }) {
+  const [settings, setSettings] = useState({
+    ...DEFAULT_SETTINGS,
+    enabledChannels: ["email" as const],
+    smtpHost: "smtp.example.com",
+    smtpPort: initialPort,
+    recipientEmail: "alice@example.com",
+  });
+
+  return (
+    <NotificationChannelConfigPanel
+      channel="email"
+      settings={settings}
+      enabled
+      updateSetting={(key, value) => setSettings((previous) => ({ ...previous, [key]: value }))}
+      testingChannel={null}
+      onTest={vi.fn()}
+    />
+  );
+}
+
+export function useStatefulMonthlyBudgetController(initialBudget = 10000) {
+  const [monthlyBudgetInput, setMonthlyBudgetInput] = useState(String(initialBudget));
+  const [monthlyBudget, setMonthlyBudget] = useState(initialBudget);
+  const [monthlyBudgetError, setMonthlyBudgetError] = useState<string | null>(null);
+
+  return {
+    ...createControllerState({
+      settings: { monthlyBudget },
+      hasUnsavedChanges: monthlyBudgetInput !== String(monthlyBudget) || Boolean(monthlyBudgetError),
+    }),
+    monthlyBudgetInput,
+    monthlyBudgetError,
+    handleMonthlyBudgetInputChange: (value: string) => {
+      setMonthlyBudgetInput(value);
+      if (!value.trim()) {
+        setMonthlyBudgetError("预算金额无效");
+        return;
+      }
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        setMonthlyBudgetError("预算金额无效");
+        return;
+      }
+      setMonthlyBudgetError(null);
+      setMonthlyBudget(parsed);
+    },
+  };
+}
 
 function iconProviderVersion(provider: BuiltInIconProvider) {
   const commitSha = provider === "thesvg"
@@ -360,6 +412,8 @@ export function createControllerState(overrides: {
   telegramBotCommands?: Partial<SettingsTelegramBotCommandsController>;
   rates?: ExchangeRates;
   externalIntegrationsDisabled?: boolean;
+  sensitiveAccountActionsDisabled?: boolean;
+  sensitiveAccountActionsDemoDisabled?: boolean;
   customConfig?: CustomConfig;
 } = {}) {
   const fn = vi.fn();
@@ -530,6 +584,8 @@ export function createControllerState(overrides: {
     },
     passwordResetEnabled: true,
     externalIntegrationsDisabled: overrides.externalIntegrationsDisabled ?? false,
+    sensitiveAccountActionsDisabled: overrides.sensitiveAccountActionsDisabled ?? false,
+    sensitiveAccountActionsDemoDisabled: overrides.sensitiveAccountActionsDemoDisabled ?? false,
   };
 }
 

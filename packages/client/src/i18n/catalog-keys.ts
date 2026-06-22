@@ -948,6 +948,7 @@ export const MESSAGE_KEYS = [
   "repeat.window72h",
   "repeat.windowFull",
   "settings.account",
+  "settings.accountSecurityDemoDisabled",
   "settings.addPasskey",
   "settings.addPasskeyDescription",
   "settings.addPasskeyTitle",

@@ -50,6 +50,7 @@ const translations: Record<string, string> = {
   "passwordReset.confirmPassword": "确认新密码",
   "passwordReset.newPassword": "新密码",
   "settings.account": "账号",
+  "settings.accountSecurityDemoDisabled": "演示模式仅供浏览，不能修改身份验证器或通行密钥。",
   "settings.addPasskey": "添加通行密钥",
   "settings.addPasskeyDescription": "输入当前密码后，浏览器会引导你使用设备或安全密钥创建通行密钥。",
   "settings.addPasskeyTitle": "添加通行密钥",
@@ -306,5 +307,29 @@ describe("AccountSettingsSection account security dialogs", () => {
     expect(screen.getByText("已添加：1 个")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "更换身份验证器" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "管理通行密钥" })).toBeEnabled();
+  });
+
+  it("keeps account security read-only in demo mode", async () => {
+    const user = userEvent.setup();
+    renderAccountSettings({ passwordDisabled: true, accountSecurityDemoDisabled: true });
+    await waitForAccountSecurityReady();
+
+    expect(screen.getByText("演示模式仅供浏览，不能修改身份验证器或通行密钥。")).toBeInTheDocument();
+    const setupButton = screen.getByRole("button", { name: "更换身份验证器" });
+    const regenerateButton = screen.getByRole("button", { name: "重新生成恢复码" });
+    const disableButton = screen.getByRole("button", { name: "关闭身份验证器" });
+    const managePasskeysButton = screen.getByRole("button", { name: "管理通行密钥" });
+    expect(setupButton).toBeDisabled();
+    expect(regenerateButton).toBeDisabled();
+    expect(disableButton).toBeDisabled();
+    expect(managePasskeysButton).toBeDisabled();
+
+    await user.click(setupButton);
+    await user.click(managePasskeysButton);
+
+    expect(screen.queryByRole("dialog", { name: "管理通行密钥" })).not.toBeInTheDocument();
+    expect(mocks.mfaService.startTotpSetup).not.toHaveBeenCalled();
+    expect(mocks.passkeyService.register).not.toHaveBeenCalled();
+    expect(mocks.passkeyService.delete).not.toHaveBeenCalled();
   });
 });
