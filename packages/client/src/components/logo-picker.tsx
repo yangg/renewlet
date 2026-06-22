@@ -134,21 +134,20 @@ export function LogoPicker({
     <div className="grid gap-2">
       <Label>{t("media.logo")}</Label>
       <div className="flex flex-wrap items-center gap-3" data-testid="logo-picker-control-row">
-        {/* Logo 预览/上传区域 */}
-        <div
-          className={cn(
-            "relative w-16 h-16 rounded-xl border-2 border-border",
-            "flex items-center justify-center cursor-pointer",
-            "transition-colors",
-            displayedLogo ? "media-thumbnail-canvas hover:border-primary" : "border-dashed bg-secondary/50 hover:bg-secondary/80",
-            "overflow-hidden group"
-          )}
-          onClick={() => fileInputRef.current?.click()}
-          onFocus={preloadImageCropDialog}
-          onPointerEnter={preloadImageCropDialog}
-        >
-          {displayedLogo ? (
-            <>
+        <div className="group relative h-16 w-16 shrink-0 overflow-visible">
+          <button
+            type="button"
+            aria-label={displayedLogo ? t("media.changeLogo") : t("media.uploadLogoImage")}
+            className={cn(
+              "relative flex h-16 w-16 items-center justify-center rounded-xl border-2 border-border transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              displayedLogo ? "media-thumbnail-canvas overflow-hidden hover:border-primary" : "border-dashed bg-secondary/50 hover:bg-secondary/80",
+            )}
+            onClick={() => fileInputRef.current?.click()}
+            onFocus={preloadImageCropDialog}
+            onPointerEnter={preloadImageCropDialog}
+          >
+            {displayedLogo ? (
               <div className="relative z-10 h-full w-full p-1">
                 <FaviconResultImage
                   src={displayedLogo}
@@ -157,25 +156,25 @@ export function LogoPicker({
                   onError={() => applyValue(undefined)}
                 />
               </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  applyValue(undefined);
-                }}
-                className="absolute -top-1 -right-1 z-20 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </>
-          ) : (
-            <ImageIcon className="w-6 h-6 text-muted-foreground" />
-          )}
-          {uploadStatus === "uploading" && (
-            <div className="absolute inset-0 z-30 bg-background/60 flex items-center justify-center">
-              <Loader2 className="w-5 h-5 animate-spin text-primary" />
-            </div>
-          )}
+            ) : (
+              <ImageIcon className="w-6 h-6 text-muted-foreground" />
+            )}
+            {uploadStatus === "uploading" && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/60">
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              </div>
+            )}
+          </button>
+          {displayedLogo ? (
+            <button
+              type="button"
+              aria-label={t("media.clearLogo")}
+              onClick={() => applyValue(undefined)}
+              className="absolute -right-1 -top-1 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-100 shadow-sm transition-opacity hover:bg-destructive/90 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:opacity-0 sm:group-hover:opacity-100"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          ) : null}
           <input
             ref={fileInputRef}
             type="file"
@@ -185,7 +184,6 @@ export function LogoPicker({
           />
         </div>
 
-        {/* 操作按钮 */}
         <div className="grid min-w-0 w-fit max-w-full gap-2">
           <Button
             type="button"

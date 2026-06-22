@@ -173,14 +173,23 @@ describe("IconPicker", () => {
     expect(input).toHaveAttribute("accept", IMAGE_UPLOAD_ACCEPT);
   });
 
-  it("uses the shared low-noise canvas for the current icon preview", () => {
-    render(<IconPicker value="https://example.com/icon.svg" onChange={vi.fn()} />);
+  it("uses the shared low-noise canvas for the current icon preview without clipping the clear control", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(<IconPicker value="https://example.com/icon.svg" onChange={onChange} />);
 
     const icon = screen.getByAltText("Icon");
     const iconPreview = icon.closest(".media-thumbnail-canvas");
+    const clearIconButton = screen.getByRole("button", { name: "清除图标" });
     expect(icon).toHaveClass("media-thumbnail-image");
     expect(iconPreview).not.toBeNull();
     expect(iconPreview).toHaveClass("media-thumbnail-canvas");
+    expect(clearIconButton.closest(".media-thumbnail-canvas")).toBeNull();
+
+    await user.click(clearIconButton);
+
+    expect(onChange).toHaveBeenCalledWith(undefined);
   });
 
   it("selects a built-in theSVG icon from the unified icon search", async () => {
