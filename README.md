@@ -38,11 +38,12 @@ Sign in with `demo@renewlet.local` / `renewlet-demo`. The demo resets regularly,
 - Subscription records with billing cycles, statuses, tags, websites, notes, logos, categories, and payment methods.
 - Reminder jobs based on each user's IANA time zone, local notification time, reminder days, repeat reminders, delivery history, and failed-send retries.
 - Notifications through Telegram, Notifyx, Webhook, WeCom Bot, SMTP email, Bark, and ServerChan.
+- Account security with authenticator codes, one-time recovery codes, and passkey sign-in.
 - Monthly and yearly cost normalization, budget usage, category charts, payment-method charts, and inactive-subscription savings.
 - AI recognition for bill screenshots, notes, CSV/TSV, and pasted table text; drafts are reviewed before import.
 - Global private ICS feed and per-subscription calendar feeds.
 - Public subscription status pages with per-subscription visibility and optional price display.
-- Import and export for Renewlet data, old Renewlet `subscriptions.json`, and Wallos files.
+- Import and export Renewlet data, plus Wallos file imports.
 - Uploaded logos, image URLs, built-in icon sources, and favicon fallback suggestions.
 - Docker deployment with React, Go/PocketBase, SQLite, and static assets in one container.
 - Cloudflare Workers deployment with React static assets, Worker API, D1, R2, and Cron Triggers.
@@ -69,7 +70,7 @@ The deploy script creates `docker-compose.yml`, `.env`, and `data/`, then writes
 For production, pin a stable image tag:
 
 ```bash
-sed -i.bak 's#RENEWLET_IMAGE=.*#RENEWLET_IMAGE="zhiyingzzhou/renewlet:0.2.1"#' .env
+sed -i.bak 's#RENEWLET_IMAGE=.*#RENEWLET_IMAGE="zhiyingzzhou/renewlet:0.2.2"#' .env
 docker compose pull
 docker compose up -d
 ```
@@ -77,7 +78,7 @@ docker compose up -d
 If Docker Hub is unavailable, use GHCR:
 
 ```env
-RENEWLET_IMAGE="ghcr.io/zhiyingzzhou/renewlet:0.2.1"
+RENEWLET_IMAGE="ghcr.io/zhiyingzzhou/renewlet:0.2.2"
 ```
 
 ## Cloudflare Workers
@@ -96,12 +97,10 @@ Back up data and config before upgrading:
 tar -czf renewlet-backup-$(date +%F).tgz .env docker-compose.yml data
 ```
 
-If you deployed Renewlet before 2026-06-04, open the old version before upgrading and export `subscriptions.json` from Export subscriptions. After upgrading, import it from Import data. This file is only for subscription migration; keep the backup above as well.
-
 Upgrade with Docker Compose:
 
 ```bash
-sed -i.bak 's#RENEWLET_IMAGE=.*#RENEWLET_IMAGE="zhiyingzzhou/renewlet:0.2.1"#' .env
+sed -i.bak 's#RENEWLET_IMAGE=.*#RENEWLET_IMAGE="zhiyingzzhou/renewlet:0.2.2"#' .env
 docker compose pull
 docker compose up -d
 docker compose logs -f
@@ -197,10 +196,6 @@ Docker/Go deployments inject this at runtime, so changing the environment variab
 ## Contributing
 
 Issues, documentation fixes, tests, and pull requests are welcome. For larger changes, open an issue first with the goal, use case, and rough approach.
-
-## Acknowledgements
-
-- [LINUX DO](https://linux.do/): Renewlet thanks the LINUX DO community for open-source project discussion.
 
 ## License
 

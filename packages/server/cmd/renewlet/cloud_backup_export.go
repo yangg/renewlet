@@ -98,6 +98,7 @@ func buildCloudBackupExportPayload(app core.App, user *core.Record, exportedAt t
 	data := map[string]interface{}{
 		"subscriptions": subscriptions,
 	}
+	// 云快照只导出可恢复的产品资料；账号安全主密钥和 session/MFA/passkey/recovery/ticket 都必须由用户重新建立。
 	if settings, ok, err := cloudBackupExportSettings(app, user); err != nil {
 		return nil, nil, err
 	} else if ok {

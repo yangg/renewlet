@@ -19,6 +19,10 @@ type AdminUserFixture = {
   email: string;
   role: string;
   banned: boolean;
+  mfaEnabled: boolean;
+  mfaMethods: string[];
+  passkeysEnabled: boolean;
+  passkeyCount: number;
   createdAt: string;
 };
 
@@ -68,10 +72,34 @@ const messages: Record<string, string> = {
   "admin.lastAdmin": "至少需要保留一个启用的管理员",
   "admin.loadFailed": "加载用户失败",
   "admin.loadFailedDescription": "加载用户失败，请稍后重试",
+  "admin.mfa": "身份验证器",
+  "admin.mfaDisabled": "未启用",
+  "admin.mfaEnabled": "已启用",
+  "admin.mfaMethodCount": "{count} 种方式",
+  "admin.passkeys": "通行密钥",
+  "admin.passkeysDisabled": "未添加",
+  "admin.passkeysEnabled": "已添加",
+  "admin.passkeyCount": "{count} 个",
   "admin.resetPassword": "重置密码",
   "admin.resetDescription": "为 {name}（{email}）设置新密码。",
   "admin.resetFallback": "选择用户后设置新密码。",
   "admin.resetSuccess": "密码已重置",
+  "admin.resetMfa": "重置身份验证器",
+  "admin.resetMfaTitle": "重置身份验证器？",
+  "admin.resetMfaDescription": "将关闭 {name}（{email}）的身份验证器并废弃恢复码；通行密钥不会被删除。",
+  "admin.resetMfaFallback": "将关闭该用户的身份验证器并废弃恢复码；通行密钥不会被删除。",
+  "admin.confirmResetMfa": "确认重置身份验证器",
+  "admin.resetMfaSuccess": "身份验证器已重置",
+  "admin.resetMfaFailed": "重置身份验证器失败",
+  "admin.resetMfaFailedDescription": "重置失败，请稍后重试",
+  "admin.resetPasskeys": "重置通行密钥",
+  "admin.resetPasskeysTitle": "重置通行密钥？",
+  "admin.resetPasskeysDescription": "将删除 {name}（{email}）的所有通行密钥，并让该用户的现有会话失效。",
+  "admin.resetPasskeysFallback": "将删除该用户的所有通行密钥，并让现有会话失效。",
+  "admin.confirmResetPasskeys": "确认重置通行密钥",
+  "admin.resetPasskeysSuccess": "通行密钥已重置",
+  "admin.resetPasskeysFailed": "重置通行密钥失败",
+  "admin.resetPasskeysFailedDescription": "重置失败，请稍后重试",
   "admin.role": "角色",
   "admin.roleAdmin": "管理员",
   "admin.roleUser": "用户",
@@ -128,6 +156,10 @@ function user(overrides: Partial<AdminUserFixture> = {}): AdminUserFixture {
     email: "zhangsan@example.com",
     role: "user",
     banned: false,
+    mfaEnabled: false,
+    mfaMethods: [],
+    passkeysEnabled: false,
+    passkeyCount: 0,
     createdAt: "2026-05-15T00:00:00.000Z",
     ...overrides,
   };
@@ -332,6 +364,51 @@ describe("AdminUsersPage", () => {
           body: JSON.stringify({ newPassword: "resetpassword123" }),
         }),
       ),
+    );
+    expect(getRequests).toBeGreaterThanOrEqual(2);
+  });
+
+  it("resets passkeys through the dedicated admin endpoint", async () => {
+    const passkeyUser = user({
+      id: "passkey-user",
+      name: "通行密钥用户",
+      email: "passkey-user@example.com",
+      passkeysEnabled: true,
+      passkeyCount: 2,
+    });
+    let getRequests = 0;
+    mocks.apiFetch.mockImplementation((input: string, _responseSchema: unknown, init?: RequestInit) => {
+      if (input === "/api/app/admin/users") {
+        getRequests += 1;
+        return Promise.resolve({ users: [passkeyUser] });
+      }
+      if (input === "/api/app/admin/users/passkey-user/passkeys/reset" && init?.method === "POST") {
+        return Promise.resolve({ ok: true });
+      }
+      return Promise.reject(new Error(`Unexpected request: ${input}`));
+    });
+
+    const interaction = userEvent.setup();
+    renderAdminUsersPage();
+
+    expect(await screen.findByText("通行密钥用户")).toBeInTheDocument();
+    await interaction.click(screen.getByRole("button", { name: "重置通行密钥" }));
+    await interaction.click(screen.getByRole("button", { name: "确认重置通行密钥" }));
+
+    await waitFor(() =>
+      expect(apiFetch).toHaveBeenCalledWith(
+        "/api/app/admin/users/passkey-user/passkeys/reset",
+        expect.anything(),
+        expect.objectContaining({
+          method: "POST",
+          body: "{}",
+        }),
+      ),
+    );
+    expect(apiFetch).not.toHaveBeenCalledWith(
+      "/api/app/admin/users/passkey-user/mfa/reset",
+      expect.anything(),
+      expect.anything(),
     );
     expect(getRequests).toBeGreaterThanOrEqual(2);
   });

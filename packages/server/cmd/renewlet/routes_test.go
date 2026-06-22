@@ -114,6 +114,19 @@ func createRouteTestUser(t *testing.T, app core.App, role string) (*core.Record,
 	if err != nil {
 		t.Fatal(err)
 	}
+	token, _, err := createAppSession(app, user.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return user, "Bearer " + token
+}
+
+func createRouteTestUserWithPocketBaseToken(t *testing.T, app core.App, role string) (*core.Record, string) {
+	t.Helper()
+	user, err := createUser(app, "Admin", "admin-"+role+"@example.com", "password123", role)
+	if err != nil {
+		t.Fatal(err)
+	}
 	token, err := user.NewAuthToken()
 	if err != nil {
 		t.Fatal(err)
@@ -365,7 +378,7 @@ func TestAssetsCollectionCreateAcceptsSvgUpload(t *testing.T) {
 		t.Fatal(err)
 	}
 	registerRecordHooks(app)
-	user, token := createRouteTestUser(t, app, "authenticated")
+	user, token := createRouteTestUserWithPocketBaseToken(t, app, "authenticated")
 
 	res := serveMultipartTestRequest(
 		t,
@@ -401,7 +414,7 @@ func TestAssetsCollectionCreateAcceptsIcoUpload(t *testing.T) {
 		t.Fatal(err)
 	}
 	registerRecordHooks(app)
-	user, token := createRouteTestUser(t, app, "authenticated")
+	user, token := createRouteTestUserWithPocketBaseToken(t, app, "authenticated")
 
 	res := serveMultipartTestRequest(
 		t,
@@ -437,7 +450,7 @@ func TestSubscriptionsCollectionCreateAcceptsPrivateAssetLogoPath(t *testing.T) 
 		t.Fatal(err)
 	}
 	registerRecordHooks(app)
-	user, token := createRouteTestUser(t, app, "authenticated")
+	user, token := createRouteTestUserWithPocketBaseToken(t, app, "authenticated")
 
 	uploadRes := serveMultipartTestRequest(
 		t,
@@ -513,7 +526,7 @@ func TestSubscriptionsCollectionCreateValidatesLogoURLContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	registerRecordHooks(app)
-	user, token := createRouteTestUser(t, app, "logo-url")
+	user, token := createRouteTestUserWithPocketBaseToken(t, app, "logo-url")
 
 	createBody := func(logo string) string {
 		return fmt.Sprintf(`{
@@ -714,7 +727,7 @@ func TestBannedUserCannotRefreshOrUseExistingPocketBaseToken(t *testing.T) {
 	if err := ensureSchema(app); err != nil {
 		t.Fatal(err)
 	}
-	user, token := createRouteTestUser(t, app, "user")
+	user, token := createRouteTestUserWithPocketBaseToken(t, app, "user")
 	subscriptions, err := app.FindCollectionByNameOrId("subscriptions")
 	if err != nil {
 		t.Fatal(err)

@@ -43,6 +43,6 @@ export const publicStatusService = {
   },
 
   async readPublicStatus(token: string): Promise<PublicStatusResponse> {
-    return await apiFetch(`/api/public/status/${encodeURIComponent(token)}`, publicStatusResponseSchema);
+    return await apiFetch(`/api/public/status/${encodeURIComponent(token)}`, publicStatusResponseSchema, { authMode: "none" });
   },
 };

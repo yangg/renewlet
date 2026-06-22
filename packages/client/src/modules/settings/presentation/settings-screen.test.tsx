@@ -1,5 +1,4 @@
 // SettingsScreen 测试保护设置页分区装配、H5 布局契约和 Cloudflare/Docker 差异入口，不验证普通控件细节样式。
-import { useState } from "react";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,64 +8,15 @@ import {
   WEBHOOK_HEADERS_PLACEHOLDER,
   WEBHOOK_PAYLOAD_PLACEHOLDER,
 } from "@/types/subscription";
-import { NotificationChannelConfigPanel } from "./notification-channel-config-panel";
 import {
   createControllerState,
   createUploadedAssetsManagerState,
   mocks,
   renderSettingsScreen,
   SETTINGS_SECTION_IDS,
+  StatefulEmailNotificationPanel,
+  useStatefulMonthlyBudgetController,
 } from "./settings-screen.test-utils";
-
-function StatefulEmailNotificationPanel({ initialPort = "" }: { initialPort?: string }) {
-  const [settings, setSettings] = useState({
-    ...DEFAULT_SETTINGS,
-    enabledChannels: ["email" as const],
-    smtpHost: "smtp.example.com",
-    smtpPort: initialPort,
-    recipientEmail: "alice@example.com",
-  });
-
-  return (
-    <NotificationChannelConfigPanel
-      channel="email"
-      settings={settings}
-      enabled
-      updateSetting={(key, value) => setSettings((previous) => ({ ...previous, [key]: value }))}
-      testingChannel={null}
-      onTest={vi.fn()}
-    />
-  );
-}
-
-function useStatefulMonthlyBudgetController(initialBudget = 10000) {
-  const [monthlyBudgetInput, setMonthlyBudgetInput] = useState(String(initialBudget));
-  const [monthlyBudget, setMonthlyBudget] = useState(initialBudget);
-  const [monthlyBudgetError, setMonthlyBudgetError] = useState<string | null>(null);
-
-  return {
-    ...createControllerState({
-      settings: { monthlyBudget },
-      hasUnsavedChanges: monthlyBudgetInput !== String(monthlyBudget) || Boolean(monthlyBudgetError),
-    }),
-    monthlyBudgetInput,
-    monthlyBudgetError,
-    handleMonthlyBudgetInputChange: (value: string) => {
-      setMonthlyBudgetInput(value);
-      if (!value.trim()) {
-        setMonthlyBudgetError("预算金额无效");
-        return;
-      }
-      const parsed = Number(value);
-      if (!Number.isFinite(parsed) || parsed < 0) {
-        setMonthlyBudgetError("预算金额无效");
-        return;
-      }
-      setMonthlyBudgetError(null);
-      setMonthlyBudget(parsed);
-    },
-  };
-}
 
 describe("SettingsScreen SMTP email settings", () => {
   beforeEach(() => {
@@ -112,10 +62,17 @@ describe("SettingsScreen SMTP email settings", () => {
   it("disables external integration controls in demo mode while keeping ordinary settings editable", () => {
     mocks.useSettingsFormController.mockReturnValue(createControllerState({
       externalIntegrationsDisabled: true,
+      sensitiveAccountActionsDisabled: true,
+      sensitiveAccountActionsDemoDisabled: true,
     }));
     renderSettingsScreen();
 
     expect(screen.getByRole("button", { name: "修改密码" })).toBeDisabled();
+    expect(screen.getByText("演示模式仅供浏览，不能修改身份验证器或通行密钥。")).toBeInTheDocument();
+    for (const button of screen.getAllByRole("button", { name: /身份验证器/ })) {
+      expect(button).toBeDisabled();
+    }
+    expect(screen.getByRole("button", { name: "管理通行密钥" })).toBeDisabled();
     expect(screen.getByLabelText("SMTP 服务器")).toBeDisabled();
     expect(screen.getByLabelText("SMTP 端口")).toBeDisabled();
     expect(screen.getByLabelText("收件人邮箱")).toBeDisabled();

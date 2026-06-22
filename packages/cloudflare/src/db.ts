@@ -146,13 +146,25 @@ export function intToBool(value: number | null | undefined): boolean {
 }
 
 /** toAdminUser 是管理员用户管理响应的出站门，不能直接把 password_hash 等 D1 字段透给前端。 */
-export function toAdminUser(row: UserRow): AdminUser {
+export function toAdminUser(
+  row: UserRow,
+  mfa: Pick<AdminUser, "mfaEnabled" | "mfaMethods" | "passkeysEnabled" | "passkeyCount"> = {
+    mfaEnabled: false,
+    mfaMethods: [],
+    passkeysEnabled: false,
+    passkeyCount: 0,
+  },
+): AdminUser {
   return {
     id: row.id,
     email: row.email,
     name: row.name,
     role: row.role,
     banned: intToBool(row.banned),
+    mfaEnabled: mfa.mfaEnabled,
+    mfaMethods: mfa.mfaMethods,
+    passkeysEnabled: mfa.passkeysEnabled,
+    passkeyCount: mfa.passkeyCount,
     banReason: row.ban_reason || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

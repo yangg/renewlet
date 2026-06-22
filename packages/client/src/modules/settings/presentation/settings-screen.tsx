@@ -130,6 +130,8 @@ export function SettingsScreen() {
     password,
     passwordResetEnabled,
     externalIntegrationsDisabled,
+    sensitiveAccountActionsDisabled,
+    sensitiveAccountActionsDemoDisabled,
   } = useSettingsFormController();
 
   const {
@@ -247,7 +249,8 @@ export function SettingsScreen() {
                 setConfirmPassword={setConfirmPassword}
                 isUpdatingPassword={isUpdatingPassword}
                 updatePassword={updatePassword}
-                passwordDisabled={externalIntegrationsDisabled}
+                passwordDisabled={sensitiveAccountActionsDisabled}
+                accountSecurityDemoDisabled={sensitiveAccountActionsDemoDisabled}
               />
 
               {/* 外观设置 */}

@@ -104,6 +104,26 @@ msgid "media.logo"
 msgstr "Logo"
 
 #. js-lingui-explicit-id
+#: src/i18n/descriptors/notification.ts:11
+msgid "media.changeLogo"
+msgstr "Change Logo"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/notification.ts:13
+msgid "media.changeIcon"
+msgstr "Change icon"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/notification.ts:12
+msgid "media.clearLogo"
+msgstr "Clear Logo"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/notification.ts:14
+msgid "media.clearIcon"
+msgstr "Clear icon"
+
+#. js-lingui-explicit-id
 #: src/i18n/descriptors/notification.ts:74
 msgid "media.logoUploadFailed"
 msgstr "Logo upload failed. Try again or use a search result."
@@ -189,9 +209,19 @@ msgid "media.upload"
 msgstr "Upload"
 
 #. js-lingui-explicit-id
+#: src/i18n/descriptors/notification.ts:7
+msgid "media.uploadIcon"
+msgstr "Upload icon"
+
+#. js-lingui-explicit-id
 #: src/i18n/descriptors/notification.ts:8
 msgid "media.uploadLogo"
 msgstr "Upload Logo"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/notification.ts:10
+msgid "media.uploadLogoImage"
+msgstr "Upload Logo image"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/notification.ts:13

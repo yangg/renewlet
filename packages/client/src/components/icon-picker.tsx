@@ -104,23 +104,27 @@ export function IconPicker({
   return (
     <>
       <div className="flex items-center gap-2">
-        {/* 图标预览 */}
-        <div 
+        <div
           className={cn(
-            "relative rounded-lg border border-border",
-            "flex items-center justify-center cursor-pointer",
-            "transition-colors",
-            displayedIcon ? "media-thumbnail-canvas hover:border-primary" : "bg-secondary/50 hover:bg-secondary/80",
-            "overflow-hidden group shrink-0",
+            "group relative shrink-0 overflow-visible",
             iconSize,
-            uploadStatus === "error" && "ring-1 ring-destructive/40"
           )}
-          onClick={() => fileInputRef.current?.click()}
-          onFocus={preloadImageCropDialog}
-          onPointerEnter={preloadImageCropDialog}
         >
-          {displayedIcon ? (
-            <>
+          <button
+            type="button"
+            aria-label={displayedIcon ? t("media.changeIcon") : t("media.uploadIcon")}
+            className={cn(
+              "relative flex items-center justify-center rounded-lg border border-border transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              displayedIcon ? "media-thumbnail-canvas overflow-hidden hover:border-primary" : "bg-secondary/50 hover:bg-secondary/80",
+              iconSize,
+              uploadStatus === "error" && "ring-1 ring-destructive/40",
+            )}
+            onClick={() => fileInputRef.current?.click()}
+            onFocus={preloadImageCropDialog}
+            onPointerEnter={preloadImageCropDialog}
+          >
+            {displayedIcon ? (
               <div className="relative z-10 h-full w-full p-1">
                 <FaviconResultImage
                   src={displayedIcon}
@@ -129,25 +133,25 @@ export function IconPicker({
                   onError={() => applyValue(undefined)}
                 />
               </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  applyValue(undefined);
-                }}
-                className="absolute -top-1 -right-1 z-20 w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <X className="w-2.5 h-2.5" />
-              </button>
-            </>
-          ) : (
-            <ImageIcon className="w-4 h-4 text-muted-foreground/50" />
-          )}
-          {uploadStatus === "uploading" && (
-            <div className="absolute inset-0 z-30 bg-background/60 flex items-center justify-center">
-              <Loader2 className="w-4 h-4 animate-spin text-primary" />
-            </div>
-          )}
+            ) : (
+              <ImageIcon className="w-4 h-4 text-muted-foreground/50" />
+            )}
+            {uploadStatus === "uploading" && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/60">
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              </div>
+            )}
+          </button>
+          {displayedIcon ? (
+            <button
+              type="button"
+              aria-label={t("media.clearIcon")}
+              onClick={() => applyValue(undefined)}
+              className="absolute -right-1 -top-1 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-100 shadow-sm transition-opacity hover:bg-destructive/90 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:opacity-0 sm:group-hover:opacity-100"
+            >
+              <X className="w-2.5 h-2.5" />
+            </button>
+          ) : null}
           <input
             ref={fileInputRef}
             type="file"
@@ -157,7 +161,6 @@ export function IconPicker({
           />
         </div>
 
-        {/* 操作按钮 */}
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex gap-1">
             <Button

@@ -4,11 +4,25 @@ import {
   adminDeleteUser,
   adminListUsers,
   adminPatchUser,
+  adminResetUserMfa,
+  adminResetUserPasskeys,
   appStatus,
   changePassword,
   createInitialAdmin,
   login,
   logout,
+  mfaDisable,
+  mfaRecoveryRegenerate,
+  mfaStatus,
+  mfaTotpEnable,
+  mfaTotpSetup,
+  mfaVerify,
+  passkeyAuthenticateOptions,
+  passkeyAuthenticateVerify,
+  passkeyDelete,
+  passkeyRegisterOptions,
+  passkeyRegisterVerify,
+  passkeys,
   passwordResetStatus,
   session,
   setupStatus,
@@ -202,6 +216,36 @@ async function routeApp(request: Request, env: Env, url: URL): Promise<Response>
   if (head === "auth" && second === "login") return routeMethods(request, { POST: () => login(request, env) });
   if (head === "auth" && second === "session") return routeMethods(request, { GET: () => session(request, env) });
   if (head === "auth" && second === "logout") return routeMethods(request, { POST: () => logout(request, env) });
+  if (head === "auth" && second === "mfa" && third === "verify") return routeMethods(request, { POST: () => mfaVerify(request, env) });
+  if (head === "auth" && second === "passkeys" && third === "authenticate" && fourth === "options" && !fifth) {
+    return routeMethods(request, { POST: () => passkeyAuthenticateOptions(request, env) });
+  }
+  if (head === "auth" && second === "passkeys" && third === "authenticate" && fourth === "verify" && !fifth) {
+    return routeMethods(request, { POST: () => passkeyAuthenticateVerify(request, env) });
+  }
+  if (head === "auth" && second === "mfa" && third === "status") return routeMethods(request, { GET: () => mfaStatus(request, env) });
+  if (head === "auth" && second === "mfa" && third === "totp" && fourth === "setup") {
+    return routeMethods(request, { POST: () => mfaTotpSetup(request, env) });
+  }
+  if (head === "auth" && second === "mfa" && third === "totp" && fourth === "enable") {
+    return routeMethods(request, { POST: () => mfaTotpEnable(request, env) });
+  }
+  if (head === "auth" && second === "mfa" && third === "recovery" && fourth === "regenerate") {
+    return routeMethods(request, { POST: () => mfaRecoveryRegenerate(request, env) });
+  }
+  if (head === "auth" && second === "passkeys" && !third) {
+    return routeMethods(request, { GET: () => passkeys(request, env) });
+  }
+  if (head === "auth" && second === "passkeys" && third === "register" && fourth === "options" && !fifth) {
+    return routeMethods(request, { POST: () => passkeyRegisterOptions(request, env) });
+  }
+  if (head === "auth" && second === "passkeys" && third === "register" && fourth === "verify" && !fifth) {
+    return routeMethods(request, { POST: () => passkeyRegisterVerify(request, env) });
+  }
+  if (head === "auth" && second === "passkeys" && third && fourth === "delete" && !fifth) {
+    return routeMethods(request, { POST: () => passkeyDelete(request, env, third) });
+  }
+  if (head === "auth" && second === "mfa" && third === "disable") return routeMethods(request, { POST: () => mfaDisable(request, env) });
 
   if (head === "account" && second === "password") return routeMethods(request, { PUT: () => changePassword(request, env) });
   if (head === "account" && second === "password-reset" && third === "status") {
@@ -216,6 +260,12 @@ async function routeApp(request: Request, env: Env, url: URL): Promise<Response>
       GET: () => adminListUsers(request, env),
       POST: () => adminCreateUser(request, env),
     });
+  }
+  if (head === "admin" && second === "users" && third && fourth === "mfa" && fifth === "reset" && !sixth) {
+    return routeMethods(request, { POST: () => adminResetUserMfa(request, env, third) });
+  }
+  if (head === "admin" && second === "users" && third && fourth === "passkeys" && fifth === "reset" && !sixth) {
+    return routeMethods(request, { POST: () => adminResetUserPasskeys(request, env, third) });
   }
   if (head === "admin" && second === "users" && third) {
     return routeMethods(request, {

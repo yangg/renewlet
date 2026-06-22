@@ -1,53 +1,39 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { clearAuthSession, withPocketBaseAuthGuard } from "./auth-session";
+import { beforeEach, describe, expect, it } from "vitest";
+import { readProductSession, writeProductSession } from "@/services/product-session";
+import { clearAuthSession } from "./auth-session";
 
-const mocks = vi.hoisted(() => ({
-  authStoreClear: vi.fn(),
-  pb: {
-    authStore: {
-      token: "token-1",
-      clear: vi.fn(),
-    },
+const sessionFixture = {
+  type: "session" as const,
+  session: { id: "token-1", expiresAt: "2026-07-03T00:00:00.000Z" },
+  user: {
+    id: "user-1",
+    email: "alice@example.com",
+    name: "Alice",
+    role: "admin",
+    banned: false,
   },
-}));
-
-vi.mock("@/services/runtime", () => ({
-  renewletRuntime: "pocketbase",
-  isCloudflareRuntime: false,
-}));
-
-vi.mock("@/lib/pocketbase", () => ({
-  pb: mocks.pb,
-}));
+};
 
 describe("auth-session helpers", () => {
   beforeEach(() => {
-    mocks.authStoreClear.mockReset();
-    mocks.pb.authStore.clear = mocks.authStoreClear;
-    mocks.pb.authStore.token = "token-1";
+    window.localStorage.clear();
   });
 
-  it("does not clear a newer token when an older validation fails", () => {
+  it("does not clear a newer product token when an older validation fails", () => {
     // 旧请求的 401 不能清掉用户刚刷新的 token，这是登录竞态的核心防线。
+    writeProductSession(sessionFixture);
+
     clearAuthSession("old-token");
 
-    expect(mocks.authStoreClear).not.toHaveBeenCalled();
+    expect(readProductSession()?.session.id).toBe("token-1");
   });
 
-  it("clears PocketBase authStore on guarded 401 errors and rethrows the original error", async () => {
-    // PocketBase SDK 路径不经过 apiFetch，这里补齐同一套 401 清会话语义。
-    const error = Object.assign(new Error("Unauthorized"), { status: 401 });
+  it("clears the current product session when the failing token matches", () => {
+    writeProductSession(sessionFixture);
 
-    await expect(withPocketBaseAuthGuard(Promise.reject(error))).rejects.toBe(error);
+    clearAuthSession("token-1");
 
-    expect(mocks.authStoreClear).toHaveBeenCalledTimes(1);
+    expect(readProductSession()).toBeNull();
   });
 
-  it("does not clear PocketBase authStore on non-auth errors", async () => {
-    const error = Object.assign(new Error("Bad request"), { status: 400 });
-
-    await expect(withPocketBaseAuthGuard(Promise.reject(error))).rejects.toBe(error);
-
-    expect(mocks.authStoreClear).not.toHaveBeenCalled();
-  });
 });

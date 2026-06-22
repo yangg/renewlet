@@ -87,6 +87,7 @@ export default function SetupPage() {
     setErrors({});
     try {
       await apiFetch("/api/app/setup", setupCreateResponseSchema, {
+        authMode: "none",
         method: "POST",
         body: JSON.stringify({ name: trimmedName, email: trimmedEmail, password }),
       });

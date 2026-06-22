@@ -619,6 +619,7 @@ async function buildCloudBackupExportZip(env: Env, userId: string): Promise<{ co
     }
     exportSubscriptions.push(subscription);
   }
+  // 云备份使用业务恢复 allowlist 组包；sessions/MFA/passkey/tickets 和 R2 系统密钥对象都不进入 ZIP。
   const payload = renewletExportV1Schema.parse({
     kind: "renewlet-export",
     schemaVersion: 1,

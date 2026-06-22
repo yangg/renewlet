@@ -1,6 +1,22 @@
 // Worker 认证测试保护账号生命周期边界；D1 细节用 mock 固定，测试只关心 route 安全决策。
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { adminPatchUser, appStatus, createInitialAdmin, login } from "./auth";
+import {
+  adminPatchUser,
+  adminResetUserMfa,
+  adminResetUserPasskeys,
+  appStatus,
+  createInitialAdmin,
+  login,
+  mfaDisable,
+  mfaRecoveryRegenerate,
+  mfaTotpEnable,
+  mfaVerify,
+  passkeyAuthenticateOptions,
+  passkeyAuthenticateVerify,
+  passkeyDelete,
+  passkeyRegisterVerify,
+} from "./auth";
+import { AccountSecuritySchemaError } from "./account-security-schema";
 import type { Env, UserRow } from "./types";
 
 const mocks = vi.hoisted(() => ({
@@ -12,6 +28,19 @@ const mocks = vi.hoisted(() => ({
   nowIso: vi.fn(),
   sha256: vi.fn(),
   verifyPassword: vi.fn(),
+  createMfaAuthTicket: vi.fn(),
+  deletePasskeyForCurrentUser: vi.fn(),
+  deleteMfaAuthTicketsForUser: vi.fn(),
+  deletePasskeysForUser: vi.fn(),
+  disableAuthenticatorMfaForCurrentUser: vi.fn(),
+  disableAuthenticatorMfaForUser: vi.fn(),
+  enableTotp: vi.fn(),
+  finishPasskeyAuthentication: vi.fn(),
+  finishPasskeyRegistration: vi.fn(),
+  authenticatorMfaMethodsForUser: vi.fn(),
+  regenerateRecoveryCodes: vi.fn(),
+  startPasskeyAuthentication: vi.fn(),
+  verifyMfaLogin: vi.fn(),
 }));
 
 vi.mock("./db", async (importOriginal) => {
@@ -34,6 +63,64 @@ vi.mock("./crypto", async (importOriginal) => {
     sha256: mocks.sha256,
     verifyPassword: mocks.verifyPassword,
   };
+});
+
+vi.mock("./mfa", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./mfa")>();
+  return {
+    ...actual,
+    createMfaAuthTicket: mocks.createMfaAuthTicket,
+    deletePasskeyForCurrentUser: mocks.deletePasskeyForCurrentUser,
+    deleteMfaAuthTicketsForUser: mocks.deleteMfaAuthTicketsForUser,
+    deletePasskeysForUser: mocks.deletePasskeysForUser,
+    disableAuthenticatorMfaForCurrentUser: mocks.disableAuthenticatorMfaForCurrentUser,
+    disableAuthenticatorMfaForUser: mocks.disableAuthenticatorMfaForUser,
+    enableTotp: mocks.enableTotp,
+    finishPasskeyAuthentication: mocks.finishPasskeyAuthentication,
+    finishPasskeyRegistration: mocks.finishPasskeyRegistration,
+    authenticatorMfaMethodsForUser: mocks.authenticatorMfaMethodsForUser,
+    regenerateRecoveryCodes: mocks.regenerateRecoveryCodes,
+    startPasskeyAuthentication: mocks.startPasskeyAuthentication,
+    verifyMfaLogin: mocks.verifyMfaLogin,
+  };
+});
+
+beforeEach(() => {
+  mocks.createMfaAuthTicket.mockReset().mockResolvedValue({
+    ticketId: "mfa-ticket",
+    expiresAt: "2026-06-03T00:05:00.000Z",
+    methods: ["totp"],
+  });
+  mocks.deleteMfaAuthTicketsForUser.mockReset().mockResolvedValue(undefined);
+  mocks.deletePasskeyForCurrentUser.mockReset().mockResolvedValue(renewedSession("passkey-delete-session"));
+  mocks.deletePasskeysForUser.mockReset().mockResolvedValue(undefined);
+  mocks.disableAuthenticatorMfaForCurrentUser.mockReset().mockResolvedValue(renewedSession("mfa-disable-session"));
+  mocks.disableAuthenticatorMfaForUser.mockReset().mockResolvedValue(undefined);
+  mocks.enableTotp.mockReset().mockResolvedValue({
+    ...renewedSession("totp-enable-session"),
+    recoveryCodes: ["ABCD-EFGH-IJKL"],
+  });
+  mocks.finishPasskeyAuthentication.mockReset().mockResolvedValue({
+    type: "session",
+    session: { id: "passkey-session", expiresAt: "2026-07-03T00:00:00.000Z" },
+    user: { id: "usr_passkey", email: "passkey@example.com", name: "Passkey User", role: "user", banned: false },
+  });
+  mocks.finishPasskeyRegistration.mockReset().mockResolvedValue(renewedSession("passkey-register-session"));
+  mocks.authenticatorMfaMethodsForUser.mockReset().mockResolvedValue([]);
+  mocks.regenerateRecoveryCodes.mockReset().mockResolvedValue({
+    ...renewedSession("recovery-regenerate-session"),
+    recoveryCodes: ["MNOP-QRST-UVWX"],
+  });
+  mocks.startPasskeyAuthentication.mockReset().mockResolvedValue({
+    challengeId: "challenge-1",
+    expiresAt: "2026-06-03T00:05:00.000Z",
+    options: { challenge: "challenge-value" },
+  });
+  mocks.verifyMfaLogin.mockReset().mockResolvedValue(new Response(JSON.stringify({
+    type: "session",
+    session: { id: "mfa-session", expiresAt: "2026-07-03T00:00:00.000Z" },
+    user: { id: "usr_mfa", email: "mfa@example.com", name: "MFA User", role: "user", banned: false },
+  }), { headers: { "content-type": "application/json" } }));
 });
 
 describe("Cloudflare admin password reset boundary", () => {
@@ -70,7 +157,8 @@ describe("Cloudflare admin password reset boundary", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.hashPassword).toHaveBeenCalledWith("newpassword123");
-    expect(updateRun).toHaveBeenCalledTimes(1);
+    expect(updateRun).toHaveBeenCalledTimes(2);
+    expect(mocks.deleteMfaAuthTicketsForUser).toHaveBeenCalledWith(expect.anything(), "usr_user");
   });
 });
 
@@ -113,6 +201,205 @@ describe("Cloudflare auth settings initialization", () => {
     expect(mocks.verifyPassword).toHaveBeenCalledWith("password123", "old-hash");
     expect(mocks.ensureSettings).toHaveBeenCalledWith(expect.anything(), "usr_login", "zh-CN");
     expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns an MFA ticket without creating a session when an authenticator is enabled", async () => {
+    const run = vi.fn().mockResolvedValue({});
+    mocks.findUserByEmail.mockResolvedValue(userRow({ id: "usr_mfa", email: "mfa@example.com" }));
+    mocks.authenticatorMfaMethodsForUser.mockResolvedValue(["totp"]);
+    mocks.createMfaAuthTicket.mockResolvedValue({
+      ticketId: "ticket-second-factor",
+      expiresAt: "2026-06-03T00:05:00.000Z",
+      methods: ["totp"],
+    });
+
+    const response = await login(jsonRequest("/api/app/auth/login", "POST", {
+      email: "mfa@example.com",
+      password: "password123",
+    }, { "x-renewlet-locale": "zh-CN" }), envFixture(run));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      type: "mfa_required",
+      ticketId: "ticket-second-factor",
+      expiresAt: "2026-06-03T00:05:00.000Z",
+      methods: ["totp"],
+    });
+    expect(mocks.createMfaAuthTicket).toHaveBeenCalledWith(expect.anything(), "usr_mfa", ["totp"]);
+    expect(run).not.toHaveBeenCalled();
+  });
+});
+
+describe("Cloudflare account security session renewal", () => {
+  beforeEach(() => {
+    mocks.enabledAdminCount.mockReset().mockResolvedValue(2);
+    mocks.ensureSettings.mockReset().mockResolvedValue(undefined);
+    mocks.findUserByEmail.mockReset();
+    mocks.findUserById.mockReset();
+    mocks.hashPassword.mockReset().mockResolvedValue("hashed-new-password");
+    mocks.nowIso.mockReset().mockReturnValue("2026-06-03T00:00:00.000Z");
+    mocks.sha256.mockReset().mockResolvedValue("token-hash");
+    mocks.verifyPassword.mockReset().mockResolvedValue(true);
+  });
+
+  it("returns a renewed session together with one-time recovery codes after enabling TOTP", async () => {
+    const response = await mfaTotpEnable(jsonRequest("/api/app/auth/mfa/totp/enable", "POST", {
+      setupId: "setup-token",
+      code: "123456",
+      currentPassword: "password123",
+    }, { authorization: "Bearer session-token" }), envFixture(vi.fn()));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      type: "session",
+      session: { id: "totp-enable-session" },
+      recoveryCodes: ["ABCD-EFGH-IJKL"],
+    });
+    expect(mocks.enableTotp).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ id: "usr_admin" }), "setup-token", "123456");
+  });
+
+  it("returns a renewed session after regenerating recovery codes", async () => {
+    mocks.authenticatorMfaMethodsForUser.mockResolvedValueOnce(["totp"]);
+
+    const response = await mfaRecoveryRegenerate(jsonRequest("/api/app/auth/mfa/recovery/regenerate", "POST", {
+      currentPassword: "password123",
+    }, { authorization: "Bearer session-token" }), envFixture(vi.fn()));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      type: "session",
+      session: { id: "recovery-regenerate-session" },
+      recoveryCodes: ["MNOP-QRST-UVWX"],
+    });
+    expect(mocks.regenerateRecoveryCodes).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ id: "usr_admin" }));
+  });
+
+  it("returns renewed sessions for self-service passkey and authenticator mutations", async () => {
+    const env = envFixture(vi.fn());
+
+    const registerResponse = await passkeyRegisterVerify(jsonRequest("/api/app/auth/passkeys/register/verify", "POST", {
+      challengeId: "challenge-1",
+      name: "MacBook Touch ID",
+      response: { id: "credential-id" },
+    }, { authorization: "Bearer session-token" }), env);
+    const deleteResponse = await passkeyDelete(jsonRequest("/api/app/auth/passkeys/pkey_1/delete", "POST", {
+      currentPassword: "password123",
+    }, { authorization: "Bearer session-token" }), env, "pkey_1");
+    const disableResponse = await mfaDisable(jsonRequest("/api/app/auth/mfa/disable", "POST", {
+      currentPassword: "password123",
+    }, { authorization: "Bearer session-token" }), env);
+
+    await expect(registerResponse.json()).resolves.toMatchObject({ session: { id: "passkey-register-session" } });
+    await expect(deleteResponse.json()).resolves.toMatchObject({ session: { id: "passkey-delete-session" } });
+    await expect(disableResponse.json()).resolves.toMatchObject({ session: { id: "mfa-disable-session" } });
+    expect(mocks.finishPasskeyRegistration).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({ id: "usr_admin" }), "challenge-1", "MacBook Touch ID", expect.anything());
+    expect(mocks.deletePasskeyForCurrentUser).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ id: "usr_admin" }), "pkey_1");
+    expect(mocks.disableAuthenticatorMfaForCurrentUser).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ id: "usr_admin" }));
+  });
+});
+
+describe("Cloudflare passkey authenticate options boundary", () => {
+  beforeEach(() => {
+    mocks.startPasskeyAuthentication.mockReset().mockResolvedValue({
+      challengeId: "challenge-1",
+      expiresAt: "2026-06-03T00:05:00.000Z",
+      options: { challenge: "challenge-value" },
+    });
+  });
+
+  it("creates an unauthenticated passkey challenge without requiring a session", async () => {
+    const response = await passkeyAuthenticateOptions(
+      jsonRequest("/api/app/auth/passkeys/authenticate/options", "POST", {}),
+      envFixture(vi.fn()),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      challengeId: "challenge-1",
+      expiresAt: "2026-06-03T00:05:00.000Z",
+      options: { challenge: "challenge-value" },
+    });
+    expect(mocks.startPasskeyAuthentication).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports challenge initialization failures as bad requests instead of session expiry", async () => {
+    mocks.startPasskeyAuthentication.mockRejectedValueOnce(new Error("account security key unavailable"));
+
+    await expect(passkeyAuthenticateOptions(
+      jsonRequest("/api/app/auth/passkeys/authenticate/options", "POST", {}),
+      envFixture(vi.fn()),
+    )).rejects.toMatchObject({
+      status: 400,
+      message: "Invalid request parameters",
+    });
+  });
+});
+
+describe("Cloudflare account security infrastructure errors", () => {
+  it("does not report MFA storage initialization failures as session expiry", async () => {
+    mocks.verifyMfaLogin.mockRejectedValueOnce(new AccountSecuritySchemaError(new Error("D1_ERROR: permission denied")));
+
+    await expect(mfaVerify(jsonRequest("/api/app/auth/mfa/verify", "POST", {
+      method: "totp",
+      ticketId: "ticket-1",
+      code: "123456",
+    }), envFixture(vi.fn()))).rejects.toMatchObject({
+      name: "AccountSecuritySchemaError",
+      message: "D1_ERROR: permission denied",
+    });
+  });
+
+  it("does not report passkey storage initialization failures as session expiry", async () => {
+    mocks.finishPasskeyAuthentication.mockRejectedValueOnce(new AccountSecuritySchemaError(new Error("D1_ERROR: permission denied")));
+
+    await expect(passkeyAuthenticateVerify(jsonRequest("/api/app/auth/passkeys/authenticate/verify", "POST", {
+      challengeId: "challenge-1",
+      response: { id: "credential-1" },
+    }), envFixture(vi.fn()))).rejects.toMatchObject({
+      name: "AccountSecuritySchemaError",
+      message: "D1_ERROR: permission denied",
+    });
+  });
+});
+
+describe("Cloudflare admin MFA reset boundary", () => {
+  beforeEach(() => {
+    mocks.enabledAdminCount.mockReset().mockResolvedValue(2);
+    mocks.ensureSettings.mockReset().mockResolvedValue(undefined);
+    mocks.findUserByEmail.mockReset();
+    mocks.findUserById.mockReset();
+    mocks.hashPassword.mockReset().mockResolvedValue("hashed-new-password");
+    mocks.nowIso.mockReset().mockReturnValue("2026-06-03T00:00:00.000Z");
+    mocks.sha256.mockReset().mockResolvedValue("token-hash");
+    mocks.verifyPassword.mockReset().mockResolvedValue(true);
+  });
+
+  it("rejects resetting the current administrator MFA state", async () => {
+    mocks.findUserById.mockResolvedValue(userRow({ id: "usr_admin", role: "admin" }));
+
+    await expect(adminResetUserMfa(adminRequest(), envFixture(vi.fn()), "usr_admin")).rejects.toMatchObject({
+      status: 400,
+    });
+
+    expect(mocks.disableAuthenticatorMfaForUser).not.toHaveBeenCalled();
+  });
+
+  it("resets another user MFA state through the centralized cleanup helper", async () => {
+    mocks.findUserById.mockResolvedValue(userRow({ id: "usr_user", role: "user" }));
+
+    const response = await adminResetUserMfa(adminRequest(), envFixture(vi.fn()), "usr_user");
+
+    expect(response.status).toBe(200);
+    expect(mocks.disableAuthenticatorMfaForUser).toHaveBeenCalledWith(expect.anything(), "usr_user");
+  });
+
+  it("resets another user's passkeys through the passkey cleanup helper", async () => {
+    mocks.findUserById.mockResolvedValue(userRow({ id: "usr_user", role: "user" }));
+
+    const response = await adminResetUserPasskeys(adminRequest(), envFixture(vi.fn()), "usr_user");
+
+    expect(response.status).toBe(200);
+    expect(mocks.deletePasskeysForUser).toHaveBeenCalledWith(expect.anything(), "usr_user");
   });
 });
 
@@ -164,10 +451,24 @@ function requestFixture(body: unknown): Request {
   });
 }
 
+function adminRequest(): Request {
+  return new Request("https://renewlet.example/api/app/admin/users/usr_user/mfa/reset", {
+    method: "POST",
+    headers: {
+      "accept-language": "en-US",
+      "authorization": "Bearer session-token",
+    },
+  });
+}
+
 function envFixture(updateRun: ReturnType<typeof vi.fn>): Env {
   const sessionTouchRun = vi.fn().mockResolvedValue({});
   return {
     DB: {
+      batch: vi.fn(async (statements: Array<{ run?: () => Promise<unknown> }>) => {
+        await Promise.all(statements.map(async (statement) => await statement.run?.()));
+        return [];
+      }),
       prepare: vi.fn((sql: string) => ({
         first: vi.fn().mockResolvedValue(sql.includes("SELECT id FROM users") ? null : undefined),
         bind: vi.fn(() => {
@@ -202,6 +503,14 @@ function authRow(): UserRow & {
     session_expires_at: "2026-07-03T00:00:00.000Z",
     session_created_at: "2026-06-03T00:00:00.000Z",
     session_last_seen_at: "2026-06-03T00:00:00.000Z",
+  };
+}
+
+function renewedSession(token: string) {
+  return {
+    type: "session" as const,
+    session: { id: token, expiresAt: "2026-07-03T00:00:00.000Z" },
+    user: { id: "usr_admin", email: "admin@example.com", name: "Admin", role: "admin", banned: false },
   };
 }
 

@@ -1,17 +1,26 @@
 /**
  * 账号设置展示区。
  *
- * 架构位置：只渲染邮箱、密码弹窗和 PocketBase Admin 入口；密码修改流程由 application hook 管理。
+ * 架构位置：渲染邮箱、密码、账号安全与 PocketBase Admin 入口；密码修改流程由 application hook 管理。
  *
  * 注意： 不要在展示层缓存密码字段，关闭弹窗时必须交给 controller 清理。
  */
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from '@/components/router-link';
 import { useI18n } from '@/i18n/I18nProvider';
 import { ExternalLink } from 'lucide-react';
+import { passkeyService } from "@/services/passkey-service";
 import { PasswordChangeDialog } from './password-change-dialog';
+import { AccountMfaSection } from './account-mfa-section';
+import { AccountPasskeysSection } from './account-passkeys-section';
+import { AccountPasskeysManagerDialog } from "./account-passkeys-manager-dialog";
+import { AccountSecurityDialogs } from "./account-security-dialogs";
+import { PASSKEYS_QUERY_KEY } from "./account-security-query-keys";
+import type { AccountSecurityDialogState, MfaPasswordAction } from "./account-security-dialog-state";
 import { getSettingsSectionClassName } from './settings-layout';
 
 export interface AccountSettingsSectionProps {
@@ -33,6 +42,7 @@ export interface AccountSettingsSectionProps {
   isUpdatingPassword: boolean;
   updatePassword: () => void | Promise<void>;
   passwordDisabled?: boolean;
+  accountSecurityDemoDisabled?: boolean;
 }
 
 export function AccountSettingsSection({
@@ -54,8 +64,32 @@ export function AccountSettingsSection({
   isUpdatingPassword,
   updatePassword,
   passwordDisabled = false,
+  accountSecurityDemoDisabled = false,
 }: AccountSettingsSectionProps) {
   const { t } = useI18n();
+  const [accountSecurityDialog, setAccountSecurityDialog] = useState<AccountSecurityDialogState>({ type: "none" });
+  const passkeysQuery = useQuery({
+    queryKey: PASSKEYS_QUERY_KEY,
+    queryFn: () => passkeyService.list(),
+    staleTime: 30_000,
+  });
+  const passkeys = passkeysQuery.data ?? [];
+
+  const openAccountSecurityDialog = (nextState: AccountSecurityDialogState) => {
+    if (passwordDisabled && nextState.type !== "none") return;
+    setAccountSecurityDialog((current) => (current.type === "passkeys_manager" && nextState.type !== "none" ? current : nextState));
+  };
+  const openMfaPasswordAction = (action: MfaPasswordAction) => {
+    openAccountSecurityDialog({ type: "mfa_password", action });
+  };
+  const handlePasskeysManagerOpenChange = (open: boolean) => {
+    openAccountSecurityDialog(open ? { type: "passkeys_manager" } : { type: "none" });
+  };
+  useEffect(() => {
+    if (passwordDisabled && accountSecurityDialog.type !== "none") {
+      setAccountSecurityDialog({ type: "none" });
+    }
+  }, [passwordDisabled, accountSecurityDialog.type]);
 
   return (
     <>
@@ -126,6 +160,24 @@ export function AccountSettingsSection({
                         <p className="text-xs text-muted-foreground">{t("settings.passwordHelp")}</p>
                       </div>
                     </div>
+                    <div className="mt-6 grid gap-4">
+                      {accountSecurityDemoDisabled ? (
+                        <p className="text-xs leading-5 text-muted-foreground">
+                          {t("settings.accountSecurityDemoDisabled")}
+                        </p>
+                      ) : null}
+                      <AccountMfaSection
+                        disabled={passwordDisabled}
+                        onSetupReady={(setup) => openAccountSecurityDialog({ type: "mfa_setup", setup })}
+                        onPasswordAction={openMfaPasswordAction}
+                      />
+                      <AccountPasskeysSection
+                        disabled={passwordDisabled}
+                        count={passkeys.length}
+                        isLoading={passkeysQuery.isLoading}
+                        onManagePasskeys={() => openAccountSecurityDialog({ type: "passkeys_manager" })}
+                      />
+                    </div>
                   </section>
       
                   <PasswordChangeDialog
@@ -139,6 +191,18 @@ export function AccountSettingsSection({
                     onConfirmPasswordChange={setConfirmPassword}
                     isUpdating={isUpdatingPassword}
                     onSubmit={updatePassword}
+                  />
+                  <AccountSecurityDialogs
+                    state={accountSecurityDialog}
+                    onStateChange={openAccountSecurityDialog}
+                  />
+                  <AccountPasskeysManagerDialog
+                    accountEmail={accountEmail}
+                    disabled={passwordDisabled}
+                    open={accountSecurityDialog.type === "passkeys_manager"}
+                    onOpenChange={handlePasskeysManagerOpenChange}
+                    passkeys={passkeys}
+                    isLoading={passkeysQuery.isLoading}
                   />
       
     </>

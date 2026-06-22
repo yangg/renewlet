@@ -75,6 +75,8 @@ describe("useSettingsFormController", () => {
 
     await waitFor(() => {
       expect(result.current.externalIntegrationsDisabled).toBe(true);
+      expect(result.current.sensitiveAccountActionsDisabled).toBe(true);
+      expect(result.current.sensitiveAccountActionsDemoDisabled).toBe(true);
     });
     expect(result.current.settings.recipientEmail).toBe("");
 

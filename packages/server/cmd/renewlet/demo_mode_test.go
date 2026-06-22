@@ -30,11 +30,11 @@ func newDemoModeTestApp(t *testing.T) (core.App, *core.Record, string) {
 	if user == nil {
 		t.Fatal("expected demo user to be created")
 	}
-	token, err := user.NewAuthToken()
+	token, _, err := createAppSession(app, user.Id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return app, user, token
+	return app, user, "Bearer " + token
 }
 
 func countUserRecords(t *testing.T, app core.App, collection string, userID string) int64 {
@@ -418,6 +418,53 @@ func TestDemoModeProtectsAccountRoutesAndRecordHooks(t *testing.T) {
 	del := serveTestRequest(t, app, http.MethodDelete, "/api/app/admin/users/"+demo.Id, "", adminToken)
 	if del.Code != http.StatusForbidden {
 		t.Fatalf("expected admin delete of demo user to be forbidden, got %d: %s", del.Code, del.Body.String())
+	}
+}
+
+func TestDemoModeKeepsAccountSecurityReadOnly(t *testing.T) {
+	app, _, token := newDemoModeTestApp(t)
+
+	for _, tc := range []struct {
+		name   string
+		target string
+	}{
+		{name: "mfa status", target: "/api/app/auth/mfa/status"},
+		{name: "passkey list", target: "/api/app/auth/passkeys"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			res := serveTestRequest(t, app, http.MethodGet, tc.target, "", token)
+			if res.Code != http.StatusOK {
+				t.Fatalf("expected demo account security read to succeed, got %d: %s", res.Code, res.Body.String())
+			}
+		})
+	}
+
+	// 身份验证器和通行密钥是共享 demo 账号的登录门槛，演示访客只能浏览，不能改写这些敏感账号安全能力。
+	for _, tc := range []struct {
+		name   string
+		target string
+		body   string
+	}{
+		{name: "totp setup", target: "/api/app/auth/mfa/totp/setup", body: `{}`},
+		{name: "totp enable", target: "/api/app/auth/mfa/totp/enable", body: `{"setupId":"setup","code":"000000","currentPassword":"renewlet-demo"}`},
+		{name: "recovery regenerate", target: "/api/app/auth/mfa/recovery/regenerate", body: `{"currentPassword":"renewlet-demo"}`},
+		{name: "mfa disable", target: "/api/app/auth/mfa/disable", body: `{"currentPassword":"renewlet-demo"}`},
+		{name: "passkey register options", target: "/api/app/auth/passkeys/register/options", body: `{"name":"Demo","currentPassword":"renewlet-demo"}`},
+		{name: "passkey register verify", target: "/api/app/auth/passkeys/register/verify", body: `{"challengeId":"challenge","name":"Demo","response":{}}`},
+		{name: "passkey delete", target: "/api/app/auth/passkeys/pkey_demo/delete", body: `{"currentPassword":"renewlet-demo"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			res := serveTestRequest(t, app, http.MethodPost, tc.target, tc.body, token)
+			if res.Code != http.StatusForbidden {
+				t.Fatalf("expected demo account security mutation to be forbidden, got %d: %s", res.Code, res.Body.String())
+			}
+		})
+	}
+
+	_, normalToken := createRouteTestUser(t, app, "normal-account-security")
+	normalSetup := serveTestRequest(t, app, http.MethodPost, "/api/app/auth/mfa/totp/setup", `{}`, normalToken)
+	if normalSetup.Code == http.StatusForbidden {
+		t.Fatalf("normal user should not be blocked by demo account security guard: %s", normalSetup.Body.String())
 	}
 }
 
