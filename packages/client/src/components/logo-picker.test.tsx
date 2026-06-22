@@ -285,24 +285,33 @@ describe("LogoPicker", () => {
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
-  it("uses the shared low-noise canvas for the current Logo preview", () => {
-    render(<LogoPicker value="https://example.com/logo.svg" onChange={vi.fn()} />);
+  it("uses the shared low-noise canvas for the current Logo preview without clipping the clear control", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(<LogoPicker value="https://example.com/logo.svg" onChange={onChange} />);
 
     const logo = screen.getByAltText("Logo");
     const logoPreview = logo.closest(".media-thumbnail-canvas");
+    const clearLogoButton = screen.getByRole("button", { name: "清除 Logo" });
     expect(logo).toHaveClass("media-thumbnail-image");
     expect(logoPreview).not.toBeNull();
     expect(logoPreview).not.toHaveClass("border-dashed");
+    expect(clearLogoButton.closest(".media-thumbnail-canvas")).toBeNull();
+
+    await user.click(clearLogoButton);
+
+    expect(onChange).toHaveBeenCalledWith(undefined);
   });
 
   it("allows SVG files in the custom Logo file picker", () => {
     const { container } = render(<LogoPicker value={undefined} onChange={vi.fn()} />);
     const input = container.querySelector<HTMLInputElement>('input[type="file"]');
-    const emptyPreview = input?.parentElement;
+    const emptyPreviewButton = screen.getByRole("button", { name: "上传 Logo 图片" });
 
     expect(input).toHaveAttribute("accept", IMAGE_UPLOAD_ACCEPT);
-    expect(emptyPreview).toHaveClass("border-dashed");
-    expect(emptyPreview).not.toHaveClass("media-thumbnail-canvas");
+    expect(emptyPreviewButton).toHaveClass("border-dashed");
+    expect(emptyPreviewButton).not.toHaveClass("media-thumbnail-canvas");
   });
 
   it("keeps English Logo action labels at content width", () => {
