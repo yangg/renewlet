@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { assertDateOnly } from "@/lib/time/date-only";
-import { createSubscriptionFormState } from "@/types/subscription-form";
+import { createSubscriptionFormState, type SubscriptionFormState } from "@/types/subscription-form";
 import { SubscriptionFormFields, type SubscriptionFormErrors } from "./subscription-form-fields";
 
 const config = {
@@ -16,11 +16,18 @@ const config = {
   ],
 };
 
-function Harness({ errors }: { errors: SubscriptionFormErrors }) {
+function Harness({
+  errors,
+  formOverrides = {},
+}: {
+  errors: SubscriptionFormErrors;
+  formOverrides?: Partial<SubscriptionFormState>;
+}) {
   const [formData, setFormData] = useState(() => createSubscriptionFormState({
     currency: "CNY",
     startDate: assertDateOnly("2026-01-01"),
     nextBillingDate: assertDateOnly("2026-02-01"),
+    ...formOverrides,
   }));
 
   return (
@@ -52,5 +59,28 @@ describe("SubscriptionFormFields layout", () => {
     expect(error).toHaveAttribute("id", "price-error");
     expect(priceField).not.toContainElement(error);
     expect(priceRow).toContainElement(error);
+  });
+
+  it("keeps start date before next billing date in the date row", () => {
+    render(<Harness errors={{}} />);
+
+    const startLabel = screen.getByText("开始日期（可选）");
+    const nextLabel = screen.getByText("到期日期");
+
+    expect(Boolean(startLabel.compareDocumentPosition(nextLabel) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+  });
+
+  it("associates auto-calculate start-date errors with the start date button", () => {
+    render(<Harness
+      errors={{ dates: "开启自动计算时需要开始日期" }}
+      formOverrides={{ startDate: undefined, autoCalculate: true }}
+    />);
+
+    const startDateButton = document.getElementById("startDate");
+    const nextBillingDateButton = document.getElementById("nextBillingDate");
+
+    expect(startDateButton).toHaveAttribute("aria-invalid", "true");
+    expect(startDateButton).toHaveAttribute("aria-describedby", "startDate-error");
+    expect(nextBillingDateButton).toHaveAttribute("aria-invalid", "false");
   });
 });

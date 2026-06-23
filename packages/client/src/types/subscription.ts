@@ -170,8 +170,8 @@ interface SubscriptionBase {
   autoRenew: boolean;
   /** 是否自动根据开始日期和扣费周期计算下次扣费日期。 */
   autoCalculateNextBillingDate: boolean;
-  /** 开始日期。 */
-  startDate: DateOnly;
+  /** 开始日期；周期订阅可为空，one-time 与自动计算仍由写入契约要求非空。 */
+  startDate: DateOnly | null;
   /** 试用结束日期（仅试用状态可选）。 */
   trialEndDate: DateOnly | undefined;
   /** 官网地址（可选）。 */

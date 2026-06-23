@@ -1254,6 +1254,11 @@ msgid "subscription.field.startDate"
 msgstr "Start date"
 
 #. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:86
+msgid "subscription.field.startDateOptional"
+msgstr "Start date (optional)"
+
+#. js-lingui-explicit-id
 #: src/i18n/descriptors/subscription.ts:181
 msgid "subscription.detail.startDate"
 msgstr "Start date"
@@ -2570,13 +2575,23 @@ msgstr "Enter a service name."
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/subscription.ts:62
-msgid "subscription.validation.datesRequired"
-msgstr "Please select a start date and next billing date."
+msgid "subscription.validation.startDateRequired"
+msgstr "Please select a start date."
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:63
+msgid "subscription.validation.nextBillingDateRequired"
+msgstr "Please select an expiry date."
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:64
+msgid "subscription.validation.startDateRequiredForAutoCalculate"
+msgstr "Start date is required when automatic calculation is enabled."
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/subscription.ts:489
 msgid "aiRecognition.draftIssueDatesRequired"
-msgstr "Choose the start date and renewal or expiry date."
+msgstr "Choose the renewal or expiry date. Automatic calculation or one-time purchases also need a start date."
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/subscription.ts:458

@@ -421,6 +421,7 @@ describe("AIRecognizeSubscriptionDialog", () => {
       makeDraft({
         startDate: null,
         nextBillingDate: null,
+        autoCalculateNextBillingDate: false,
       }),
     ]));
     renderDialog();
@@ -434,12 +435,10 @@ describe("AIRecognizeSubscriptionDialog", () => {
     if (!(startDateButton instanceof HTMLButtonElement) || !(nextBillingDateButton instanceof HTMLButtonElement)) {
       throw new Error("AI draft date buttons were not rendered");
     }
-    expect(startDateButton).toHaveAttribute("aria-invalid", "true");
-    expect(startDateButton).toHaveAttribute("aria-describedby", "ai-draft-1-startDate-error");
-    expect(startDateButton.closest('[data-slot="form-field-row"]')).toHaveTextContent("请选择开始日期和续费或到期日期。");
-    const autoCalculateHelp = screen.getByText("根据开始日期和扣费周期自动计算");
-    expect(nextBillingDateButton).toHaveAttribute("aria-invalid", "false");
-    expect(nextBillingDateButton).toHaveAttribute("aria-describedby", autoCalculateHelp.id);
+    expect(startDateButton).toHaveAttribute("aria-invalid", "false");
+    expect(nextBillingDateButton).toHaveAttribute("aria-invalid", "true");
+    expect(nextBillingDateButton).toHaveAttribute("aria-describedby", "ai-draft-1-nextBillingDate-error");
+    expect(nextBillingDateButton.closest('[data-slot="form-field-row"]')).toHaveTextContent("请选择续费或到期日期。自动计算或一次性购买还需要开始日期。");
     expect(screen.getByRole("button", { name: "生成导入预览" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "生成导入预览" }));
     expect(mocks.previewPrepared).not.toHaveBeenCalled();

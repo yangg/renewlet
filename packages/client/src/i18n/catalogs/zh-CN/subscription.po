@@ -1254,6 +1254,11 @@ msgid "subscription.field.startDate"
 msgstr "开始日期"
 
 #. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:86
+msgid "subscription.field.startDateOptional"
+msgstr "开始日期（可选）"
+
+#. js-lingui-explicit-id
 #: src/i18n/descriptors/subscription.ts:181
 msgid "subscription.detail.startDate"
 msgstr "开始日期"
@@ -2570,13 +2575,23 @@ msgstr "请输入服务名称"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/subscription.ts:62
-msgid "subscription.validation.datesRequired"
-msgstr "请选择开始日期和下次扣费日期"
+msgid "subscription.validation.startDateRequired"
+msgstr "请选择开始日期"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:63
+msgid "subscription.validation.nextBillingDateRequired"
+msgstr "请选择到期日期"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:64
+msgid "subscription.validation.startDateRequiredForAutoCalculate"
+msgstr "开启自动计算时需要开始日期"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/subscription.ts:489
 msgid "aiRecognition.draftIssueDatesRequired"
-msgstr "请选择开始日期和续费或到期日期。"
+msgstr "请选择续费或到期日期。自动计算或一次性购买还需要开始日期。"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/subscription.ts:458

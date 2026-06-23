@@ -67,4 +67,30 @@ describe("AI draft preflight", () => {
       customCycleUnit: "day",
     }))).toEqual([]);
   });
+
+  it("allows manual recurring drafts without start dates but still requires the next billing date", () => {
+    expect(getAIDraftBlockingIssues(draft({
+      startDate: null,
+      autoCalculateNextBillingDate: false,
+    }))).toEqual([]);
+
+    expect(getAIDraftBlockingIssues(draft({
+      startDate: null,
+      nextBillingDate: null,
+      autoCalculateNextBillingDate: false,
+    })).map((issue) => issue.code)).toEqual(["dates"]);
+  });
+
+  it("requires start dates for one-time drafts and automatic date calculation", () => {
+    expect(getAIDraftBlockingIssues(draft({
+      billingCycle: "one-time",
+      startDate: null,
+      autoCalculateNextBillingDate: false,
+    })).map((issue) => issue.code)).toEqual(["dates"]);
+
+    expect(getAIDraftBlockingIssues(draft({
+      startDate: null,
+      autoCalculateNextBillingDate: true,
+    })).map((issue) => issue.code)).toEqual(["dates"]);
+  });
 });

@@ -30,7 +30,10 @@ export function getAIDraftBlockingIssues(draft: AiRecognizedSubscriptionDraft): 
   } else if (draft.billingCycle === "custom" && (!draft.customDays || !draft.customCycleUnit)) {
     issues.push({ code: "customCycle", field: "customDays" });
   }
-  if (!draft.startDate || !draft.nextBillingDate) {
+  const requiresStartDate =
+    draft.billingCycle === "one-time" ||
+    (draft.billingCycle !== null && draft.autoCalculateNextBillingDate === true);
+  if (!draft.nextBillingDate || (requiresStartDate && !draft.startDate)) {
     issues.push({ code: "dates", field: "dates" });
   }
 
