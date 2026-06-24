@@ -55,7 +55,7 @@ func TestOutboundURLPolicyMatchesSharedFixtures(t *testing.T) {
 
 func readOutboundURLPolicyFixtures(t *testing.T) []outboundURLPolicyFixture {
 	t.Helper()
-	data, err := os.ReadFile("../../../shared/src/contract-fixtures/outbound-url-policy-fixtures.json")
+	data, err := os.ReadFile("../../../../packages/shared/src/contract-fixtures/outbound-url-policy-fixtures.json")
 	if err != nil {
 		t.Fatalf("read shared outbound URL fixtures: %v", err)
 	}

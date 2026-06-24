@@ -20,7 +20,7 @@ type subscriptionRenewalFixture struct {
 
 func TestSubscriptionRenewalMatchesSharedFixtures(t *testing.T) {
 	// Go 版算法不单独发明期望；它必须追 shared fixture，才能证明 Docker 与 Cloudflare 续订口径一致。
-	data, err := os.ReadFile("../../../shared/src/subscription-renewal-fixtures.json")
+	data, err := os.ReadFile("../../../../packages/shared/src/subscription-renewal-fixtures.json")
 	if err != nil {
 		t.Fatalf("read shared fixtures: %v", err)
 	}

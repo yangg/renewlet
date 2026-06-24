@@ -29,7 +29,7 @@ type mediaResolverFixture struct {
 func loadMediaResolverFixtures(t *testing.T) []mediaResolverFixture {
 	t.Helper()
 	// 这份 fixture 与 shared 包共用，锁住 Go embedded static 和 Worker resolver 对同一查询的排序语义。
-	data, err := os.ReadFile("../../../shared/data/media-resolver-fixtures.json")
+	data, err := os.ReadFile("../../../../packages/shared/data/media-resolver-fixtures.json")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -74,9 +74,9 @@ describe("Cloudflare upstream HTTP boundary", () => {
       const name = basename(file);
       const source = readFileSync(file, "utf8");
       source.split(/\r?\n/).forEach((line, index) => {
-        if (!/\bfetch\s*\(/.test(line)) return;
+        if (!/(^|[^.\w$])fetch\s*\(/.test(line)) return;
         if (name === "upstream-http.ts") return;
-        if (name === "index.ts" && line.includes("async fetch(")) return;
+        if (name === "index.ts" && /^\s*(?:async\s+)?fetch\s*\(/.test(line)) return;
         if (name === "media-icon-index.ts" && line.includes("env.ASSETS.fetch(")) return;
         offenders.push(`${relative(sourceDir, file)}:${index + 1}: ${line.trim()}`);
       });

@@ -235,9 +235,9 @@ function createEnv(row: MediaIconIndexRow | null = null): TestEnv {
 
 function createStaticAssets(): Fetcher {
   const assets = new Map<string, Uint8Array | string>([
-    ["/built-in-icons/metadata.json", readFileSync(new URL("../../client/public/built-in-icons/metadata.json", import.meta.url), "utf8")],
-    ["/built-in-icons/search-index.json.gz", readFileSync(new URL("../../client/public/built-in-icons/search-index.json.gz", import.meta.url))],
-    ["/built-in-icons/detail-index.json.gz", readFileSync(new URL("../../client/public/built-in-icons/detail-index.json.gz", import.meta.url))],
+    ["/built-in-icons/metadata.json", readFileSync(new URL("../../web/public/built-in-icons/metadata.json", import.meta.url), "utf8")],
+    ["/built-in-icons/search-index.json.gz", readFileSync(new URL("../../web/public/built-in-icons/search-index.json.gz", import.meta.url))],
+    ["/built-in-icons/detail-index.json.gz", readFileSync(new URL("../../web/public/built-in-icons/detail-index.json.gz", import.meta.url))],
   ]);
   return {
     fetch: async (input: RequestInfo | URL) => {

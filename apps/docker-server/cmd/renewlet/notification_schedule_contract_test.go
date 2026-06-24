@@ -107,7 +107,7 @@ func TestNotificationScheduleMatchesSharedFixtures(t *testing.T) {
 
 func readNotificationScheduleFixtures(t *testing.T) []notificationScheduleFixture {
 	t.Helper()
-	data, err := os.ReadFile("../../../shared/src/contract-fixtures/notification-schedule-fixtures.json")
+	data, err := os.ReadFile("../../../../packages/shared/src/contract-fixtures/notification-schedule-fixtures.json")
 	if err != nil {
 		t.Fatalf("read shared notification fixtures: %v", err)
 	}

@@ -58,7 +58,7 @@ func TestNormalizeSubscriptionRecordMatchesSharedFixtures(t *testing.T) {
 
 func readSubscriptionNormalizationFixtures(t *testing.T) []subscriptionNormalizationFixture {
 	t.Helper()
-	data, err := os.ReadFile("../../../shared/src/contract-fixtures/subscription-normalization-fixtures.json")
+	data, err := os.ReadFile("../../../../packages/shared/src/contract-fixtures/subscription-normalization-fixtures.json")
 	if err != nil {
 		t.Fatalf("read shared subscription normalization fixtures: %v", err)
 	}

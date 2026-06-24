@@ -156,7 +156,7 @@ defineRoute(authRoutes, "/mfa/recovery/regenerate", { POST: (context) => mfaReco
 defineRoute(authRoutes, "/passkeys", { GET: (context) => passkeys(context.req.raw, context.env) });
 defineRoute(authRoutes, "/passkeys/register/options", { POST: (context) => passkeyRegisterOptions(context.req.raw, context.env) });
 defineRoute(authRoutes, "/passkeys/register/verify", { POST: (context) => passkeyRegisterVerify(context.req.raw, context.env) });
-defineRoute(authRoutes, "/passkeys/:id/delete", { POST: (context) => passkeyDelete(context.req.raw, context.env, context.req.param("id")) });
+defineRoute(authRoutes, "/passkeys/:id/delete", { POST: (context) => passkeyDelete(context.req.raw, context.env, routeParam(context, "id")) });
 defineRoute(authRoutes, "/mfa/disable", { POST: (context) => mfaDisable(context.req.raw, context.env) });
 app.route("/api/app/auth", authRoutes);
 
@@ -165,20 +165,20 @@ defineRoute(adminRoutes, "/users", {
   GET: (context) => adminListUsers(context.req.raw, context.env),
   POST: (context) => adminCreateUser(context.req.raw, context.env),
 });
-defineRoute(adminRoutes, "/users/:id/mfa/reset", { POST: (context) => adminResetUserMfa(context.req.raw, context.env, context.req.param("id")) });
-defineRoute(adminRoutes, "/users/:id/passkeys/reset", { POST: (context) => adminResetUserPasskeys(context.req.raw, context.env, context.req.param("id")) });
+defineRoute(adminRoutes, "/users/:id/mfa/reset", { POST: (context) => adminResetUserMfa(context.req.raw, context.env, routeParam(context, "id")) });
+defineRoute(adminRoutes, "/users/:id/passkeys/reset", { POST: (context) => adminResetUserPasskeys(context.req.raw, context.env, routeParam(context, "id")) });
 defineRoute(adminRoutes, "/users/:id", {
-  PATCH: (context) => adminPatchUser(context.req.raw, context.env, context.req.param("id")),
-  DELETE: (context) => adminDeleteUser(context.req.raw, context.env, context.req.param("id")),
+  PATCH: (context) => adminPatchUser(context.req.raw, context.env, routeParam(context, "id")),
+  DELETE: (context) => adminDeleteUser(context.req.raw, context.env, routeParam(context, "id")),
 });
 defineRoute(adminRoutes, "/system/update", { POST: (context) => systemUpdate(context.req.raw, context.env) });
 defineRoute(adminRoutes, "/system/restart", { POST: (context) => systemRestart(context.req.raw, context.env) });
 defineRoute(adminRoutes, "/media/icon-index", { GET: (context) => builtInIconIndexStatus(context.req.raw, context.env) });
 defineRoute(adminRoutes, "/media/icon-index/providers/:provider/check", {
-  POST: (context) => checkBuiltInIconIndexProvider(context.req.raw, context.env, context.req.param("provider")),
+  POST: (context) => checkBuiltInIconIndexProvider(context.req.raw, context.env, routeParam(context, "provider")),
 });
 defineRoute(adminRoutes, "/media/icon-index/providers/:provider/refresh", {
-  POST: (context) => refreshBuiltInIconIndexProvider(context.req.raw, context.env, context.req.param("provider")),
+  POST: (context) => refreshBuiltInIconIndexProvider(context.req.raw, context.env, routeParam(context, "provider")),
 });
 app.route("/api/app/admin", adminRoutes);
 
@@ -205,7 +205,7 @@ defineRoute(apiTokenRoutes, "/", {
   POST: (context) => createApiToken(context.req.raw, context.env),
 });
 defineRoute(apiTokenRoutes, "/:id", {
-  DELETE: (context) => deleteApiToken(context.req.raw, context.env, context.req.param("id")),
+  DELETE: (context) => deleteApiToken(context.req.raw, context.env, routeParam(context, "id")),
 });
 app.route("/api/app/api-tokens", apiTokenRoutes);
 
@@ -221,19 +221,19 @@ defineRoute(subscriptionRoutes, "/", {
   POST: (context) => createSubscription(context.req.raw, context.env),
 });
 defineRoute(subscriptionRoutes, "/:id/calendar-feed", {
-  GET: (context) => readSubscriptionCalendarFeed(context.req.raw, context.env, context.req.param("id")),
-  POST: (context) => createSubscriptionCalendarFeed(context.req.raw, context.env, context.req.param("id")),
-  DELETE: (context) => deleteSubscriptionCalendarFeed(context.req.raw, context.env, context.req.param("id")),
+  GET: (context) => readSubscriptionCalendarFeed(context.req.raw, context.env, routeParam(context, "id")),
+  POST: (context) => createSubscriptionCalendarFeed(context.req.raw, context.env, routeParam(context, "id")),
+  DELETE: (context) => deleteSubscriptionCalendarFeed(context.req.raw, context.env, routeParam(context, "id")),
 });
 defineRoute(subscriptionRoutes, "/:id/calendar.ics", {
-  GET: (context) => downloadSubscriptionCalendarIcs(context.req.raw, context.env, context.req.param("id")),
+  GET: (context) => downloadSubscriptionCalendarIcs(context.req.raw, context.env, routeParam(context, "id")),
 });
 defineRoute(subscriptionRoutes, "/:id/renew", {
-  POST: (context) => renewSubscription(context.req.raw, context.env, context.req.param("id")),
+  POST: (context) => renewSubscription(context.req.raw, context.env, routeParam(context, "id")),
 });
 defineRoute(subscriptionRoutes, "/:id", {
-  PATCH: (context) => updateSubscription(context.req.raw, context.env, context.req.param("id")),
-  DELETE: (context) => deleteSubscription(context.req.raw, context.env, context.req.param("id")),
+  PATCH: (context) => updateSubscription(context.req.raw, context.env, routeParam(context, "id")),
+  DELETE: (context) => deleteSubscription(context.req.raw, context.env, routeParam(context, "id")),
 });
 app.route("/api/app/subscriptions", subscriptionRoutes);
 
@@ -250,10 +250,10 @@ defineRoute(app, "/api/app/cloud-backups", {
   POST: (context) => createCloudBackup(context.req.raw, context.env),
 });
 defineRoute(app, "/api/app/cloud-backups/:id/download", {
-  GET: (context) => downloadCloudBackup(context.req.raw, context.env, context.req.param("id")),
+  GET: (context) => downloadCloudBackup(context.req.raw, context.env, routeParam(context, "id")),
 });
 defineRoute(app, "/api/app/cloud-backups/:id", {
-  DELETE: (context) => deleteCloudBackup(context.req.raw, context.env, context.req.param("id")),
+  DELETE: (context) => deleteCloudBackup(context.req.raw, context.env, routeParam(context, "id")),
 });
 
 defineRoute(app, "/api/app/ai/subscriptions/recognize/stream", { POST: (context) => recognizeSubscriptionsStream(context.req.raw, context.env) });
@@ -267,8 +267,8 @@ defineRoute(assetRoutes, "/", {
   POST: (context) => uploadAsset(context.req.raw, context.env),
 });
 defineRoute(assetRoutes, "/:id", {
-  GET: (context) => readAsset(context.req.raw, context.env, context.req.param("id")),
-  DELETE: (context) => deleteAsset(context.req.raw, context.env, context.req.param("id")),
+  GET: (context) => readAsset(context.req.raw, context.env, routeParam(context, "id")),
+  DELETE: (context) => deleteAsset(context.req.raw, context.env, routeParam(context, "id")),
 });
 app.route("/api/app/assets", assetRoutes);
 
@@ -293,21 +293,28 @@ defineRoute(app, "/api/app/media/candidates", { POST: (context) => mediaCandidat
 const publicRoutes = newAppRouter();
 defineRoute(publicRoutes, "/v1/me", { GET: (context) => publicApiMe(context.req.raw, context.env) });
 defineRoute(publicRoutes, "/v1/subscriptions", { GET: (context) => publicApiSubscriptions(context.req.raw, context.env) });
-defineRoute(publicRoutes, "/v1/subscriptions/:id", { GET: (context) => publicApiSubscription(context.req.raw, context.env, context.req.param("id")) });
+defineRoute(publicRoutes, "/v1/subscriptions/:id", { GET: (context) => publicApiSubscription(context.req.raw, context.env, routeParam(context, "id")) });
 defineRoute(publicRoutes, "/v1/status", { GET: (context) => publicApiStatus(context.req.raw, context.env) });
 defineRoute(publicRoutes, "/v1/due", { GET: (context) => publicApiDue(context.req.raw, context.env) });
-defineRoute(publicRoutes, "/status/:token", { GET: (context) => readPublicStatus(context.req.raw, context.env, context.req.param("token")) });
+defineRoute(publicRoutes, "/status/:token", { GET: (context) => readPublicStatus(context.req.raw, context.env, routeParam(context, "token")) });
 defineRoute(publicRoutes, "/status/:token/assets/:assetId", {
-  GET: (context) => readPublicStatusAsset(context.req.raw, context.env, context.req.param("token"), context.req.param("assetId")),
+  GET: (context) => readPublicStatusAsset(context.req.raw, context.env, routeParam(context, "token"), routeParam(context, "assetId")),
 });
 app.route("/api/public", publicRoutes);
 
 defineRoute(app, "/api/telegram/webhook/:bindingId", {
-  POST: (context) => telegramWebhook(context.req.raw, context.env, context.req.param("bindingId")),
+  POST: (context) => telegramWebhook(context.req.raw, context.env, routeParam(context, "bindingId")),
 });
 
 function newAppRouter(): AppRouter {
   return new Hono<AppBindings>({ strict: false });
+}
+
+function routeParam(context: AppContext, name: string): string {
+  const value = context.req.param(name);
+  // Hono 只有匹配到含参数的 route 才会进入这些 handler；这里集中收窄类型并在路由表漂移时尽早失败。
+  if (!value) throw new Error(`Missing Hono route parameter: ${name}`);
+  return value;
 }
 
 /**
