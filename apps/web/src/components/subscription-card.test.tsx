@@ -493,18 +493,19 @@ describe("SubscriptionCard", () => {
 
     openMoreActionsMenu();
 
+    expect(screen.getByRole("menu")).toHaveClass("pointer-events-auto", "w-max", "min-w-40");
     const menuItems = screen.getAllByRole("menuitem");
     expect(menuItems.map((item) => item.textContent)).toEqual(["编辑", "复制", "添加到日历", "置顶", "删除"]);
     const [editItem, cloneItem, calendarItem, pinItem, deleteItem] = menuItems as [HTMLElement, HTMLElement, HTMLElement, HTMLElement, HTMLElement];
-    expect(editItem).toHaveClass("gap-2.5", "px-2.5", "py-2", "text-sm");
-    expect(cloneItem).toHaveClass("gap-2.5", "px-2.5", "py-2", "text-sm");
-    expect(calendarItem).toHaveClass("gap-2.5", "px-2.5", "py-2", "text-sm");
-    expect(pinItem).toHaveClass("gap-2.5", "px-2.5", "py-2", "text-sm");
+    for (const item of [editItem, cloneItem, calendarItem, pinItem]) {
+      expect(item).toHaveClass("gap-2.5", "px-2.5", "py-2", "text-sm", "whitespace-nowrap");
+    }
     expect(deleteItem).toHaveClass(
       "gap-2.5",
       "px-2.5",
       "py-2",
       "text-sm",
+      "whitespace-nowrap",
       "text-destructive",
       "focus:bg-destructive/10",
       "focus:text-destructive",

@@ -91,6 +91,8 @@ interface SubscriptionCardProps {
 }
 
 const DEFAULT_BADGE_COLOR = "hsl(var(--primary))";
+const CARD_ACTION_MENU_CONTENT_CLASSNAME = "pointer-events-auto w-max min-w-40";
+const CARD_ACTION_MENU_ITEM_CLASSNAME = "gap-2.5 px-2.5 py-2 text-sm whitespace-nowrap";
 
 type SubscriptionCardMetaTone = "muted" | "warning" | "destructive";
 
@@ -330,31 +332,31 @@ function SubscriptionCardComponent({
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="pointer-events-auto w-40">
-                <DropdownMenuItem className="gap-2.5 px-2.5 py-2 text-sm" onClick={() => onEdit?.(subscription.id)}>
+              <DropdownMenuContent align="end" className={CARD_ACTION_MENU_CONTENT_CLASSNAME}>
+                <DropdownMenuItem className={CARD_ACTION_MENU_ITEM_CLASSNAME} onClick={() => onEdit?.(subscription.id)}>
                   <Pencil className="h-4 w-4 shrink-0 text-muted-foreground" />
                   {t("common.edit")}
                 </DropdownMenuItem>
                 {onClone ? (
-                  <DropdownMenuItem className="gap-2.5 px-2.5 py-2 text-sm" onClick={() => onClone(subscription.id)}>
+                  <DropdownMenuItem className={CARD_ACTION_MENU_ITEM_CLASSNAME} onClick={() => onClone(subscription.id)}>
                     <Copy className="h-4 w-4 shrink-0 text-muted-foreground" />
                     {t("subscription.copy")}
                   </DropdownMenuItem>
                 ) : null}
                 {hasCalendarEvent ? (
-                  <DropdownMenuItem className="gap-2.5 px-2.5 py-2 text-sm" onClick={() => setShowAddToCalendarDialog(true)}>
+                  <DropdownMenuItem className={CARD_ACTION_MENU_ITEM_CLASSNAME} onClick={() => setShowAddToCalendarDialog(true)}>
                     <CalendarPlus className="h-4 w-4 shrink-0 text-muted-foreground" />
                     {t("subscription.addToCalendar")}
                   </DropdownMenuItem>
                 ) : null}
                 {canManualRenew ? (
-                  <DropdownMenuItem className="gap-2.5 px-2.5 py-2 text-sm" onClick={() => onRenew?.(subscription.id)}>
+                  <DropdownMenuItem className={CARD_ACTION_MENU_ITEM_CLASSNAME} onClick={() => onRenew?.(subscription.id)}>
                     <RotateCw className="h-4 w-4 shrink-0 text-muted-foreground" />
                     {t("subscription.renew")}
                   </DropdownMenuItem>
                 ) : null}
                 {onTogglePinned ? (
-                  <DropdownMenuItem className="gap-2.5 px-2.5 py-2 text-sm" onClick={() => onTogglePinned(subscription.id)}>
+                  <DropdownMenuItem className={CARD_ACTION_MENU_ITEM_CLASSNAME} onClick={() => onTogglePinned(subscription.id)}>
                     {subscription.pinned ? (
                       <PinOff className="h-4 w-4 shrink-0 text-muted-foreground" />
                     ) : (
@@ -364,7 +366,7 @@ function SubscriptionCardComponent({
                   </DropdownMenuItem>
                 ) : null}
                 {onTogglePublicHidden ? (
-                  <DropdownMenuItem className="gap-2.5 px-2.5 py-2 text-sm" onClick={() => onTogglePublicHidden(subscription.id)}>
+                  <DropdownMenuItem className={CARD_ACTION_MENU_ITEM_CLASSNAME} onClick={() => onTogglePublicHidden(subscription.id)}>
                     {subscription.publicHidden ? (
                       <Eye className="h-4 w-4 shrink-0 text-muted-foreground" />
                     ) : (
@@ -376,7 +378,7 @@ function SubscriptionCardComponent({
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => setShowDeleteDialog(true)}
-                  className="gap-2.5 px-2.5 py-2 text-sm text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  className={cn(CARD_ACTION_MENU_ITEM_CLASSNAME, "text-destructive focus:bg-destructive/10 focus:text-destructive")}
                 >
                   <Trash2 className="h-4 w-4 shrink-0" />
                   {t("common.delete")}
