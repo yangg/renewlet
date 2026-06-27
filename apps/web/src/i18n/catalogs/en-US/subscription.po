@@ -116,7 +116,77 @@ msgstr "{field} is missing or invalid. Renewlet used {fallback}."
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/subscription.ts:532
 msgid "statistics.trendAccessibleItem"
-msgstr "{month}: upcoming charges {cashflow}, amortized monthly cost {amortized}"
+msgstr "{month}: upcoming charges {cashflow}, items {cashflowItems}; amortized monthly cost {amortized}, items {amortizedItems}"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:533
+msgid "statistics.trendAccessibleItemDetail"
+msgstr "{name} {amount}, {meta}"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:534
+msgid "statistics.trendAccessibleItemSeparator"
+msgstr "; "
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:535
+msgid "statistics.trendItemSingleDate"
+msgstr "{date}"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:536
+msgid "statistics.trendItemSingleDateCount"
+msgstr "{date} ×{count}"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:537
+msgid "statistics.trendItemDateRange"
+msgstr "{start} - {end} ×{count}"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:538
+msgid "statistics.trendItemMonthlyShare"
+msgstr "Monthly share"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:539
+msgid "statistics.trendMoreItems"
+msgstr "{count} more subscriptions"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:540
+msgid "statistics.trendNoItems"
+msgstr "No subscription details"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:541
+msgid "statistics.trendDetailsTitle"
+msgstr "{month} details"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:542
+msgid "statistics.trendDetailsMonthLabel"
+msgstr "Month"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:543
+msgid "statistics.trendDetailsMonthlyBadge"
+msgstr "Monthly"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:544
+msgid "statistics.trendDetailsCount"
+msgstr "Subscriptions: {count}"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:545
+msgid "statistics.trendDetailsShareLabel"
+msgstr "{percent} of total"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/subscription.ts:546
+msgid "statistics.trendDetailsEmpty"
+msgstr "No subscription details for this month"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/subscription.ts:358

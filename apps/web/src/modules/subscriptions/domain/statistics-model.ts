@@ -46,6 +46,17 @@ export interface StatisticsTrendDatum {
   label: string;
   cashflow: number;
   amortized: number;
+  cashflowItems: StatisticsTrendItem[];
+  amortizedItems: StatisticsTrendItem[];
+}
+
+export interface StatisticsTrendItem {
+  subscriptionId: string;
+  name: string;
+  amount: number;
+  firstDate: DateOnly | null;
+  lastDate: DateOnly | null;
+  occurrenceCount: number;
 }
 
 interface StatisticsTrendBucket extends StatisticsTrendDatum {
@@ -84,10 +95,52 @@ function buildTrendBuckets(today: DateOnly, locale: Locale): StatisticsTrendBuck
       label: translate(locale, "statistics.trendMonthLabel", { year: monthStart.year, month: monthStart.month }),
       cashflow: 0,
       amortized: 0,
+      cashflowItems: [],
+      amortizedItems: [],
       startDate: fromPlainDate(monthStart),
       endDate: fromPlainDate(monthEnd),
     };
   });
+}
+
+function sortTrendItems(items: StatisticsTrendItem[]): StatisticsTrendItem[] {
+  return items
+    .map((item) => ({ ...item, amount: roundTrendAmount(item.amount) }))
+    .sort((left, right) => {
+      const amountDelta = right.amount - left.amount;
+      return amountDelta !== 0 ? amountDelta : left.name.localeCompare(right.name);
+    });
+}
+
+function addTrendItem(
+  items: StatisticsTrendItem[],
+  subscription: Subscription,
+  amount: number,
+  occurrenceDate: DateOnly | null,
+) {
+  const existing = items.find((item) => item.subscriptionId === subscription.id);
+  if (!existing) {
+    items.push({
+      subscriptionId: subscription.id,
+      name: subscription.name,
+      amount,
+      firstDate: occurrenceDate,
+      lastDate: occurrenceDate,
+      occurrenceCount: 1,
+    });
+    return;
+  }
+
+  existing.amount += amount;
+  existing.occurrenceCount += 1;
+  if (occurrenceDate) {
+    if (!existing.firstDate || compareDateOnly(occurrenceDate, existing.firstDate) < 0) {
+      existing.firstDate = occurrenceDate;
+    }
+    if (!existing.lastDate || compareDateOnly(occurrenceDate, existing.lastDate) > 0) {
+      existing.lastDate = occurrenceDate;
+    }
+  }
 }
 
 function addCashflowTrend(
@@ -108,6 +161,7 @@ function addCashflowTrend(
       const bucket = bucketsByMonth.get(toMonthKey(dueDate));
       if (bucket) {
         bucket.cashflow += amountInDefault;
+        addTrendItem(bucket.cashflowItems, subscription, amountInDefault, dueDate);
       }
     }
 
@@ -133,6 +187,7 @@ function addAmortizedTrend(
   if (subscription.billingCycle !== "one-time") {
     for (const bucket of buckets) {
       bucket.amortized += monthlyAmount;
+      addTrendItem(bucket.amortizedItems, subscription, monthlyAmount, null);
     }
     return;
   }
@@ -146,6 +201,7 @@ function addAmortizedTrend(
       compareDateOnly(subscription.nextBillingDate, bucket.startDate) >= 0;
     if (overlapsServiceWindow) {
       bucket.amortized += monthlyAmount;
+      addTrendItem(bucket.amortizedItems, subscription, monthlyAmount, null);
     }
   }
 }
@@ -167,11 +223,14 @@ function buildTrendData(
     addAmortizedTrend(buckets, subscription, calculateMonthlyAmount(subscription));
   }
 
-  return buckets.map(({ monthKey, label, cashflow, amortized }) => ({
+  return buckets.map(({ monthKey, label, cashflow, amortized, cashflowItems, amortizedItems }) => ({
     monthKey,
     label,
     cashflow: roundTrendAmount(cashflow),
     amortized: roundTrendAmount(amortized),
+    // 短周期订阅可能在同一自然月触发多次扣费；明细按订阅聚合，避免 tooltip 和读屏文本被逐次事件淹没。
+    cashflowItems: sortTrendItems(cashflowItems),
+    amortizedItems: sortTrendItems(amortizedItems),
   }));
 }
 

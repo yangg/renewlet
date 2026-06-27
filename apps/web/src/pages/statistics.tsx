@@ -14,11 +14,13 @@
  * 修改其中任一处都要同步首页统计、SpendingChart 和导出逻辑。
  */
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { Subscription } from '@/types/subscription';
+import { EditSubscriptionDialog } from '@/components/edit-subscription-dialog';
 import { Header } from '@/components/header';
 import { StatisticsPageSkeleton } from '@/components/loading-skeleton';
 import { RechartsFrame } from '@/components/recharts-frame';
+import { SubscriptionDetailDialog } from '@/components/subscription-detail-dialog';
 import { StatisticsTrendChart } from '@/components/statistics-trend-chart';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip } from 'recharts';
 import { CircleHelp, RefreshCw } from 'lucide-react';
@@ -34,6 +36,8 @@ import { useStatisticsModel } from '@/modules/subscriptions/application/use-stat
 import { useSubscriptionCrud } from '@/modules/subscriptions/application/use-subscription-crud';
 import { collectSubscriptionTags } from '@/modules/subscriptions/domain/subscription-filters';
 import { useI18n } from '@/i18n/I18nProvider';
+import { useDeferredDialogCleanup } from '@/hooks/use-deferred-dialog-cleanup';
+import { todayDateOnlyInTimeZone } from '@/lib/time/date-only';
 
 /** 空订阅数组：用于在数据未加载完成时提供稳定引用，避免 useMemo 依赖抖动。 */
 const EMPTY_SUBSCRIPTIONS: Subscription[] = [];
@@ -137,11 +141,47 @@ const Statistics = () => {
   const timeZone = settings?.timezone ?? "UTC";
   const { locale, t, formatCurrency, formatDateTime, formatNumber } = useI18n();
   const [personalCostBasis, setPersonalCostBasis] = useState(false);
-  
+  const [detailSubscriptionId, setDetailSubscriptionId] = useState<string | null>(null);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+
   const { convert, loading: ratesLoading, refresh: refreshRates, lastUpdated, error: ratesError } = useExchangeRates(settings?.exchangeRateProvider);
   const stats = useStatisticsModel(subscriptions, config, monthlyBudget, defaultCurrency, convert, timeZone, locale, personalCostBasis ? "personal" : "total");
-  const { handleAddSubscription } = useSubscriptionCrud(subscriptions);
+  const {
+    editingSubscription,
+    editDialogOpen,
+    handleAddSubscription,
+    handleEditSubscription,
+    handleRenewSubscription,
+    handleSaveSubscription,
+    handleEditDialogOpenChange,
+  } = useSubscriptionCrud(subscriptions);
   const availableTags = useMemo(() => collectSubscriptionTags(subscriptions), [subscriptions]);
+  const selectedDetailSubscription = useMemo(
+    () => subscriptions.find((item) => item.id === detailSubscriptionId) ?? null,
+    [detailSubscriptionId, subscriptions],
+  );
+  const today = useMemo(() => todayDateOnlyInTimeZone(new Date(), timeZone), [timeZone]);
+  const { scheduleCleanup: scheduleDetailCleanup, cancelCleanup: cancelDetailCleanup } =
+    useDeferredDialogCleanup(() => {
+      // 详情弹窗关闭动画期间仍要保留内容快照，避免 Dialog/Drawer fade-out 时标题和备注闪空。
+      setDetailSubscriptionId(null);
+    });
+  const handleViewTrendSubscriptionDetails = useCallback((id: string) => {
+    cancelDetailCleanup();
+    setDetailSubscriptionId(id);
+    setDetailDialogOpen(true);
+  }, [cancelDetailCleanup]);
+  const handleDetailDialogOpenChange = useCallback((nextOpen: boolean) => {
+    setDetailDialogOpen(nextOpen);
+    if (nextOpen) {
+      cancelDetailCleanup();
+      return;
+    }
+    scheduleDetailCleanup();
+  }, [cancelDetailCleanup, scheduleDetailCleanup]);
+  const handleEditFromDetail = useCallback((subscription: Subscription) => {
+    handleEditSubscription(subscription.id);
+  }, [handleEditSubscription]);
 
   const CustomTooltip = ({ active, payload, valueKind }: ChartTooltipProps) => {
     const first = payload?.[0];
@@ -355,6 +395,7 @@ const Statistics = () => {
         <StatisticsTrendChart
           data={stats.trendData}
           defaultCurrency={defaultCurrency}
+          onViewSubscriptionDetails={handleViewTrendSubscriptionDetails}
         />
 
         {/* 拆分视图 */}
@@ -402,6 +443,22 @@ const Statistics = () => {
           </div>
         </section>
       </main>
+
+      <EditSubscriptionDialog
+        subscription={editingSubscription}
+        open={editDialogOpen}
+        onOpenChange={handleEditDialogOpenChange}
+        onSave={handleSaveSubscription}
+        availableTags={availableTags}
+      />
+      <SubscriptionDetailDialog
+        open={detailDialogOpen}
+        onOpenChange={handleDetailDialogOpenChange}
+        subscription={selectedDetailSubscription}
+        onEditSubscription={handleEditFromDetail}
+        onRenewSubscription={handleRenewSubscription}
+        today={today}
+      />
     </div>
   );
 };

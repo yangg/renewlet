@@ -290,6 +290,57 @@ describe("subscription statistics models", () => {
       10,
       40,
     ]);
+    expect(model.trendData[0]?.cashflowItems).toEqual([
+      {
+        subscriptionId: "monthly",
+        name: "Service",
+        amount: 10,
+        firstDate: assertDateOnly("2026-01-15"),
+        lastDate: assertDateOnly("2026-01-15"),
+        occurrenceCount: 1,
+      },
+    ]);
+    expect(model.trendData[1]?.cashflowItems).toEqual([
+      expect.objectContaining({ subscriptionId: "custom", amount: 30, firstDate: assertDateOnly("2026-02-10") }),
+      expect.objectContaining({ subscriptionId: "monthly", amount: 10, firstDate: assertDateOnly("2026-02-15") }),
+    ]);
+    expect(model.trendData[2]?.cashflowItems).toEqual([
+      expect.objectContaining({ subscriptionId: "annual", amount: 120, firstDate: assertDateOnly("2026-03-01") }),
+      expect.objectContaining({ subscriptionId: "monthly", amount: 10, firstDate: assertDateOnly("2026-03-15") }),
+    ]);
+  });
+
+  it("aggregates repeated cashflow occurrences from the same subscription within a month", () => {
+    const model = buildStatisticsModel({
+      subscriptions: [
+        subscription({
+          id: "short-cycle",
+          name: "Short Cycle",
+          price: 3,
+          billingCycle: "custom",
+          customDays: 10,
+          customCycleUnit: "day",
+          nextBillingDate: assertDateOnly("2026-01-01"),
+        }),
+      ],
+      config: DEFAULT_CUSTOM_CONFIG,
+      monthlyBudget: 0,
+      defaultCurrency: "USD",
+      convert,
+      now: new Date("2026-01-01T00:00:00.000Z"),
+    });
+
+    expect(model.trendData[0]).toEqual(expect.objectContaining({ cashflow: 12 }));
+    expect(model.trendData[0]?.cashflowItems).toEqual([
+      {
+        subscriptionId: "short-cycle",
+        name: "Short Cycle",
+        amount: 12,
+        firstDate: assertDateOnly("2026-01-01"),
+        lastDate: assertDateOnly("2026-01-31"),
+        occurrenceCount: 4,
+      },
+    ]);
   });
 
   it("builds amortized trend for recurring and fixed-term subscriptions without one-time cashflow", () => {
@@ -327,6 +378,14 @@ describe("subscription statistics models", () => {
       ["2026-03", 70],
       ["2026-04", 70],
       ["2026-05", 10],
+    ]);
+    expect(model.trendData[0]?.cashflowItems.map((item) => item.subscriptionId)).toEqual(["monthly"]);
+    expect(model.trendData[0]?.cashflowItems).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ subscriptionId: "buyout" })]),
+    );
+    expect(model.trendData[1]?.amortizedItems).toEqual([
+      expect.objectContaining({ subscriptionId: "fixedTerm", amount: 60, occurrenceCount: 1 }),
+      expect.objectContaining({ subscriptionId: "monthly", amount: 10, occurrenceCount: 1 }),
     ]);
   });
 
@@ -382,6 +441,9 @@ describe("subscription statistics models", () => {
     expect(totalModel.totalMonthly).toBe(100);
     expect(totalModel.thisMonthDue).toBe(100);
     expect(totalModel.trendData[0]).toEqual(expect.objectContaining({ cashflow: 100, amortized: 100 }));
+    expect(totalModel.trendData[0]?.cashflowItems).toEqual([
+      expect.objectContaining({ subscriptionId: "family-plan", amount: 100 }),
+    ]);
     expect(personalModel.totalMonthly).toBe(40);
     expect(personalModel.thisMonthDue).toBe(40);
     expect(personalModel.budgetUsedPercent).toBe(40);
@@ -389,6 +451,12 @@ describe("subscription statistics models", () => {
       expect.objectContaining({ value: 40 }),
     ]);
     expect(personalModel.trendData[0]).toEqual(expect.objectContaining({ cashflow: 40, amortized: 40 }));
+    expect(personalModel.trendData[0]?.cashflowItems).toEqual([
+      expect.objectContaining({ subscriptionId: "family-plan", amount: 40 }),
+    ]);
+    expect(personalModel.trendData[0]?.amortizedItems).toEqual([
+      expect.objectContaining({ subscriptionId: "family-plan", amount: 40 }),
+    ]);
   });
 
   it("uses the configured timezone to choose the trend start month", () => {
