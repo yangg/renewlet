@@ -1,5 +1,5 @@
 // Statistics 页面测试保护统计模型到图表 UI 的装配，避免 Recharts 容器和金额口径脱节。
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -17,7 +17,11 @@ type SubscriptionOverrides = Partial<SubscriptionBaseFixture> & (
 );
 
 const mocks = vi.hoisted(() => ({
+  handleEditDialogOpenChange: vi.fn(),
+  handleEditSubscription: vi.fn(),
   handleAddSubscription: vi.fn(),
+  handleRenewSubscription: vi.fn(),
+  handleSaveSubscription: vi.fn(),
   refreshRates: vi.fn(),
   rechartsBarChartProps: [] as Array<Record<string, unknown>>,
   rechartsBarProps: [] as Array<Record<string, unknown>>,
@@ -38,6 +42,38 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/components/header", () => ({
   Header: () => <header data-testid="header" />,
+}));
+
+vi.mock("@/components/edit-subscription-dialog", () => ({
+  EditSubscriptionDialog: () => null,
+}));
+
+vi.mock("@/components/subscription-detail-dialog", () => ({
+  SubscriptionDetailDialog: ({
+    open,
+    subscription,
+    onEditSubscription,
+    onRenewSubscription,
+  }: {
+    open: boolean;
+    subscription: Subscription | null;
+    onEditSubscription?: (subscription: Subscription) => void;
+    onRenewSubscription?: (id: string) => void;
+  }) => (
+    <div data-testid="subscription-detail-dialog">
+      {open && subscription ? (
+        <>
+          <span>{subscription.name} 详情</span>
+          <button type="button" onClick={() => onEditSubscription?.(subscription)}>
+            编辑详情 {subscription.name}
+          </button>
+          <button type="button" onClick={() => onRenewSubscription?.(subscription.id)}>
+            续费详情 {subscription.name}
+          </button>
+        </>
+      ) : null}
+    </div>
+  ),
 }));
 
 vi.mock("recharts", () => ({
@@ -75,7 +111,22 @@ vi.mock("recharts", () => ({
   },
   Tooltip: (props: Record<string, unknown>) => {
     mocks.rechartsTooltipProps.push(props);
-    return null;
+    if (props["cursor"] !== false) return null;
+
+    const renderContent = props["content"] as
+      | ((args: { active: boolean; payload: Array<{ value: number; payload: Record<string, unknown> }> }) => React.ReactNode)
+      | undefined;
+    const chartData = mocks.rechartsBarChartProps[mocks.rechartsBarChartProps.length - 1]?.["data"] as
+      | Array<Record<string, unknown>>
+      | undefined;
+    const datum = chartData?.[0];
+    const dataKey = mocks.rechartsBarChartProps[mocks.rechartsBarChartProps.length - 1]?.["title"] === "月均摊销"
+      ? "amortized"
+      : "cashflow";
+    const rawValue = datum?.[dataKey];
+    const value = typeof rawValue === "number" ? rawValue : 0;
+
+    return <div data-testid="statistics-trend-tooltip">{datum ? renderContent?.({ active: true, payload: [{ value, payload: datum }] }) : null}</div>;
   },
   XAxis: (props: Record<string, unknown>) => {
     mocks.rechartsXAxisProps.push(props);
@@ -183,8 +234,25 @@ function renderStatistics() {
   );
 }
 
+function getLastTrendTooltip(): HTMLElement {
+  const tooltips = screen.getAllByTestId("statistics-trend-tooltip");
+  const tooltip = tooltips[tooltips.length - 1];
+  if (!tooltip) {
+    throw new Error("Expected at least one trend tooltip to be rendered.");
+  }
+  return tooltip;
+}
+
 describe("Statistics page", () => {
   beforeEach(() => {
+    Element.prototype.hasPointerCapture ??= vi.fn(() => false);
+    Element.prototype.setPointerCapture ??= vi.fn();
+    Element.prototype.releasePointerCapture ??= vi.fn();
+    mocks.handleAddSubscription.mockReset();
+    mocks.handleEditDialogOpenChange.mockReset();
+    mocks.handleEditSubscription.mockReset();
+    mocks.handleRenewSubscription.mockReset();
+    mocks.handleSaveSubscription.mockReset();
     mocks.rechartsBarChartProps.length = 0;
     mocks.rechartsBarProps.length = 0;
     mocks.rechartsCellProps.length = 0;
@@ -205,7 +273,15 @@ describe("Statistics page", () => {
       },
       isPending: false,
     });
-    mocks.useSubscriptionCrud.mockReturnValue({ handleAddSubscription: mocks.handleAddSubscription });
+    mocks.useSubscriptionCrud.mockReturnValue({
+      editingSubscription: null,
+      editDialogOpen: false,
+      handleAddSubscription: mocks.handleAddSubscription,
+      handleEditSubscription: mocks.handleEditSubscription,
+      handleRenewSubscription: mocks.handleRenewSubscription,
+      handleSaveSubscription: mocks.handleSaveSubscription,
+      handleEditDialogOpenChange: mocks.handleEditDialogOpenChange,
+    });
     mocks.useSubscriptions.mockReturnValue({
       data: [
         subscription({ id: "active", status: "active", price: 20 }),
@@ -287,7 +363,7 @@ describe("Statistics page", () => {
   it("disables position animation for all chart tooltips", () => {
     renderStatistics();
 
-    expect(mocks.rechartsTooltipProps).toHaveLength(4);
+    expect(mocks.rechartsTooltipProps).toHaveLength(5);
     for (const props of mocks.rechartsTooltipProps) {
       expect(props["isAnimationActive"]).toBe(false);
       expect(props["offset"]).toBe(12);
@@ -361,15 +437,15 @@ describe("Statistics page", () => {
 
     expect(screen.getByRole("heading", { name: "费用走势" })).toBeInTheDocument();
     expect(screen.getByText("按未来 12 个月到期或续费日汇总预计扣费。")).toBeInTheDocument();
-    expect(mocks.rechartsBarChartProps).toHaveLength(1);
-    expect(mocks.rechartsBarChartProps[0]).toEqual(
+    const cashflowBarChartProps = mocks.rechartsBarChartProps.find((props) => props["title"] === "未来扣费");
+    expect(cashflowBarChartProps).toEqual(
       expect.objectContaining({
         accessibilityLayer: true,
         title: "未来扣费",
         tabIndex: 0,
       }),
     );
-    expect(mocks.rechartsBarProps).toEqual([
+    expect(mocks.rechartsBarProps).toContainEqual(
       expect.objectContaining({
         dataKey: "cashflow",
         fill: "hsl(var(--chart-1))",
@@ -383,14 +459,14 @@ describe("Statistics page", () => {
           strokeWidth: 1,
         },
       }),
-    ]);
-    expect(mocks.rechartsTooltipProps.filter((props) => props["cursor"] === false)).toHaveLength(1);
-    expect(mocks.rechartsYAxisProps).toEqual([
+    );
+    expect(mocks.rechartsTooltipProps.filter((props) => props["cursor"] === false)).toHaveLength(2);
+    expect(mocks.rechartsYAxisProps).toEqual(expect.arrayContaining([
       expect.objectContaining({
         domain: [0, "dataMax"],
         width: 72,
       }),
-    ]);
+    ]));
 
     await user.click(screen.getByRole("tab", { name: "月均摊销" }));
 
@@ -399,6 +475,189 @@ describe("Statistics page", () => {
     const lastBarProps = mocks.rechartsBarProps[mocks.rechartsBarProps.length - 1];
     expect(lastBarChartProps).toEqual(expect.objectContaining({ title: "月均摊销" }));
     expect(lastBarProps).toEqual(expect.objectContaining({ dataKey: "amortized" }));
+  });
+
+  it("renders subscription breakdowns in the trend tooltip and screen-reader details", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+    mocks.useSubscriptions.mockReturnValue({
+      data: [
+        subscription({ id: "monthly", name: "Monthly", price: 10, billingCycle: "monthly", nextBillingDate: assertDateOnly("2026-01-15") }),
+        subscription({ id: "annual", name: "Annual", price: 120, billingCycle: "annual", nextBillingDate: assertDateOnly("2026-01-20") }),
+      ],
+      isPending: false,
+    });
+
+    try {
+      renderStatistics();
+
+      const tooltip = getLastTrendTooltip();
+      expect(tooltip).toHaveTextContent("2026年1月");
+      expect(tooltip).toHaveTextContent("未来扣费");
+      expect(tooltip).toHaveTextContent("¥130");
+      expect(tooltip).toHaveTextContent("Annual");
+      expect(tooltip).toHaveTextContent("1月20日");
+      expect(tooltip).toHaveTextContent("Monthly");
+      expect(tooltip).toHaveTextContent("1月15日");
+      const tooltipDateBadge = within(tooltip).getAllByText("1月20日")[0];
+      if (!tooltipDateBadge) {
+        throw new Error("Expected trend tooltip to render a compact date badge.");
+      }
+      const tooltipBadgeCell = tooltipDateBadge.parentElement;
+      const tooltipRow = tooltipBadgeCell?.parentElement;
+      if (!tooltipBadgeCell || !tooltipRow) {
+        throw new Error("Expected trend tooltip date badge to live inside a shared alignment grid.");
+      }
+      const tooltipList = tooltipRow.parentElement;
+      if (!tooltipList) {
+        throw new Error("Expected trend tooltip rows to share a grid container.");
+      }
+      expect(tooltipList).toHaveClass("grid-cols-[max-content_minmax(0,1fr)_auto]", "gap-x-2");
+      expect(tooltipRow).toHaveClass("col-span-3", "grid-cols-subgrid");
+      expect(tooltipBadgeCell).toHaveClass("min-w-0", "justify-self-start");
+      expect(tooltipDateBadge).toHaveClass("inline-flex", "w-[6em]", "max-w-full", "h-5", "truncate", "rounded-full");
+      expect(tooltipDateBadge).not.toHaveClass("w-max");
+      expect(tooltipDateBadge).not.toHaveClass("w-full");
+      expect(screen.getByRole("list", { name: "未来 12 个月费用走势明细" })).toHaveTextContent(
+        "构成 Annual ¥120，1月20日；Monthly ¥10，1月15日",
+      );
+      expect(screen.getByRole("heading", { name: "2026年1月 明细" })).toBeInTheDocument();
+      expect(screen.getByText("2 个订阅")).toBeInTheDocument();
+      const detailsList = screen.getByRole("list", { name: "2026年1月 明细" });
+      expect(within(detailsList).getAllByRole("listitem")).toHaveLength(2);
+      expect(detailsList).toHaveTextContent("Annual");
+      expect(detailsList).toHaveTextContent("Monthly");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("opens the shared subscription detail dialog from a trend detail ledger row", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+    mocks.useSubscriptions.mockReturnValue({
+      data: [
+        subscription({ id: "monthly", name: "Monthly", price: 10, billingCycle: "monthly", nextBillingDate: assertDateOnly("2026-01-15") }),
+        subscription({ id: "annual", name: "Annual", price: 120, billingCycle: "annual", nextBillingDate: assertDateOnly("2026-01-20") }),
+      ],
+      isPending: false,
+    });
+
+    try {
+      renderStatistics();
+
+      const tooltip = getLastTrendTooltip();
+      expect(within(tooltip).queryByRole("button", { name: "查看 Annual 的详情" })).not.toBeInTheDocument();
+
+      const detailsList = screen.getByRole("list", { name: "2026年1月 明细" });
+      const annualAction = within(detailsList).getByRole("button", { name: "查看 Annual 的详情" });
+      expect(annualAction).toHaveClass("grid", "cursor-pointer", "focus-visible:ring-2");
+
+      fireEvent.click(annualAction);
+
+      expect(screen.getByTestId("subscription-detail-dialog")).toHaveTextContent("Annual 详情");
+
+      fireEvent.click(screen.getByRole("button", { name: "编辑详情 Annual" }));
+      expect(mocks.handleEditSubscription).toHaveBeenCalledWith("annual");
+
+      fireEvent.click(screen.getByRole("button", { name: "续费详情 Annual" }));
+      expect(mocks.handleRenewSubscription).toHaveBeenCalledWith("annual");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows all trend details outside the tooltip and keeps long names constrained", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+    const longName =
+      "ExtremelyLongSubscriptionNameWithoutSpacesThatShouldNotPushTheAmountColumnOutOfTheDetailsPanel";
+    mocks.useSubscriptions.mockReturnValue({
+      data: Array.from({ length: 7 }, (_, index) => subscription({
+        id: `sub-${index}`,
+        name: index === 6 ? longName : `Service ${index + 1}`,
+        price: 10 + index,
+        billingCycle: "monthly",
+        nextBillingDate: assertDateOnly("2026-01-10"),
+      })),
+      isPending: false,
+    });
+
+    try {
+      renderStatistics();
+
+      const overflowTooltip = getLastTrendTooltip();
+      expect(overflowTooltip).toHaveTextContent("还有 2 个订阅");
+      expect(within(overflowTooltip).getByText("还有 2 个订阅")).toHaveClass("col-span-3");
+      const januaryDetails = screen.getByRole("list", { name: "2026年1月 明细" });
+      const januaryLedger = januaryDetails.parentElement;
+      if (!januaryLedger) {
+        throw new Error("Expected trend details list to be rendered inside a ledger surface.");
+      }
+      expect(januaryLedger).toHaveClass("overflow-hidden", "rounded-xl", "border", "border-border/70", "bg-background/40");
+      const januaryLedgerHeader = januaryLedger.firstElementChild;
+      if (!januaryLedgerHeader) {
+        throw new Error("Expected trend details ledger to include a compact summary header.");
+      }
+      expect(januaryLedgerHeader).toHaveClass("grid", "border-b", "border-border/60", "bg-secondary/15");
+      expect(within(januaryLedger).getByText("¥91")).toHaveClass("text-xl", "sm:text-2xl", "tabular-nums");
+      expect(januaryDetails).toHaveClass("grid", "max-h-72", "min-w-0", "overflow-y-auto");
+      expect(within(januaryDetails).getAllByRole("listitem")).toHaveLength(7);
+      expect(januaryDetails).toHaveTextContent("Service 1");
+      expect(januaryDetails).toHaveTextContent(longName);
+
+      const truncatedLongName = within(januaryDetails).getByText(longName);
+      expect(truncatedLongName).toHaveAttribute("data-slot", "truncated-tooltip-text");
+      expect(truncatedLongName).toHaveClass("truncate", "max-w-full");
+      const longNameRow = truncatedLongName.closest("[role='listitem']");
+      if (!longNameRow) {
+        throw new Error("Expected long trend detail name to be rendered inside a list item.");
+      }
+      expect(longNameRow).toHaveClass("border-b", "border-border/60");
+      const longNameAction = within(longNameRow as HTMLElement).getByRole("button", { name: `查看 ${longName} 的详情` });
+      expect(longNameAction).toHaveClass(
+        "grid",
+        "w-full",
+        "min-w-0",
+        "grid-cols-[max-content_minmax(0,1fr)_auto]",
+        "@max-sm/statistics-trend:grid-cols-[minmax(0,1fr)_auto]",
+        "hover:bg-secondary/25",
+        "focus-visible:ring-2",
+        "cursor-pointer",
+      );
+      const detailDateBadge = within(longNameAction).getByText("1月10日");
+      const detailBadgeCell = detailDateBadge.parentElement;
+      if (!detailBadgeCell) {
+        throw new Error("Expected trend detail date badge to live inside a shared alignment grid.");
+      }
+      expect(detailBadgeCell).toHaveClass("min-w-0", "justify-self-start", "@max-sm/statistics-trend:col-span-2");
+      expect(detailDateBadge).toHaveClass("inline-flex", "w-[6em]", "max-w-full", "h-6", "truncate", "rounded-full");
+      expect(detailDateBadge).not.toHaveClass("w-max");
+      expect(detailDateBadge).not.toHaveClass("w-full");
+      expect(within(longNameAction).getByText("¥16")).toHaveClass("shrink-0", "whitespace-nowrap", "tabular-nums");
+      expect(within(longNameAction).getByText("18%")).toHaveClass("tabular-nums");
+      expect(longNameAction).toHaveTextContent("占比 18%");
+
+      vi.useRealTimers();
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("combobox", { name: "月份" }));
+      await user.click(await screen.findByRole("option", { name: "2026年2月" }));
+
+      expect(screen.getByRole("heading", { name: "2026年2月 明细" })).toBeInTheDocument();
+      expect(screen.getByRole("list", { name: "2026年2月 明细" })).toHaveTextContent("2月10日");
+
+      await user.click(screen.getByRole("tab", { name: "月均摊销" }));
+
+      expect(screen.getByText("按当前有效订阅组合估算未来 12 个月的月均成本归属。")).toBeInTheDocument();
+      const tooltip = getLastTrendTooltip();
+      expect(tooltip).toHaveTextContent("月均摊销");
+      expect(tooltip).toHaveTextContent("月均归属");
+      expect(tooltip).toHaveTextContent("还有 2 个订阅");
+      expect(screen.getByRole("heading", { name: "2026年2月 明细" })).toBeInTheDocument();
+      expect(screen.getByRole("list", { name: "2026年2月 明细" })).toHaveTextContent("月均");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("gives the trend chart positive dimensions before ResizeObserver reports layout", () => {
