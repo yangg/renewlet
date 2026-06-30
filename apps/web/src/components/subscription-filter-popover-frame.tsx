@@ -12,7 +12,7 @@ import { PopoverContent } from "@/components/ui/popover";
 
 interface SubscriptionFilterPopoverFrameProps {
   title: ReactNode;
-  searchInput: ReactNode;
+  searchInput?: ReactNode;
   children: ReactNode;
   closeLabel: string;
   onClose: () => void;
@@ -60,9 +60,11 @@ export function SubscriptionFilterPopoverFrame({
         </Button>
       </div>
 
-      <div className="shrink-0 border-b border-border px-4 py-3">
-        <div className="relative">{searchInput}</div>
-      </div>
+      {searchInput ? (
+        <div className="shrink-0 border-b border-border px-4 py-3">
+          <div className="relative">{searchInput}</div>
+        </div>
+      ) : null}
 
       <div data-testid={scrollTestId} className="min-h-0 flex-1 overflow-y-auto p-4">
         {children}

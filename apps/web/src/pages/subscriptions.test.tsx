@@ -10,9 +10,11 @@ import Subscriptions from "./subscriptions";
 
 type SubscriptionBaseFixture = Omit<Subscription, "billingCycle" | "customDays" | "customCycleUnit" | "oneTimeTermCount" | "oneTimeTermUnit">;
 type SubscriptionOverrides = Partial<Subscription>;
+type MockInfiniteSubscriptionsResult = { subscriptions?: Subscription[]; isPending: boolean; hasNextPage?: boolean; isFetchingNextPage?: boolean; fetchNextPage?: () => void };
 
 const mocks = vi.hoisted(() => ({
-  useInfiniteSubscriptions: vi.fn(),
+  useInfiniteSubscriptions: vi.fn<() => MockInfiniteSubscriptionsResult>(),
+  useSubscriptions: vi.fn(),
   useSettings: vi.fn(),
   handleDeleteSubscription: vi.fn(),
   handleEditSubscription: vi.fn(),
@@ -28,6 +30,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/hooks/use-subscriptions", () => ({
   useInfiniteSubscriptions: mocks.useInfiniteSubscriptions,
+  useSubscriptions: mocks.useSubscriptions,
 }));
 
 vi.mock("@/hooks/use-settings", () => ({
@@ -313,9 +316,7 @@ function installPointerCaptureMocks() {
   Element.prototype.scrollIntoView ??= vi.fn();
 }
 
-beforeEach(() => {
-  mocks.renderHeaderActions = false;
-});
+beforeEach(() => { mocks.renderHeaderActions = false; mocks.useSubscriptions.mockImplementation(() => ({ data: mocks.useInfiniteSubscriptions().subscriptions ?? [], isPending: false })); });
 
 describe("Subscriptions page sorting", () => {
   beforeAll(installPointerCaptureMocks);

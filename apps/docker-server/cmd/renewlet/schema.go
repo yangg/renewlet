@@ -314,7 +314,7 @@ func ensureSubscriptionsCollection(app core.App, users *core.Collection) error {
 			&core.BoolField{Name: "pinned"},
 			&core.BoolField{Name: "publicHidden"},
 			&core.TextField{Name: "paymentMethod", Max: 80},
-				&core.TextField{Name: "startDate", Max: 10, Pattern: `^$|^\d{4}-\d{2}-\d{2}$`},
+			&core.TextField{Name: "startDate", Max: 10, Pattern: `^$|^\d{4}-\d{2}-\d{2}$`},
 			&core.TextField{Name: "nextBillingDate", Required: true, Max: 10, Pattern: `^\d{4}-\d{2}-\d{2}$`},
 			&core.BoolField{Name: "autoRenew"},
 			&core.BoolField{Name: "autoCalculateNextBillingDate"},
@@ -346,6 +346,14 @@ func ensureSubscriptionsCollection(app core.App, users *core.Collection) error {
 		c.AddIndex("idx_subscriptions_user", false, "user", "")
 		c.AddIndex("idx_subscriptions_user_logo", false, "user, logo", "")
 		c.AddIndex("idx_subscriptions_user_next_billing", false, "user, nextBillingDate", "")
+		c.AddIndex("idx_subscriptions_user_category_order", false, "user, category, created, id", "")
+		c.AddIndex("idx_subscriptions_user_billing_cycle_order", false, "user, billingCycle, created, id", "")
+		c.AddIndex("idx_subscriptions_user_currency_order", false, "user, currency, created, id", "")
+		c.AddIndex("idx_subscriptions_user_payment_method_order", false, "user, paymentMethod, created, id", "")
+		c.AddIndex("idx_subscriptions_user_pinned_order", false, "user, pinned, created, id", "")
+		c.AddIndex("idx_subscriptions_user_public_hidden_order", false, "user, publicHidden, created, id", "")
+		c.AddIndex("idx_subscriptions_user_reminder_mode_order", false, "user, reminderDays, created, id", "")
+		c.AddIndex("idx_subscriptions_user_repeat_reminder_order", false, "user, repeatReminderEnabled, created, id", "")
 		for _, name := range []string{
 			"idx_subscriptions_user_auto_renew_due",
 			"idx_subscriptions_user_reminder_due",

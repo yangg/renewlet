@@ -176,6 +176,36 @@ describe("subscription service API calls", () => {
     expect(page.nextCursor).toBe("next");
   });
 
+  it("serializes custom list filters as repeated product API query params", async () => {
+    mocks.apiFetch.mockResolvedValue({
+      subscriptions: [],
+      nextCursor: null,
+      total: 0,
+    });
+
+    await subscriptionService.listPage(null, 25, {
+      q: "cursor",
+      category: ["developer_tools", "ai"],
+      tag: ["Team"],
+      billingCycle: ["monthly"],
+      paymentMethod: ["paypal", "__none"],
+      currency: ["USD"],
+      status: "active",
+      renewal: "auto",
+      nextBillingFrom: "2999-08-01",
+      nextBillingTo: "2999-08-31",
+      pinned: true,
+      publicHidden: false,
+      reminderMode: "custom",
+      repeatReminder: true,
+    });
+
+    expect(mocks.apiFetch).toHaveBeenCalledWith(
+      "/api/app/subscriptions?limit=25&q=cursor&category=developer_tools&category=ai&tag=Team&billingCycle=monthly&paymentMethod=paypal&paymentMethod=__none&currency=USD&status=active&renewal=auto&nextBillingFrom=2999-08-01&nextBillingTo=2999-08-31&pinned=true&publicHidden=false&reminderMode=custom&repeatReminder=true",
+      expect.anything(),
+    );
+  });
+
   it("stops aggregate listing when the backend repeats a subscription cursor", async () => {
     const firstPageUrl = "/api/app/subscriptions?limit=50";
     const repeatedCursorUrl = "/api/app/subscriptions?limit=50&cursor=repeat";

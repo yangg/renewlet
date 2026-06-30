@@ -10,7 +10,8 @@ import {
   subscriptionsListQuerySchema,
   subscriptionUpdateBodySchema,
 } from "@renewlet/shared/schemas/subscriptions";
-import { boolToInt, countSubscriptions, getSettings, getSubscription, listSubscriptionsPage, newId, nowIso, parseJsonObject, parseStringArray, parseSubscriptionCursor, subscriptionCursor, toApiSubscription } from "./db";
+import { boolToInt, getSettings, getSubscription, newId, nowIso, parseJsonObject, parseStringArray, parseSubscriptionCursor, subscriptionCursor, toApiSubscription } from "./db";
+import { listSubscriptionsForQuery } from "./subscription-list-filters";
 import { advanceSubscriptionRenewal, dateOnlyInZone } from "./subscription-renewal";
 import { refreshSubscriptionSchedulerState } from "./subscription-scheduler-state";
 import { HttpError, ok, readJson, readOptionalJson, requestLocale, successJson } from "./http";
@@ -32,18 +33,38 @@ export async function readSubscriptions(request: Request, env: Env): Promise<Res
   const parsed = subscriptionsListQuerySchema.parse({
     limit: url.searchParams.get("limit") ?? undefined,
     cursor: url.searchParams.get("cursor") ?? undefined,
+    q: url.searchParams.get("q") ?? undefined,
+    category: repeatedSearchParam(url.searchParams, "category"),
+    tag: repeatedSearchParam(url.searchParams, "tag"),
+    billingCycle: repeatedSearchParam(url.searchParams, "billingCycle"),
+    paymentMethod: repeatedSearchParam(url.searchParams, "paymentMethod"),
+    currency: repeatedSearchParam(url.searchParams, "currency"),
+    status: url.searchParams.get("status") ?? undefined,
+    renewal: url.searchParams.get("renewal") ?? undefined,
+    nextBillingFrom: url.searchParams.get("nextBillingFrom") ?? undefined,
+    nextBillingTo: url.searchParams.get("nextBillingTo") ?? undefined,
+    pinned: url.searchParams.get("pinned") ?? undefined,
+    publicHidden: url.searchParams.get("publicHidden") ?? undefined,
+    reminderMode: url.searchParams.get("reminderMode") ?? undefined,
+    repeatReminder: url.searchParams.get("repeatReminder") ?? undefined,
   });
   if (parsed.cursor && !parseSubscriptionCursor(parsed.cursor)) {
     throw new HttpError(400, serverText(requestLocale(request), "common.invalidRequestParameters"), "INVALID_CURSOR");
   }
-  const rows = await listSubscriptionsPage(env, auth.user.id, { limit: parsed.limit + 1, cursor: parsed.cursor });
-  const pageRows = rows.slice(0, parsed.limit);
-  const nextCursor = rows.length > parsed.limit ? subscriptionCursor(pageRows[pageRows.length - 1]!) : null;
+  const today = parsed.status ? dateOnlyInZone(new Date(), (await getSettings(env, auth.user.id)).timezone) : "";
+  const page = await listSubscriptionsForQuery(env, auth.user.id, parsed, today);
+  const pageRows = page.rows.slice(0, parsed.limit);
+  const nextCursor = page.rows.length > parsed.limit ? subscriptionCursor(pageRows[pageRows.length - 1]!) : null;
   return successJson(subscriptionsListPayloadSchema.parse({
     subscriptions: pageRows.map(toApiSubscription),
     nextCursor,
-    total: await countSubscriptions(env, auth.user.id),
+    total: page.total,
   }));
+}
+
+function repeatedSearchParam(params: URLSearchParams, name: string): string[] | undefined {
+  const values = params.getAll(name);
+  return values.length > 0 ? values : undefined;
 }
 
 /** 新建订阅走 shared create schema，确保 D1 写入边界与 Go/PocketBase API 保持同形。 */

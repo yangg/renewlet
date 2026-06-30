@@ -300,6 +300,144 @@ func TestSubscriptionsProductAPICursorAdvancesWithoutRepeatingRows(t *testing.T)
 	}
 }
 
+func TestSubscriptionsProductAPIFiltersAcrossOwnerScopedDataset(t *testing.T) {
+	app := newSchemaTestApp(t)
+	if err := ensureSchema(app); err != nil {
+		t.Fatal(err)
+	}
+	registerRecordHooks(app)
+	user, token := createRouteTestUser(t, app, "subscriptions-filter-api")
+	foreignUser, _ := createRouteTestUser(t, app, "subscriptions-filter-foreign")
+
+	target := createRouteTestSubscription(t, app, user.Id, map[string]interface{}{
+		"name":                  "Cursor Team Plan",
+		"category":              "developer_tools",
+		"tags":                  []string{"AI", "Team"},
+		"billingCycle":          "monthly",
+		"currency":              "USD",
+		"paymentMethod":         "paypal",
+		"autoRenew":             true,
+		"nextBillingDate":       "2999-08-15",
+		"pinned":                true,
+		"publicHidden":          false,
+		"reminderDays":          5,
+		"repeatReminderEnabled": true,
+		"website":               "https://cursor.example.com",
+		"notes":                 "engineering seats",
+	})
+	createRouteTestSubscription(t, app, user.Id, map[string]interface{}{
+		"name":            "Cursor Personal",
+		"category":        "developer_tools",
+		"tags":            []string{"Personal"},
+		"paymentMethod":   "card",
+		"nextBillingDate": "2999-08-15",
+	})
+	createRouteTestSubscription(t, app, foreignUser.Id, map[string]interface{}{
+		"name":                  "Cursor Team Plan",
+		"category":              "developer_tools",
+		"tags":                  []string{"AI", "Team"},
+		"billingCycle":          "monthly",
+		"currency":              "USD",
+		"paymentMethod":         "paypal",
+		"autoRenew":             true,
+		"nextBillingDate":       "2999-08-15",
+		"pinned":                true,
+		"publicHidden":          false,
+		"reminderDays":          5,
+		"repeatReminderEnabled": true,
+	})
+
+	values := url.Values{}
+	values.Set("limit", "10")
+	values.Set("q", "cursor")
+	values.Add("category", "developer_tools")
+	values.Add("tag", "AI")
+	values.Add("billingCycle", "monthly")
+	values.Add("paymentMethod", "paypal")
+	values.Add("currency", "USD")
+	values.Set("status", "active")
+	values.Set("renewal", "auto")
+	values.Set("nextBillingFrom", "2999-08-01")
+	values.Set("nextBillingTo", "2999-08-31")
+	values.Set("pinned", "true")
+	values.Set("publicHidden", "false")
+	values.Set("reminderMode", "custom")
+	values.Set("repeatReminder", "true")
+
+	res := serveTestRequest(t, app, http.MethodGet, "/api/app/subscriptions?"+values.Encode(), "", token)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected filtered subscription list 200, got %d: %s", res.Code, res.Body.String())
+	}
+	body := decodeAPISuccessDataForTest[subscriptionsListResponse](t, res.Body.Bytes())
+	if body.Total != 1 || len(body.Subscriptions) != 1 {
+		t.Fatalf("expected exactly one filtered subscription, got %#v", body)
+	}
+	if got, _ := body.Subscriptions[0]["id"].(string); got != target.Id {
+		t.Fatalf("expected owner target subscription %q, got %#v", target.Id, body.Subscriptions[0])
+	}
+}
+
+func TestSubscriptionsProductAPIFiltersEffectiveStatusAndCursorTotal(t *testing.T) {
+	app := newSchemaTestApp(t)
+	if err := ensureSchema(app); err != nil {
+		t.Fatal(err)
+	}
+	registerRecordHooks(app)
+	user, token := createRouteTestUser(t, app, "subscriptions-status-filter-api")
+
+	legacyOverdue := createRouteTestSubscription(t, app, user.Id, map[string]interface{}{
+		"name":            "Legacy Overdue",
+		"status":          "active",
+		"billingCycle":    "monthly",
+		"startDate":       "1999-01-01",
+		"nextBillingDate": "2000-01-01",
+	})
+	storedExpired := createRouteTestSubscription(t, app, user.Id, map[string]interface{}{
+		"name":            "Stored Expired",
+		"status":          "expired",
+		"nextBillingDate": "2999-01-01",
+	})
+	createRouteTestSubscription(t, app, user.Id, map[string]interface{}{
+		"name":             "One Time Buyout",
+		"status":           "active",
+		"billingCycle":     "one-time",
+		"oneTimeTermCount": 0,
+		"startDate":        "1999-01-01",
+		"nextBillingDate":  "2000-01-01",
+	})
+
+	res := serveTestRequest(t, app, http.MethodGet, "/api/app/subscriptions?status=expired&limit=1", "", token)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected expired filtered list 200, got %d: %s", res.Code, res.Body.String())
+	}
+	first := decodeAPISuccessDataForTest[subscriptionsListResponse](t, res.Body.Bytes())
+	if first.Total != 2 || len(first.Subscriptions) != 1 || first.NextCursor == nil {
+		t.Fatalf("expected first filtered page to expose total=2 and next cursor, got %#v", first)
+	}
+	if got, _ := first.Subscriptions[0]["id"].(string); got != legacyOverdue.Id && got != storedExpired.Id {
+		t.Fatalf("expected first filtered page to contain an expired match, got %#v", first.Subscriptions[0])
+	}
+
+	next := serveTestRequest(t, app, http.MethodGet, "/api/app/subscriptions?status=expired&limit=1&cursor="+url.QueryEscape(*first.NextCursor), "", token)
+	if next.Code != http.StatusOK {
+		t.Fatalf("expected second expired filtered page 200, got %d: %s", next.Code, next.Body.String())
+	}
+	second := decodeAPISuccessDataForTest[subscriptionsListResponse](t, next.Body.Bytes())
+	if second.Total != 2 || len(second.Subscriptions) != 1 || second.NextCursor != nil {
+		t.Fatalf("expected second filtered page to keep total=2 and finish cursor, got %#v", second)
+	}
+	secondID, _ := second.Subscriptions[0]["id"].(string)
+	firstID, _ := first.Subscriptions[0]["id"].(string)
+	if secondID == "" || secondID == firstID {
+		t.Fatalf("expected filtered cursor to advance to another expired row, first=%q second=%q", firstID, secondID)
+	}
+
+	invalid := serveTestRequest(t, app, http.MethodGet, "/api/app/subscriptions?pinned=nope", "", token)
+	if invalid.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid boolean filter 400, got %d: %s", invalid.Code, invalid.Body.String())
+	}
+}
+
 func TestAssetsProductAPIUploadListAndRead(t *testing.T) {
 	app := newSchemaTestApp(t)
 	if err := ensureSchema(app); err != nil {

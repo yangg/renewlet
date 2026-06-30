@@ -1,14 +1,9 @@
-import { useState } from "react";
-import { Calendar as CalendarIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
+import { DateOnlyPickerField } from "@/components/date-only-picker-field";
 import { FormField, FormFieldRow } from "@/components/ui/form-field";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getSubscriptionDateValidationKind } from "@/lib/subscription-form";
-import { dateOnlyToLocalDate, dateToDateOnly } from "@/lib/time/date-only";
 import { cn } from "@/lib/utils";
 import type { SubscriptionFormErrors, SubscriptionFormFieldUpdater } from "@/components/subscription-form-fields-model";
 import type { SubscriptionFormState } from "@/types/subscription-form";
@@ -21,9 +16,7 @@ interface SubscriptionFormDateFieldsProps {
 }
 
 export function SubscriptionFormDateFields({ id, formData, update, errors }: SubscriptionFormDateFieldsProps) {
-  const { t, formatDateOnly } = useI18n();
-  const [startDatePickerOpen, setStartDatePickerOpen] = useState(false);
-  const [nextBillingDatePickerOpen, setNextBillingDatePickerOpen] = useState(false);
+  const { t } = useI18n();
   const startDateId = id("startDate");
   const startDateLabelId = id("startDate-label");
   const startDateValueId = id("startDate-value");
@@ -34,10 +27,8 @@ export function SubscriptionFormDateFields({ id, formData, update, errors }: Sub
   const nextBillingDateHelpId = id("nextBillingDate-help");
   const startDateErrorId = id("startDate-error");
   const nextBillingDateErrorId = id("nextBillingDate-error");
-  const selectedStartDate = formData.startDate ? dateOnlyToLocalDate(formData.startDate) : undefined;
-  const selectedNextBillingDate = formData.nextBillingDate ? dateOnlyToLocalDate(formData.nextBillingDate) : undefined;
   // 当非法到期日被清空后，打开到期日历应落在开始日所在月份，让下一个合法选择直接可见。
-  const nextBillingDateCalendarMonth = selectedNextBillingDate ?? selectedStartDate;
+  const nextBillingDateCalendarMonth = formData.nextBillingDate ?? formData.startDate;
   const isNextBillingDateDisabled = formData.autoCalculate || formData.billingCycle === "one-time";
   const isOneTimeBuyout = formData.billingCycle === "one-time" && formData.oneTimeMode === "buyout";
   const showAutoCalculate = formData.billingCycle !== "one-time";
@@ -101,44 +92,16 @@ export function SubscriptionFormDateFields({ id, formData, update, errors }: Sub
         >
           {(field) => (
             <>
-              <Popover open={startDatePickerOpen} onOpenChange={setStartDatePickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    id={field.id}
-                    variant="outline"
-                    aria-labelledby={`${startDateLabelId} ${startDateValueId}`}
-                    aria-invalid={field.invalid}
-                    aria-describedby={field.describedBy}
-                    className={cn(
-                      "w-full justify-start text-left font-normal border-border bg-secondary",
-                      !formData.startDate && "text-muted-foreground",
-                      startDateHasError && "border-destructive focus-visible:ring-destructive/40",
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    <span id={startDateValueId}>
-                      {formData.startDate ? formatDateOnly(formData.startDate, "full") : t("subscription.placeholder.date")}
-                    </span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="w-auto p-0 border-border bg-card"
-                  align="start"
-                  mobileDetent="compact"
-                  mobileKind="calendar"
-                >
-                  <Calendar
-                    mode="single"
-                    {...(selectedStartDate ? { selected: selectedStartDate, defaultMonth: selectedStartDate } : {})}
-                    onSelect={(date) => {
-                      update("startDate", date ? dateToDateOnly(date) : undefined);
-                      setStartDatePickerOpen(false);
-                    }}
-                    autoFocus
-                    className="p-3 pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
+              <DateOnlyPickerField
+                id={field.id}
+                labelId={startDateLabelId}
+                valueId={startDateValueId}
+                value={formData.startDate}
+                onChange={(value) => update("startDate", value)}
+                placeholder={t("subscription.placeholder.date")}
+                invalid={field.invalid}
+                describedBy={field.describedBy}
+              />
               {isOneTimeBuyout ? (
                 <p id={startDateHelpId} className="text-xs text-muted-foreground">
                   {t("subscription.oneTimeBuyoutDateHelp")}
@@ -159,54 +122,19 @@ export function SubscriptionFormDateFields({ id, formData, update, errors }: Sub
           >
             {(field) => (
               <>
-                <Popover
-                  open={isNextBillingDateDisabled ? false : nextBillingDatePickerOpen}
-                  onOpenChange={setNextBillingDatePickerOpen}
-                >
-                  <PopoverTrigger asChild>
-                    <Button
-                      id={field.id}
-                      variant="outline"
-                      disabled={isNextBillingDateDisabled}
-                      aria-labelledby={`${nextBillingDateLabelId} ${nextBillingDateValueId}`}
-                      aria-invalid={field.invalid}
-                      aria-describedby={field.describedBy}
-                      className={cn(
-                        "w-full justify-start text-left font-normal border-border bg-secondary",
-                        !formData.nextBillingDate && "text-muted-foreground",
-                        isNextBillingDateDisabled && "opacity-60",
-                        nextBillingDateHasError && "border-destructive focus-visible:ring-destructive/40",
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      <span id={nextBillingDateValueId}>
-                        {formData.nextBillingDate
-                          ? formatDateOnly(formData.nextBillingDate, "full")
-                          : t("subscription.placeholder.date")}
-                      </span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="w-auto p-0 border-border bg-card"
-                    align="start"
-                    mobileDetent="compact"
-                    mobileKind="calendar"
-                  >
-                    <Calendar
-                      mode="single"
-                      {...(selectedNextBillingDate ? { selected: selectedNextBillingDate } : {})}
-                      {...(nextBillingDateCalendarMonth ? { defaultMonth: nextBillingDateCalendarMonth } : {})}
-                      // DayPicker 的 before 是排他边界：禁用开始日前的日期，同时保留“同一天到期”这个合法选择。
-                      {...(selectedStartDate ? { disabled: { before: selectedStartDate } } : {})}
-                      onSelect={(date) => {
-                        update("nextBillingDate", date ? dateToDateOnly(date) : undefined);
-                        setNextBillingDatePickerOpen(false);
-                      }}
-                      autoFocus
-                      className="p-3 pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
+                <DateOnlyPickerField
+                  id={field.id}
+                  labelId={nextBillingDateLabelId}
+                  valueId={nextBillingDateValueId}
+                  value={formData.nextBillingDate}
+                  onChange={(value) => update("nextBillingDate", value)}
+                  placeholder={t("subscription.placeholder.date")}
+                  invalid={field.invalid}
+                  describedBy={field.describedBy}
+                  disabled={isNextBillingDateDisabled}
+                  {...(formData.startDate ? { minDate: formData.startDate } : {})}
+                  {...(nextBillingDateCalendarMonth ? { defaultMonth: nextBillingDateCalendarMonth } : {})}
+                />
                 {nextBillingDateHelp ? (
                   <p id={nextBillingDateHelpId} className="text-xs text-muted-foreground">
                     {nextBillingDateHelp}

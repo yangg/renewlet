@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { subscriptionNormalizationFixtures } from "@renewlet/shared/contract-fixtures";
 import { readSuccessData } from "./api-test-helpers";
 import { toApiSubscription } from "./db";
-import { normalizeSubscriptionBodyForStorage, toSubscriptionRow, updateSubscription, type SubscriptionBody } from "./subscriptions";
+import { normalizeSubscriptionBodyForStorage, readSubscriptions, toSubscriptionRow, updateSubscription, type SubscriptionBody } from "./subscriptions";
 import type { Env, SubscriptionRow } from "./types";
 
 const authMocks = vi.hoisted(() => ({
@@ -273,6 +273,101 @@ describe("Cloudflare subscription mapper", () => {
     expect(schedulerRefreshValues).toEqual([USER_ID, expect.any(String), expect.any(String), USER_ID]);
   });
 
+  it("reads owner-scoped filtered subscription pages with D1 post filtering", async () => {
+    const target = toSubscriptionRow("sub_cursor_team", USER_ID, subscriptionBody({
+      name: "Cursor Team Plan",
+      category: "developer_tools",
+      tags: ["AI", "Team"],
+      billingCycle: "monthly",
+      currency: "USD",
+      paymentMethod: "paypal",
+      autoRenew: true,
+      nextBillingDate: "2999-08-15",
+      pinned: true,
+      publicHidden: false,
+      reminderDays: 5,
+      repeatReminderEnabled: true,
+      website: "https://cursor.example.com",
+    }), "2026-06-08T00:00:00.000Z", "2026-06-08T00:00:00.000Z");
+    const ownerMismatch = toSubscriptionRow("sub_other_owner", USER_ID, subscriptionBody({
+      name: "Other Plan",
+      category: "developer_tools",
+      tags: ["Personal"],
+      nextBillingDate: "2999-08-15",
+    }), "2026-06-07T00:00:00.000Z", "2026-06-07T00:00:00.000Z");
+    const foreign = toSubscriptionRow("sub_foreign", "usr_foreign", subscriptionBody({
+      name: "Cursor Team Plan",
+      category: "developer_tools",
+      tags: ["AI", "Team"],
+      paymentMethod: "paypal",
+      autoRenew: true,
+      nextBillingDate: "2999-08-15",
+      pinned: true,
+      repeatReminderEnabled: true,
+    }), "2026-06-09T00:00:00.000Z", "2026-06-09T00:00:00.000Z");
+    const scans: Array<{ sql: string; values: unknown[] }> = [];
+    const env = {
+      DB: {
+        prepare: (sql: string) => ({
+          bind: (...values: unknown[]) => ({
+            first: async <T>() => {
+              if (sql.includes("FROM settings")) {
+                return { settings_json: JSON.stringify({ ...subscriptionBody(), timezone: "UTC" }) } as T;
+              }
+              return null;
+            },
+            all: async <T>() => {
+              scans.push({ sql, values });
+              const userId = values[0];
+              return { success: true, meta: {}, results: [target, ownerMismatch, foreign].filter((row) => row.user_id === userId) as T[] } as D1Result<T>;
+            },
+          }),
+        }),
+      } as unknown as D1Database,
+      ASSETS: {} as Fetcher,
+      ASSETS_BUCKET: {} as R2Bucket,
+    } satisfies Env;
+
+    const params = new URLSearchParams({
+      limit: "10",
+      q: "cursor",
+      status: "active",
+      renewal: "auto",
+      nextBillingFrom: "2999-08-01",
+      nextBillingTo: "2999-08-31",
+      pinned: "true",
+      publicHidden: "false",
+      reminderMode: "custom",
+      repeatReminder: "true",
+    });
+    params.append("category", "developer_tools");
+    params.append("tag", "AI");
+    params.append("billingCycle", "monthly");
+    params.append("paymentMethod", "paypal");
+    params.append("currency", "USD");
+
+    const response = await readSubscriptions(new Request(`https://renewlet.test/api/app/subscriptions?${params}`, {
+      headers: { authorization: "Bearer test" },
+    }), env);
+    const body = await readSuccessData<{ subscriptions: Array<{ id: string }>; total: number }>(response);
+
+    expect(body.total).toBe(1);
+    expect(body.subscriptions).toHaveLength(1);
+    expect(body.subscriptions[0]?.id).toBe(target.id);
+    expect(scans).toHaveLength(2);
+    for (const scan of scans) {
+      expect(scan.sql).toContain("WHERE user_id = ?");
+      expect(scan.sql).toContain("category IN (?)");
+      expect(scan.sql).toContain("billing_cycle IN (?)");
+      expect(scan.sql).toContain("currency IN (?)");
+      expect(scan.sql).toContain("payment_method IN (?)");
+      expect(scan.sql).toContain("next_billing_date >= ?");
+      expect(scan.sql).toContain("pinned = ?");
+      expect(scan.sql).toContain("reminder_days >= 0");
+      expect(scan.values).toEqual(expect.arrayContaining([USER_ID, "developer_tools", "monthly", "USD", "paypal", 1]));
+    }
+  });
+
   it("clears one-time term fields for recurring subscriptions", () => {
     const row = toSubscriptionRow("sub_monthly", "usr_custom", subscriptionBody({
       billingCycle: "monthly",
@@ -301,6 +396,7 @@ describe("Cloudflare subscription mapper", () => {
     const costSharingMigration = readFileSync(resolve("migrations/0018_subscription_cost_sharing.sql"), "utf8");
     const costSharingCurrentUserPayerMigration = readFileSync(resolve("migrations/0019_subscription_cost_sharing_current_user_payer.sql"), "utf8");
     const nullableStartDateMigration = readFileSync(resolve("migrations/0024_nullable_subscription_start_date.sql"), "utf8");
+    const filterIndexesMigration = readFileSync(resolve("migrations/0026_subscription_filter_indexes.sql"), "utf8");
 
     expect(initialMigration).not.toContain("custom_cycle_unit");
     expect(initialMigration).not.toContain("one_time_term");
@@ -344,5 +440,14 @@ describe("Cloudflare subscription mapper", () => {
     expect(nullableStartDateMigration).toContain("start_date TEXT,");
     expect(nullableStartDateMigration).toContain("CREATE INDEX IF NOT EXISTS idx_subscriptions_user_auto_renew_due");
     expect(nullableStartDateMigration).toContain("idx_subscriptions_user_repeat_trial_reminder");
+    expect(filterIndexesMigration).toContain("idx_subscriptions_user_category_order");
+    expect(filterIndexesMigration).toContain("ON subscriptions (user_id, category, created_at DESC, id DESC)");
+    expect(filterIndexesMigration).toContain("idx_subscriptions_user_billing_cycle_order");
+    expect(filterIndexesMigration).toContain("idx_subscriptions_user_currency_order");
+    expect(filterIndexesMigration).toContain("idx_subscriptions_user_payment_method_order");
+    expect(filterIndexesMigration).toContain("idx_subscriptions_user_pinned_order");
+    expect(filterIndexesMigration).toContain("idx_subscriptions_user_public_hidden_order");
+    expect(filterIndexesMigration).toContain("idx_subscriptions_user_reminder_mode_order");
+    expect(filterIndexesMigration).toContain("idx_subscriptions_user_repeat_reminder_order");
   });
 });

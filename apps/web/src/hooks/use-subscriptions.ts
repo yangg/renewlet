@@ -14,7 +14,7 @@
 
 import { useMemo } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { subscriptionService, type SubscriptionFieldPatch } from "@/services/subscription-service";
+import { subscriptionService, type SubscriptionFieldPatch, type SubscriptionListFilters } from "@/services/subscription-service";
 import type { Subscription, SubscriptionDraft } from "@/types/subscription";
 
 const SUBSCRIPTIONS_QUERY_KEY = ["subscriptions"] as const;
@@ -22,11 +22,21 @@ const SUBSCRIPTIONS_LIST_QUERY_KEY = [...SUBSCRIPTIONS_QUERY_KEY, "list"] as con
 const SUBSCRIPTIONS_INFINITE_QUERY_KEY = [...SUBSCRIPTIONS_QUERY_KEY, "infinite"] as const;
 const SUBSCRIPTIONS_PAGE_QUERY_KEY = [...SUBSCRIPTIONS_QUERY_KEY, "page"] as const;
 
+interface UseSubscriptionsOptions {
+  filters?: SubscriptionListFilters | undefined;
+  enabled?: boolean;
+}
+
+interface UseInfiniteSubscriptionsOptions {
+  enabled?: boolean;
+}
+
 /** useSubscriptions 保留全量列表入口，避免统计/导出逻辑自己拼分页结果造成口径漂移。 */
-export function useSubscriptions() {
+export function useSubscriptions(options: UseSubscriptionsOptions = {}) {
   return useQuery({
-    queryKey: SUBSCRIPTIONS_LIST_QUERY_KEY,
-    queryFn: () => subscriptionService.list(),
+    queryKey: [...SUBSCRIPTIONS_LIST_QUERY_KEY, options.filters ?? null] as const,
+    queryFn: () => subscriptionService.list(options.filters),
+    enabled: options.enabled ?? true,
   });
 }
 
@@ -35,12 +45,13 @@ export function useSubscriptions() {
  *
  * 页面只消费 `subscriptions`，避免把 Worker/Go 的分页响应形状泄漏到筛选、虚拟列表和 CRUD 控制器。
  */
-export function useInfiniteSubscriptions() {
+export function useInfiniteSubscriptions(options: UseInfiniteSubscriptionsOptions = {}) {
   const query = useInfiniteQuery({
     queryKey: SUBSCRIPTIONS_INFINITE_QUERY_KEY,
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) => subscriptionService.listPage(pageParam),
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    enabled: options.enabled ?? true,
   });
   const subscriptions = useMemo(
     () => query.data?.pages.flatMap((page) => page.subscriptions) ?? [],

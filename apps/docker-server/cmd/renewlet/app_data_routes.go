@@ -219,46 +219,22 @@ func handleCustomConfigUpdate(app core.App, e *core.RequestEvent) error {
 
 func handleSubscriptionsList(app core.App, e *core.RequestEvent) error {
 	locale := requestLocale(e.Request)
-	limit, err := parsePositiveQueryInt(e.Request.URL.Query().Get("limit"), 50, 1, 100)
+	query, err := parseSubscriptionListQuery(e.Request.URL.Query())
 	if err != nil {
 		return e.BadRequestError(serverText(locale, "common.invalidRequestParameters"), err)
 	}
-	filter := "user = {:user}"
-	params := dbx.Params{"user": e.Auth.Id}
-	if rawCursor := strings.TrimSpace(e.Request.URL.Query().Get("cursor")); rawCursor != "" {
-		cursor, err := parseSubscriptionCursorPayload(rawCursor)
-		if err != nil {
-			return e.BadRequestError(serverText(locale, "common.invalidRequestParameters"), err)
-		}
-		filter = "user = {:user} && (created < {:createdAt} || (created = {:createdAt} && id < {:id}))"
-		params["createdAt"] = cursor.CreatedAt
-		params["id"] = cursor.ID
-	}
-
-	// 游标只描述分页位置，不能参与权限判断；所有查询都先按当前 user 过滤。
-	rows, err := app.FindRecordsByFilter("subscriptions", filter, "-created,-id", limit+1, 0, params)
+	page, err := listSubscriptionRecordsForQuery(app, e.Auth.Id, query, todayDateOnly(time.Now(), currentUserSettingsTimezone(app, e.Auth)))
 	if err != nil {
 		return e.InternalServerError(serverText(locale, "common.internalError"), err)
 	}
-	pageRows := rows
-	var nextCursor *string
-	if len(rows) > limit {
-		pageRows = rows[:limit]
-		cursor := encodeSubscriptionCursor(pageRows[len(pageRows)-1])
-		nextCursor = &cursor
-	}
-	subscriptions := make([]map[string]interface{}, 0, len(pageRows))
-	for _, record := range pageRows {
+	subscriptions := make([]map[string]interface{}, 0, len(page.Rows))
+	for _, record := range page.Rows {
 		subscriptions = append(subscriptions, subscriptionAPIFromRecord(record))
-	}
-	total, err := app.CountRecords("subscriptions", dbx.HashExp{"user": e.Auth.Id})
-	if err != nil {
-		return e.InternalServerError(serverText(locale, "common.internalError"), err)
 	}
 	return apiSuccessJSON(e, http.StatusOK, subscriptionsListResponse{
 		Subscriptions: subscriptions,
-		NextCursor:    nextCursor,
-		Total:         total,
+		NextCursor:    page.NextCursor,
+		Total:         page.Total,
 	})
 }
 

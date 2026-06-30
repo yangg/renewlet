@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import { assertDateOnly } from "@/lib/time/date-only";
 import type { Subscription } from "@/types/subscription";
 import {
+  DEFAULT_SUBSCRIPTION_ADVANCED_FILTERS,
+  SUBSCRIPTION_PAYMENT_METHOD_NONE_VALUE,
+  buildSubscriptionListFilters,
   filterSubscriptions,
+  hasActiveSubscriptionAdvancedFilters,
   hasActiveSubscriptionControls,
   hasActiveSubscriptionFilters,
   sortSubscriptions,
@@ -200,11 +204,55 @@ describe("subscription filter state", () => {
 
   it("keeps sort separate from filtered-count state but includes it in clearable controls", () => {
     expect(hasActiveSubscriptionFilters(emptyFilters)).toBe(false);
+    expect(hasActiveSubscriptionAdvancedFilters(DEFAULT_SUBSCRIPTION_ADVANCED_FILTERS)).toBe(false);
     expect(hasActiveSubscriptionControls(emptyFilters, "default")).toBe(false);
     expect(hasActiveSubscriptionControls(emptyFilters, "monthly_cost_desc")).toBe(true);
+    expect(hasActiveSubscriptionControls(emptyFilters, "default", {
+      ...DEFAULT_SUBSCRIPTION_ADVANCED_FILTERS,
+      pinnedFilter: "yes",
+    })).toBe(true);
 
     expect(hasActiveSubscriptionFilters({ ...emptyFilters, searchQuery: "cloud" })).toBe(true);
     expect(hasActiveSubscriptionFilters({ ...emptyFilters, selectedCategories: ["finance"] })).toBe(true);
+  });
+
+  it("maps basic and advanced filters to product API query filters", () => {
+    expect(buildSubscriptionListFilters(emptyFilters)).toBeUndefined();
+    expect(buildSubscriptionListFilters(
+      {
+        searchQuery: "  cursor  ",
+        selectedCategories: ["productivity", "finance"],
+        statusFilter: "active",
+        renewalFilter: "auto",
+        selectedTags: ["Team"],
+      },
+      {
+        selectedBillingCycles: ["monthly"],
+        selectedPaymentMethods: ["paypal", SUBSCRIPTION_PAYMENT_METHOD_NONE_VALUE],
+        selectedCurrencies: ["USD"],
+        nextBillingFrom: "2999-08-01",
+        nextBillingTo: "2999-08-31",
+        pinnedFilter: "yes",
+        publicHiddenFilter: "no",
+        reminderModeFilter: "custom",
+        repeatReminderFilter: "yes",
+      },
+    )).toEqual({
+      q: "cursor",
+      category: ["productivity", "finance"],
+      tag: ["Team"],
+      status: "active",
+      renewal: "auto",
+      billingCycle: ["monthly"],
+      paymentMethod: ["paypal", "__none"],
+      currency: ["USD"],
+      nextBillingFrom: "2999-08-01",
+      nextBillingTo: "2999-08-31",
+      pinned: true,
+      publicHidden: false,
+      reminderMode: "custom",
+      repeatReminder: true,
+    });
   });
 
   it("filters multiple categories with OR semantics", () => {

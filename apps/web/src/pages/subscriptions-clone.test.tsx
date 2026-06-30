@@ -6,12 +6,21 @@ import { assertDateOnly } from "@/lib/time/date-only";
 import { DEFAULT_SETTINGS, type Subscription } from "@/types/subscription";
 import Subscriptions from "./subscriptions";
 
+interface MockInfiniteSubscriptionsResult {
+  subscriptions?: Subscription[];
+  isPending: boolean;
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  fetchNextPage?: () => void;
+}
+
 const cloneSource = vi.hoisted(() => ({
   value: null as Subscription | null,
 }));
 
 const mocks = vi.hoisted(() => ({
-  useInfiniteSubscriptions: vi.fn(),
+  useInfiniteSubscriptions: vi.fn<() => MockInfiniteSubscriptionsResult>(),
+  useSubscriptions: vi.fn(),
   useSettings: vi.fn(),
   handleAddSubscription: vi.fn(),
   handleDeleteSubscription: vi.fn(),
@@ -29,6 +38,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/hooks/use-subscriptions", () => ({
   useInfiniteSubscriptions: mocks.useInfiniteSubscriptions,
+  useSubscriptions: mocks.useSubscriptions,
 }));
 
 vi.mock("@/hooks/use-settings", () => ({
@@ -98,9 +108,25 @@ vi.mock("@/modules/subscriptions/application/use-subscription-filters", () => ({
     setSortOption: vi.fn(),
     selectedTags: [],
     setSelectedTags: vi.fn(),
+    advancedFilters: {
+      selectedBillingCycles: [],
+      selectedPaymentMethods: [],
+      selectedCurrencies: [],
+      nextBillingFrom: "",
+      nextBillingTo: "",
+      pinnedFilter: "all",
+      publicHiddenFilter: "all",
+      reminderModeFilter: "all",
+      repeatReminderFilter: "all",
+    },
+    setAdvancedFilters: vi.fn(),
     allTags: [],
     filteredSubscriptions: subscriptions,
+    filterSubscriptionsForDisplay: (items: Subscription[]) => items,
+    sortSubscriptionsForDisplay: (items: Subscription[]) => items,
+    subscriptionListFilters: undefined,
     hasActiveFilters: false,
+    hasActiveAdvancedFilters: false,
     hasActiveControls: false,
     toggleCategory: vi.fn(),
     clearSelectedCategories: vi.fn(),
@@ -242,6 +268,10 @@ beforeEach(() => {
   cloneSource.value = null;
   mocks.cloneDialogOpen = false;
   mocks.useSettings.mockReturnValue({ data: DEFAULT_SETTINGS });
+  mocks.useSubscriptions.mockImplementation(() => {
+    const infinite = mocks.useInfiniteSubscriptions();
+    return { data: infinite.subscriptions ?? [], isPending: false };
+  });
   mocks.useInfiniteSubscriptions.mockReturnValue({
     subscriptions: [subscription({ id: "copyable", name: "Copyable Service" })],
     isPending: false,

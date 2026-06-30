@@ -1,23 +1,17 @@
 /**
  * 弹窗设计系统原语。
  *
- * 架构位置：封装 Radix Dialog，并提供 portal container context，让弹窗内的 Popover/Select
- * 能挂到同一层级，避免 z-index 与滚动锁互相踩踏。
+ * 架构位置：封装 Radix Dialog，并接入全站浮层容器，让弹窗内 Popover/Select/Dropdown
+ * 挂到同一层级，避免 z-index 与滚动锁互相踩踏。
  *
- * 注意： 修改 portal container 逻辑会影响裁剪、配置管理和订阅表单中的嵌套浮层。
+ * 注意： 修改浮层容器逻辑会影响裁剪、配置管理和订阅表单中的嵌套浮层。
  */
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 
+import { FloatingPortalContainerProvider } from "@/components/ui/floating-portal-container";
 import { cn } from "@/lib/utils";
-
-// undefined 是未嵌套 Dialog，null 是 Dialog 内容 ref 首帧未就绪；移动 sheet 要等 ref，避免先挂 body 后丢掉父弹窗层级。
-const DialogPortalContainerContext = React.createContext<HTMLElement | null | undefined>(undefined);
-
-function useDialogPortalContainer() {
-  return React.useContext(DialogPortalContainerContext);
-}
 
 const Dialog = DialogPrimitive.Root;
 
@@ -47,6 +41,7 @@ type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.
   closeLabel?: string;
   dismissMode?: "default" | "explicit";
   layout?: "content" | "frame";
+  overlayClassName?: string;
 };
 
 const DialogContent = React.forwardRef<
@@ -58,6 +53,7 @@ const DialogContent = React.forwardRef<
   closeLabel = "Close",
   dismissMode = "default",
   layout = "content",
+  overlayClassName,
   onEscapeKeyDown,
   onInteractOutside,
   onPointerDownOutside,
@@ -78,7 +74,7 @@ const DialogContent = React.forwardRef<
 
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         ref={setRefs}
         className={cn(
@@ -101,13 +97,13 @@ const DialogContent = React.forwardRef<
         }}
         {...props}
       >
-        <DialogPortalContainerContext.Provider value={portalContainer}>
+        <FloatingPortalContainerProvider container={portalContainer}>
           {children}
           <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
             <X className="h-4 w-4" />
             <span className="sr-only">{closeLabel}</span>
           </DialogPrimitive.Close>
-        </DialogPortalContainerContext.Provider>
+        </FloatingPortalContainerProvider>
       </DialogPrimitive.Content>
     </DialogPortal>
   );
@@ -155,5 +151,4 @@ export {
   DialogFooter,
   DialogTitle,
   DialogDescription,
-  useDialogPortalContainer,
 };

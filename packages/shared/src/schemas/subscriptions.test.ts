@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { apiSubscriptionSchema, subscriptionCreateBodySchema } from "./subscriptions";
+import {
+  SUBSCRIPTION_PAYMENT_METHOD_NONE,
+  apiSubscriptionSchema,
+  subscriptionCreateBodySchema,
+  subscriptionsListQuerySchema,
+} from "./subscriptions";
 
 const recurringBody = {
   name: "QQ Music",
@@ -87,5 +92,45 @@ describe("subscription start date contract", () => {
       startDate: "2026-06-01",
       autoCalculateNextBillingDate: false,
     }).success).toBe(true);
+  });
+});
+
+describe("subscriptions list query contract", () => {
+  it("accepts repeated custom filter values and strict boolean query strings", () => {
+    const query = subscriptionsListQuerySchema.parse({
+      limit: "25",
+      q: " cloud ",
+      category: ["productivity", "developer_tools"],
+      tag: ["AI"],
+      billingCycle: ["monthly", "annual"],
+      paymentMethod: [SUBSCRIPTION_PAYMENT_METHOD_NONE, "paypal"],
+      currency: ["USD", "CNY"],
+      status: "active",
+      renewal: "auto",
+      nextBillingFrom: "2026-07-01",
+      nextBillingTo: "2026-12-31",
+      pinned: "false",
+      publicHidden: "1",
+      reminderMode: "custom",
+      repeatReminder: "true",
+    });
+
+    expect(query).toMatchObject({
+      limit: 25,
+      q: "cloud",
+      pinned: false,
+      publicHidden: true,
+      repeatReminder: true,
+    });
+  });
+
+  it("rejects invalid custom filter query values", () => {
+    expect(subscriptionsListQuerySchema.safeParse({ pinned: "nope" }).success).toBe(false);
+    expect(subscriptionsListQuerySchema.safeParse({ currency: ["usd"] }).success).toBe(false);
+    expect(subscriptionsListQuerySchema.safeParse({ billingCycle: ["forever"] }).success).toBe(false);
+    expect(subscriptionsListQuerySchema.safeParse({
+      nextBillingFrom: "2026-12-31",
+      nextBillingTo: "2026-01-01",
+    }).success).toBe(false);
   });
 });

@@ -10,9 +10,14 @@ import Subscriptions from "./subscriptions";
 type RecurringBillingCycle = Exclude<Subscription["billingCycle"], "custom" | "one-time">;
 type SubscriptionBaseFixture = Omit<Subscription, "billingCycle" | "customDays" | "customCycleUnit" | "oneTimeTermCount" | "oneTimeTermUnit">;
 type SubscriptionOverrides = Partial<SubscriptionBaseFixture> & { billingCycle?: RecurringBillingCycle };
+interface MockInfiniteSubscriptionsResult {
+  subscriptions?: Subscription[];
+  isPending: boolean;
+}
 
 const mocks = vi.hoisted(() => ({
-  useInfiniteSubscriptions: vi.fn(),
+  useInfiniteSubscriptions: vi.fn<() => MockInfiniteSubscriptionsResult>(),
+  useSubscriptions: vi.fn(),
   useSettings: vi.fn(),
   handleAddSubscription: vi.fn(),
   handleDeleteSubscription: vi.fn(),
@@ -64,6 +69,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/hooks/use-subscriptions", () => ({
   useInfiniteSubscriptions: mocks.useInfiniteSubscriptions,
+  useSubscriptions: mocks.useSubscriptions,
 }));
 
 vi.mock("@/hooks/use-settings", () => ({
@@ -238,6 +244,10 @@ describe("Subscriptions page category filters", () => {
   });
 
   beforeEach(() => {
+    mocks.useSubscriptions.mockImplementation(() => {
+      const infinite = mocks.useInfiniteSubscriptions();
+      return { data: infinite.subscriptions ?? [], isPending: false };
+    });
     mocks.useSettings.mockReturnValue({
       data: {
         ...DEFAULT_SETTINGS,

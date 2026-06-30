@@ -75,6 +75,14 @@ const optionalLogoReferenceSchema = logoReferenceSchema.nullable().optional();
 
 const tagsSchema = z.array(z.string().trim().min(1).max(40)).max(100).optional();
 const extraSchema = z.record(z.string(), z.unknown()).optional();
+export const SUBSCRIPTION_PAYMENT_METHOD_NONE = "__none";
+export const SUBSCRIPTION_QUERY_RENEWALS = ["auto", "manual", "one-time"] as const;
+export const SUBSCRIPTION_REMINDER_MODES = ["disabled", "inherit", "custom"] as const;
+const queryBooleanSchema = z.preprocess((value) => {
+  if (value === "true" || value === "1") return true;
+  if (value === "false" || value === "0") return false;
+  return value;
+}, z.boolean());
 // costSharing 是“当前用户默认付款、成员只代表其他人”的 shared wire shape；旧身份字段必须在迁移层清理，写入层拒绝。
 const costSharingMemberSchema = z.object({
   id: z.string().trim().min(1).max(80),
@@ -246,7 +254,27 @@ export const apiSubscriptionSchema = z.object({
 export const subscriptionsListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   cursor: z.string().trim().min(1).max(512).optional(),
-}).strict();
+  q: z.string().trim().min(1).max(200).optional(),
+  category: z.array(z.string().trim().min(1).max(80)).max(50).optional(),
+  tag: z.array(z.string().trim().min(1).max(40)).max(100).optional(),
+  billingCycle: z.array(z.enum(BILLING_CYCLES)).max(BILLING_CYCLES.length).optional(),
+  paymentMethod: z.array(z.string().trim().min(1).max(80)).max(200).optional(),
+  currency: z.array(z.string().trim().regex(/^[A-Z]{3}$/)).max(50).optional(),
+  status: z.enum(SUBSCRIPTION_STATUSES).optional(),
+  renewal: z.enum(SUBSCRIPTION_QUERY_RENEWALS).optional(),
+  nextBillingFrom: dateInputSchema.optional(),
+  nextBillingTo: dateInputSchema.optional(),
+  pinned: queryBooleanSchema.optional(),
+  publicHidden: queryBooleanSchema.optional(),
+  reminderMode: z.enum(SUBSCRIPTION_REMINDER_MODES).optional(),
+  repeatReminder: queryBooleanSchema.optional(),
+}).strict().refine((value) => {
+  if (!value.nextBillingFrom || !value.nextBillingTo) return true;
+  return value.nextBillingFrom <= value.nextBillingTo;
+}, {
+  path: ["nextBillingTo"],
+  message: "Invalid date range",
+});
 
 export const subscriptionsListPayloadSchema = z.object({
   subscriptions: z.array(apiSubscriptionSchema),

@@ -9,7 +9,7 @@ import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 
-import { useDialogPortalContainer } from "@/components/ui/dialog";
+import { useFloatingPortalContainer } from "@/components/ui/floating-portal-container";
 import {
   MobileOverlaySheet,
   resolveMobileSheetDetent,
@@ -269,7 +269,7 @@ const SelectContent = React.forwardRef<
   position = "popper",
   ...props
 }, ref) => {
-  const dialogPortalContainer = useDialogPortalContainer();
+  const portalContainer = useFloatingPortalContainer();
   const isMobileOverlay = useIsMobileOverlay();
   const {
     onSheetAnimationEnd,
@@ -287,11 +287,11 @@ const SelectContent = React.forwardRef<
   const resolvedMobileTitle = mobileTitle ?? translate(locale, "common.selectPlaceholder");
   const resolvedMobileCloseLabel = mobileCloseLabel ?? translate(locale, "common.close");
 
-  if (dialogPortalContainer === null) {
+  if (portalContainer === null) {
     return null;
   }
 
-  const portalContainerProps = dialogPortalContainer === undefined ? {} : { container: dialogPortalContainer };
+  const portalContainerProps = portalContainer === undefined ? {} : { container: portalContainer };
 
   const content = (
     <SelectPrimitive.Content
@@ -330,7 +330,7 @@ const SelectContent = React.forwardRef<
         present={present}
         onOpenChange={setOpen}
         onAnimationEnd={onSheetAnimationEnd}
-        container={dialogPortalContainer}
+        container={portalContainer}
         contentRole="listbox"
         detent={resolvedMobileDetent}
         kind={mobileKind}

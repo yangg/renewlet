@@ -9,7 +9,7 @@ import * as React from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronRight, Circle } from "lucide-react";
 
-import { useDialogPortalContainer } from "@/components/ui/dialog";
+import { useFloatingPortalContainer } from "@/components/ui/floating-portal-container";
 import {
   MobileOverlaySheet,
   resolveMobileSheetDetent,
@@ -174,7 +174,7 @@ const DropdownMenuContent = React.forwardRef<
   sideOffset = 4,
   ...props
 }, ref) => {
-  const dialogPortalContainer = useDialogPortalContainer();
+  const portalContainer = useFloatingPortalContainer();
   const isMobileOverlay = useIsMobileOverlay();
   const {
     onSheetAnimationEnd,
@@ -195,11 +195,11 @@ const DropdownMenuContent = React.forwardRef<
       : translate(locale, "common.options", { count: optionCount }));
   const resolvedMobileCloseLabel = mobileCloseLabel ?? translate(locale, "common.close");
 
-  if (dialogPortalContainer === null) {
+  if (portalContainer === null) {
     return null;
   }
 
-  const portalContainerProps = dialogPortalContainer === undefined ? {} : { container: dialogPortalContainer };
+  const portalContainerProps = portalContainer === undefined ? {} : { container: portalContainer };
 
   const content = (
     <DropdownMenuPrimitive.Content
@@ -228,7 +228,7 @@ const DropdownMenuContent = React.forwardRef<
         present={present}
         onOpenChange={setOpen}
         onAnimationEnd={onSheetAnimationEnd}
-        container={dialogPortalContainer}
+        container={portalContainer}
         contentRole="menu"
         detent={resolvedMobileDetent}
         kind={mobileKind}

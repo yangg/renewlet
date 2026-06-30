@@ -6,6 +6,7 @@ import { getCurrentUserId } from "@/lib/pocketbase";
 import {
   apiSubscriptionSchema,
   subscriptionsListResponseSchema,
+  type SubscriptionsListQuery,
   subscriptionResponseSchema,
   subscriptionDeleteResponseSchema,
   type ApiSubscription,
@@ -17,6 +18,7 @@ import {
 
 const SUBSCRIPTION_PAGE_SIZE = 50;
 const SUBSCRIPTION_AGGREGATE_LIMIT = 5000;
+export type SubscriptionListFilters = Omit<SubscriptionsListQuery, "limit" | "cursor">;
 type SubscriptionBaseForService = Pick<
   Subscription,
   | "id"
@@ -56,6 +58,24 @@ export type SubscriptionFieldPatch = Partial<Pick<Subscription, "pinned" | "publ
 function normalizeSubscriptionPageLimit(value: number): number {
   if (!Number.isFinite(value)) return SUBSCRIPTION_PAGE_SIZE;
   return Math.max(1, Math.min(Math.trunc(value), 100));
+}
+
+function appendSubscriptionListFilters(params: URLSearchParams, filters?: SubscriptionListFilters): void {
+  if (!filters) return;
+  if (filters.q) params.set("q", filters.q);
+  for (const value of filters.category ?? []) params.append("category", value);
+  for (const value of filters.tag ?? []) params.append("tag", value);
+  for (const value of filters.billingCycle ?? []) params.append("billingCycle", value);
+  for (const value of filters.paymentMethod ?? []) params.append("paymentMethod", value);
+  for (const value of filters.currency ?? []) params.append("currency", value);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.renewal) params.set("renewal", filters.renewal);
+  if (filters.nextBillingFrom) params.set("nextBillingFrom", filters.nextBillingFrom);
+  if (filters.nextBillingTo) params.set("nextBillingTo", filters.nextBillingTo);
+  if (filters.pinned !== undefined) params.set("pinned", String(filters.pinned));
+  if (filters.publicHidden !== undefined) params.set("publicHidden", String(filters.publicHidden));
+  if (filters.reminderMode) params.set("reminderMode", filters.reminderMode);
+  if (filters.repeatReminder !== undefined) params.set("repeatReminder", String(filters.repeatReminder));
 }
 
 /**
@@ -179,12 +199,13 @@ function toSubscriptionFieldPatchPayload(patch: SubscriptionFieldPatch) {
 export const subscriptionService = {
   pageSize: SUBSCRIPTION_PAGE_SIZE,
 
-  async listPage(cursor?: string | null, limit = SUBSCRIPTION_PAGE_SIZE): Promise<SubscriptionPage> {
+  async listPage(cursor?: string | null, limit = SUBSCRIPTION_PAGE_SIZE, filters?: SubscriptionListFilters): Promise<SubscriptionPage> {
     const userId = getCurrentUserId();
     if (!userId) return { subscriptions: [], nextCursor: null, total: 0 };
     const pageSize = normalizeSubscriptionPageLimit(limit);
     const params = new URLSearchParams({ limit: String(pageSize) });
     if (cursor) params.set("cursor", cursor);
+    appendSubscriptionListFilters(params, filters);
     const data = await apiFetch(`/api/app/subscriptions?${params.toString()}`, subscriptionsListResponseSchema);
     return {
       subscriptions: data.subscriptions.map(fromApiSubscription),
@@ -193,12 +214,12 @@ export const subscriptionService = {
     };
   },
 
-  async list(): Promise<Subscription[]> {
+  async list(filters?: SubscriptionListFilters): Promise<Subscription[]> {
     const out: Subscription[] = [];
     let cursor: string | null | undefined = null;
     const seenCursors = new Set<string>();
     for (;;) {
-      const page = await this.listPage(cursor, SUBSCRIPTION_PAGE_SIZE);
+      const page = await this.listPage(cursor, SUBSCRIPTION_PAGE_SIZE, filters);
       out.push(...page.subscriptions);
       if (!page.nextCursor) return out.slice(0, SUBSCRIPTION_AGGREGATE_LIMIT);
       if (seenCursors.has(page.nextCursor)) {

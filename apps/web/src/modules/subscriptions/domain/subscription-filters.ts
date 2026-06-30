@@ -8,7 +8,9 @@
 import { DEFAULT_LOCALE, type Locale } from "@/i18n/locales";
 import { toMonthlyAmount } from "@/lib/subscription-billing";
 import { compareDateOnly, type DateOnly } from "@/lib/time/date-only";
-import type { Category, Subscription, SubscriptionStatus } from "@/types/subscription";
+import type { SubscriptionListFilters } from "@/services/subscription-service";
+import type { BillingCycle, Category, Subscription, SubscriptionStatus } from "@/types/subscription";
+import { SUBSCRIPTION_PAYMENT_METHOD_NONE } from "@renewlet/shared/schemas/subscriptions";
 import { getEffectiveSubscriptionStatus } from "./subscription-status";
 
 export interface SubscriptionFilterState {
@@ -18,6 +20,35 @@ export interface SubscriptionFilterState {
   renewalFilter: SubscriptionRenewalFilter;
   selectedTags: string[];
 }
+
+export type SubscriptionBooleanFilter = "all" | "yes" | "no";
+export type SubscriptionReminderModeFilter = "all" | "disabled" | "inherit" | "custom";
+
+export interface SubscriptionAdvancedFilterState {
+  selectedBillingCycles: BillingCycle[];
+  selectedPaymentMethods: string[];
+  selectedCurrencies: string[];
+  nextBillingFrom: string;
+  nextBillingTo: string;
+  pinnedFilter: SubscriptionBooleanFilter;
+  publicHiddenFilter: SubscriptionBooleanFilter;
+  reminderModeFilter: SubscriptionReminderModeFilter;
+  repeatReminderFilter: SubscriptionBooleanFilter;
+}
+
+export const SUBSCRIPTION_PAYMENT_METHOD_NONE_VALUE = SUBSCRIPTION_PAYMENT_METHOD_NONE;
+
+export const DEFAULT_SUBSCRIPTION_ADVANCED_FILTERS: SubscriptionAdvancedFilterState = {
+  selectedBillingCycles: [],
+  selectedPaymentMethods: [],
+  selectedCurrencies: [],
+  nextBillingFrom: "",
+  nextBillingTo: "",
+  pinnedFilter: "all",
+  publicHiddenFilter: "all",
+  reminderModeFilter: "all",
+  repeatReminderFilter: "all",
+};
 
 export interface SubscriptionFilterContext {
   today: DateOnly | string;
@@ -201,10 +232,57 @@ export function hasActiveSubscriptionFilters(filters: SubscriptionFilterState): 
   );
 }
 
+export function hasActiveSubscriptionAdvancedFilters(filters: SubscriptionAdvancedFilterState): boolean {
+  return Boolean(
+    filters.selectedBillingCycles.length > 0 ||
+      filters.selectedPaymentMethods.length > 0 ||
+      filters.selectedCurrencies.length > 0 ||
+      filters.nextBillingFrom ||
+      filters.nextBillingTo ||
+      filters.pinnedFilter !== "all" ||
+      filters.publicHiddenFilter !== "all" ||
+      filters.reminderModeFilter !== "all" ||
+      filters.repeatReminderFilter !== "all",
+  );
+}
+
 /** 判断当前筛选条控件是否偏离默认状态（包含排序）。 */
 export function hasActiveSubscriptionControls(
   filters: SubscriptionFilterState,
   sortOption: SubscriptionSortOption,
+  advancedFilters: SubscriptionAdvancedFilterState = DEFAULT_SUBSCRIPTION_ADVANCED_FILTERS,
 ): boolean {
-  return hasActiveSubscriptionFilters(filters) || sortOption !== "default";
+  return hasActiveSubscriptionFilters(filters) || hasActiveSubscriptionAdvancedFilters(advancedFilters) || sortOption !== "default";
+}
+
+function booleanFilterToQuery(value: SubscriptionBooleanFilter): boolean | undefined {
+  if (value === "yes") return true;
+  if (value === "no") return false;
+  return undefined;
+}
+
+export function buildSubscriptionListFilters(
+  filters: SubscriptionFilterState,
+  advancedFilters: SubscriptionAdvancedFilterState = DEFAULT_SUBSCRIPTION_ADVANCED_FILTERS,
+): SubscriptionListFilters | undefined {
+  const query: SubscriptionListFilters = {};
+  const searchQuery = filters.searchQuery.trim();
+  if (searchQuery) query.q = searchQuery;
+  if (filters.selectedCategories.length > 0) query.category = filters.selectedCategories;
+  if (filters.selectedTags.length > 0) query.tag = filters.selectedTags;
+  if (filters.statusFilter !== "all") query.status = filters.statusFilter;
+  if (filters.renewalFilter !== "all") query.renewal = filters.renewalFilter;
+  if (advancedFilters.selectedBillingCycles.length > 0) query.billingCycle = advancedFilters.selectedBillingCycles;
+  if (advancedFilters.selectedPaymentMethods.length > 0) query.paymentMethod = advancedFilters.selectedPaymentMethods;
+  if (advancedFilters.selectedCurrencies.length > 0) query.currency = advancedFilters.selectedCurrencies;
+  if (advancedFilters.nextBillingFrom) query.nextBillingFrom = advancedFilters.nextBillingFrom;
+  if (advancedFilters.nextBillingTo) query.nextBillingTo = advancedFilters.nextBillingTo;
+  const pinned = booleanFilterToQuery(advancedFilters.pinnedFilter);
+  if (pinned !== undefined) query.pinned = pinned;
+  const publicHidden = booleanFilterToQuery(advancedFilters.publicHiddenFilter);
+  if (publicHidden !== undefined) query.publicHidden = publicHidden;
+  if (advancedFilters.reminderModeFilter !== "all") query.reminderMode = advancedFilters.reminderModeFilter;
+  const repeatReminder = booleanFilterToQuery(advancedFilters.repeatReminderFilter);
+  if (repeatReminder !== undefined) query.repeatReminder = repeatReminder;
+  return Object.keys(query).length > 0 ? query : undefined;
 }

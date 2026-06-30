@@ -1,14 +1,14 @@
 /**
  * 弹出层设计系统原语。
  *
- * 架构位置：封装 Radix Popover，并优先复用 Dialog portal container，解决弹窗内浮层定位问题。
+ * 架构位置：封装 Radix Popover，并优先复用父浮层容器，解决弹窗/抽屉内浮层定位问题。
  *
- * 注意： 该行为会影响 ColorPicker、SearchableSelect、TimePicker 等嵌套在 Dialog 内的控件。
+ * 注意： 该行为会影响 ColorPicker、SearchableSelect、TimePicker 等嵌套浮层控件。
  */
 import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 
-import { useDialogPortalContainer } from "@/components/ui/dialog";
+import { useFloatingPortalContainer } from "@/components/ui/floating-portal-container";
 import {
   MobileOverlaySheet,
   resolveMobileSheetDetent,
@@ -126,8 +126,8 @@ const PopoverContent = React.forwardRef<
   onPointerDownOutside,
   ...props
 }, ref) => {
-  const dialogPortalContainer = useDialogPortalContainer();
-  const container = portalContainer ?? dialogPortalContainer ?? undefined;
+  const inheritedPortalContainer = useFloatingPortalContainer();
+  const container = portalContainer ?? inheritedPortalContainer ?? undefined;
   const portalContainerProps = container === undefined ? {} : { container };
   const {
     onSheetAnimationEnd,
@@ -146,7 +146,7 @@ const PopoverContent = React.forwardRef<
   const resolvedMobileCloseLabel = mobileCloseLabel ?? translate(locale, "common.close");
   const titleMode = mobileTitle ? "visible" : "sr-only";
 
-  if (portalContainer === undefined && dialogPortalContainer === null) {
+  if (portalContainer === undefined && inheritedPortalContainer === null) {
     return null;
   }
 
