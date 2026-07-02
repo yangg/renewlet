@@ -87,7 +87,7 @@ RENEWLET_IMAGE="ghcr.io/zhiyingzzhou/renewlet:0.2.8"
 
 Use the deploy button for a Cloudflare-managed repository, or follow [Cloudflare Workers deploy](docs/cloudflare-workers-deploy.md) to manage D1, R2, GitHub Actions, and secrets yourself.
 
-Do not click the deploy button again to upgrade. One-click deploy users run `Sync Renewlet Upstream` in the generated repository connected by Cloudflare Builds; manual deploy users update their fork to the latest Renewlet version, then run `Cloudflare Worker`. Cloudflare updates must apply D1 migrations before publishing the Worker.
+Do not click the deploy button again to upgrade. One-click deploy users run `Sync Renewlet Upstream` in the generated repository connected by Cloudflare Builds; manual deploy users update their fork to the latest Renewlet version, then run `Cloudflare Worker`.
 
 ## Upgrade
 
