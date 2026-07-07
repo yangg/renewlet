@@ -190,7 +190,7 @@ describe("AIRecognizeSubscriptionDialog stream overlay", () => {
   it("收到清洗后的 nullable website final 后关闭遮罩并进入草稿", async () => {
     const user = userEvent.setup();
     mocks.recognizeSubscriptionsStream.mockResolvedValue(makeResponse([
-      makeDraft({ name: "LocVPS", website: null, notes: { value: "LocVPS 是提供 VPS 和云主机相关产品或服务的订阅服务。", source: "suggested" }, tags: ["VPS", "云主机"] }),
+      makeDraft({ name: "LocVPS", website: null, notes: { value: "LocVPS 是面向 VPS 和云主机场景的主机服务。", source: "suggested" }, tags: ["VPS", "云主机"] }),
     ]));
     renderDialog();
 

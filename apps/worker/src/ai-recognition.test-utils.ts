@@ -17,7 +17,7 @@ export function generatedDraft(overrides: Record<string, unknown> = {}): Record<
     autoCalculateNextBillingDate: true,
     trialEndDate: null,
     website: null,
-    notes: { value: "DMIT 是提供 VPS 和云服务器相关产品或服务的订阅服务。", source: "suggested" },
+    notes: { value: "DMIT 是提供 VPS、云服务器和网络线路服务的主机商。", source: "suggested" },
     tags: [],
     reminderDays: null,
     repeatReminderEnabled: null,

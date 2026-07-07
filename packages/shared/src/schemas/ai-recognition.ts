@@ -212,9 +212,9 @@ const generatedWebsiteFieldSchema = z.object({
   source: suggestedFieldSourceSchema,
 }).strict().nullable().describe("Official or user-provided website for the subscribed service. Use null for the entire website field when the official site is ambiguous or unknown.");
 const generatedNotesFieldSchema = z.object({
-  value: z.string().trim().max(5000).nullable().describe("Concise neutral service/site description. Must be non-null for describable services; not a category, import advice, confirmation reminder, or AI process note."),
+  value: z.string().trim().max(5000).nullable().describe("Long-term notes field content. Use one concise neutral service/site description: zh-CN one sentence about 18-60 Chinese characters, en-US one sentence about 10-24 words. Must be non-null for describable services; never include AI/model process, uncertainty, confirmation/import advice, renewal reminders, repeated billing facts, marketing claims, or generic subscription-service wording."),
   source: generatedNotesSourceSchema,
-}).strict().describe("Required service/site description decision object. Use value=null and source=none only when the service purpose is truly unknowable from input, domain, service name, category, tags, or high-confidence public knowledge.");
+}).strict().describe("Required service/site description decision object. Use source=input only for descriptions present in the input/image, source=suggested for high-confidence public knowledge or dynamic fields, and value=null with source=none only when the service purpose is truly unknowable. Put uncertainty in warnings, not notes.");
 const generatedTagsSchema = z.array(z.string().trim().max(40))
   .max(3)
   .describe("User-facing reusable organization tags. Prefer existing user tags from prompt context; if none fit, generate only stable reusable service/product/domain tags, not one-off order attributes.");

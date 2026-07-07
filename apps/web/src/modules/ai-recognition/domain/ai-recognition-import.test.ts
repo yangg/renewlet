@@ -142,6 +142,17 @@ describe("AI recognition import mapping", () => {
     expect(prepared.warnings.join("\n")).not.toContain("IMPORT_WARNING_AI_NOTES_SUGGESTED");
   });
 
+  it("drops generic subscription-service templates before importing notes", () => {
+    const prepared = buildPreparedImportFromAIDrafts([
+      draft({
+        notes: { value: "HostDZire CloudVPS 是提供 VPS 和云主机相关产品或服务的订阅服务。", source: "suggested" },
+      }),
+    ], context);
+
+    expect(prepared.payload.subscriptions[0]?.notes).toBeNull();
+    expect(prepared.payload.subscriptions[0]?.extra["ai"]).toEqual({ websiteSource: "input" });
+  });
+
   it("formats AI provider warnings into localized review text", () => {
     const formatted = formatImportMessage(
       "IMPORT_WARNING_FOR_SUBSCRIPTION|Apple|AI_WARNING_SERVICE_UNSPECIFIED",

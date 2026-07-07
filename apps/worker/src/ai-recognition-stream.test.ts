@@ -255,7 +255,7 @@ describe("Cloudflare AI recognition stream", () => {
         generatedDraft({
           name: "LocVPS",
           website: { value: null, source: "suggested" },
-          notes: { value: "LocVPS 是提供 VPS 和云主机相关产品或服务的订阅服务。", source: "suggested" },
+          notes: { value: "LocVPS 是面向 VPS 和云主机场景的主机服务。", source: "suggested" },
           tags: ["VPS", "云主机"],
         }),
       ],

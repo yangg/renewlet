@@ -259,7 +259,7 @@ describe("Cloudflare AI recognition", () => {
     expect(body.diagnostics.schemaName).toBe("renewlet_ai_subscription_recognition");
     expect(body.diagnostics.prompt.system.value).toContain("Return exactly one valid JSON object parseable by JSON.parse");
     expect(body.diagnostics.prompt.system.value).toContain("Do generate useful service and website metadata");
-    expect(body.diagnostics.prompt.system.value).toContain("Examples show output shape and decision patterns only");
+    expect(body.diagnostics.prompt.system.value).toContain("Examples show output shape, language style, and decision patterns only");
     expect(body.diagnostics.prompt.user.value).toContain("dmit 15元 1个月");
     expect(body.diagnostics.prompt.user.value).toContain("Runtime context:");
     expect(body.diagnostics.prompt.user.value).toContain("- User locale: zh-CN");
@@ -498,6 +498,27 @@ describe("Cloudflare AI recognition", () => {
     });
   });
 
+  it("drops generic subscription-service templates from provider notes", async () => {
+    aiMocks.generateObject.mockResolvedValue({
+      object: {
+        subscriptions: [generatedDraft({
+          name: "HostDZire CloudVPS",
+          website: null,
+          notes: { value: "HostDZire CloudVPS 是提供 VPS 和云主机相关产品或服务的订阅服务。", source: "suggested" },
+          tags: [],
+          confidence: "low",
+        })],
+        warnings: [],
+      },
+      finishReason: "stop",
+    });
+
+    const response = await recognizeSubscriptions(requestForText("HostDZire CloudVPS 15元 1个月"), envFixture());
+    const body = await readSuccessData<{ subscriptions: Array<{ notes: unknown }> }>(response);
+
+    expect(body.subscriptions[0]?.notes).toBeNull();
+  });
+
   it("keeps high-confidence public service descriptions from the provider", async () => {
     aiMocks.generateObject.mockResolvedValue({
       object: {
@@ -601,7 +622,7 @@ describe("Cloudflare AI recognition", () => {
         subscriptions: [generatedDraft({
           name: "HostDZire CloudVPS",
           website: { value: "https://hostdzire.com/", source: "suggested" },
-          notes: { value: "HostDZire CloudVPS 是提供 VPS 和云主机相关产品或服务的订阅服务。", source: "suggested" },
+          notes: { value: "HostDZire CloudVPS 是面向 VPS 和云主机场景的主机服务。", source: "suggested" },
           tags: ["VPS", "云主机"],
           confidence: "high",
         })],
@@ -616,7 +637,7 @@ describe("Cloudflare AI recognition", () => {
     expect(aiMocks.generateObject).toHaveBeenCalledTimes(2);
     expect(JSON.stringify(aiMocks.generateObject.mock.calls[1]?.[0])).toContain("Repair task:");
     expect(body.subscriptions[0]?.notes).toEqual({
-      value: "HostDZire CloudVPS 是提供 VPS 和云主机相关产品或服务的订阅服务。",
+      value: "HostDZire CloudVPS 是面向 VPS 和云主机场景的主机服务。",
       source: "suggested",
     });
     expect(body.subscriptions[0]?.warnings).not.toContain("AI_WARNING_NOTES_MISSING");
@@ -649,7 +670,7 @@ describe("Cloudflare AI recognition", () => {
 
     expect(aiMocks.generateObject).toHaveBeenCalledTimes(2);
     expect(body.subscriptions[0]?.notes).toEqual({
-      value: "HostDZire CloudVPS 是提供 VPS、云主机相关产品或服务的订阅服务。",
+      value: "HostDZire CloudVPS 是面向VPS、云主机场景的在线服务。",
       source: "suggested",
     });
     expect(body.subscriptions[0]?.warnings).not.toContain("AI_WARNING_NOTES_MISSING");
@@ -684,7 +705,7 @@ describe("Cloudflare AI recognition", () => {
       subscriptions: [generatedDraft({
         name: "LocVPS",
         website: { value: null, source: "suggested" },
-        notes: { value: "LocVPS 是提供 VPS 和云主机相关产品或服务的订阅服务。", source: "suggested" },
+        notes: { value: "LocVPS 是面向 VPS 和云主机场景的主机服务。", source: "suggested" },
         tags: ["VPS", "云主机"],
       })],
       warnings: [],

@@ -108,7 +108,7 @@ func TestNormalizeAIGeneratedRecognizeResponse(t *testing.T) {
 }
 
 func TestNormalizeAIGeneratedRecognizeResponseCleansNullableWebsiteValue(t *testing.T) {
-	notesValue := "LocVPS 是提供 VPS 和云主机相关产品或服务的订阅服务。"
+	notesValue := "LocVPS 是面向 VPS 和云主机场景的主机服务。"
 	response, err := normalizeAIGeneratedRecognizeResponse(aiGeneratedRecognizeResponse{
 		Subscriptions: []aiGeneratedSubscriptionDraft{{
 			Name:       "LocVPS",
@@ -217,6 +217,24 @@ func TestNormalizeAINotesRemovesRenewletAdvice(t *testing.T) {
 	}
 }
 
+func TestNormalizeAINotesDropsGenericSubscriptionServiceTemplate(t *testing.T) {
+	notes := aiSuggestedTextField{Value: "HostDZire CloudVPS 是提供 VPS 和云主机相关产品或服务的订阅服务。", Source: "suggested"}
+	response, err := normalizeAIRecognizeResponse(aiRecognizeResponse{
+		Subscriptions: []aiRecognizedSubscriptionDraft{{
+			Name:       "HostDZire CloudVPS",
+			Notes:      &notes,
+			Confidence: "low",
+		}},
+		Diagnostics: testAIRecognitionDiagnostics(),
+	}, aiProviderTypeOpenAI, aiProtocolOpenAIChat, "gpt-5.1", aiRecognitionConfigContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Subscriptions[0].Notes != nil {
+		t.Fatalf("generic subscription-service template should be dropped: %#v", response.Subscriptions[0].Notes)
+	}
+}
+
 func TestFillMissingAINotesWithDynamicFallback(t *testing.T) {
 	website := aiSuggestedTextField{Value: "https://hostdzire.com/", Source: "suggested"}
 	response, err := normalizeAIRecognizeResponse(aiRecognizeResponse{
@@ -235,7 +253,7 @@ func TestFillMissingAINotesWithDynamicFallback(t *testing.T) {
 	}
 	response = fillMissingAINotesWithDynamicFallback(response, localeZhCN, aiRecognitionConfigContext{})
 	draft := response.Subscriptions[0]
-	if draft.Notes == nil || draft.Notes.Value != "HostDZire CloudVPS 是提供 VPS、云主机相关产品或服务的订阅服务。" || draft.Notes.Source != "suggested" {
+	if draft.Notes == nil || draft.Notes.Value != "HostDZire CloudVPS 是面向VPS、云主机场景的在线服务。" || draft.Notes.Source != "suggested" {
 		t.Fatalf("missing notes should get dynamic fallback: %#v", draft.Notes)
 	}
 	if slices.Contains(draft.Warnings, "AI_WARNING_NOTES_MISSING") {

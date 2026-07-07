@@ -139,7 +139,7 @@ describe("AI recognition prompt contract", () => {
       ...aiRecognitionPromptSpec.fieldRules,
     ].join("\n");
 
-    expect(aiRecognitionPromptSpec.version).toBe("2026-06-24.strict-null-json");
+    expect(aiRecognitionPromptSpec.version).toBe("2026-07-07.service-note-rubric");
     expect(promptText).toContain("parseable by JSON.parse");
     expect(promptText).toContain("Every field listed above must be present exactly once");
     expect(promptText).toContain("If a billing fact is absent, hidden, unreadable, ambiguous, or inferred only from context, output null");
@@ -148,6 +148,19 @@ describe("AI recognition prompt contract", () => {
     expect(promptText).toContain("If the cycle is not explicit, output billingCycle: null");
     expect(promptText).toContain("Do not calculate nextBillingDate unless the input explicitly provides enough billing anchor evidence");
     expect(promptText).toContain("Do not default to active unless the input clearly shows the subscription is currently active");
+  });
+
+  it("requires long-term service descriptions instead of process notes", () => {
+    const promptText = aiRecognitionPromptSpec.fieldRules.join("\n");
+
+    expect(promptText).toContain("user's long-term notes field");
+    expect(promptText).toContain("18-60 Chinese characters");
+    expect(promptText).toContain("10-24 words");
+    expect(promptText).toContain("Use source=input only when the user input or image already provides a service description");
+    expect(promptText).toContain("Use source=suggested only when notes are based on high-confidence public knowledge");
+    expect(promptText).toContain("Put uncertainty in warnings instead");
+    expect(promptText).toContain("subscription service related to");
+    expect(promptText).toContain("相关产品或服务的订阅服务");
   });
 });
 

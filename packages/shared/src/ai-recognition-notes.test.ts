@@ -9,6 +9,8 @@ describe("AI recognition notes", () => {
       .toBe("LOCVPS 是面向 VPS、云服务器和服务器托管的主机服务商。");
     expect(normalizeAIRecognitionUsefulNotes("LOCVPS 提供 VPS、云服务器和服务器托管相关服务，适合记录主机或服务器套餐订阅。"))
       .toBe("LOCVPS 提供 VPS、云服务器和服务器托管服务");
+    expect(normalizeAIRecognitionUsefulNotes("HostDZire CloudVPS 是提供 VPS 和云主机相关产品或服务的订阅服务。")).toBeNull();
+    expect(normalizeAIRecognitionUsefulNotes("HostDZire CloudVPS is a subscription service related to VPS and cloud hosting.")).toBeNull();
     expect(normalizeAIRecognitionUsefulNotes("AI 根据服务名称建议官网。")).toBeNull();
     expect(normalizeAIRecognitionUsefulNotes("输入没有提供官网或更多上下文，AI 未能高置信识别该服务。")).toBeNull();
     expect(normalizeAIRecognitionUsefulNotes("Cannot determine the renewal date from the input; please confirm.")).toBeNull();
@@ -37,6 +39,12 @@ describe("AI recognition notes", () => {
 
     expect(prompt).toContain("notes must always be an object");
     expect(prompt).toContain("notes.value must be non-null for describable services");
+    expect(prompt).toContain("user's long-term notes field");
+    expect(prompt).toContain("18-60 Chinese characters");
+    expect(prompt).toContain("10-24 words");
+    expect(prompt).toContain("Put uncertainty in warnings instead");
+    expect(prompt).toContain("subscription service related to");
+    expect(prompt).toContain("相关产品或服务的订阅服务");
     expect(prompt).toContain("dynamic evidence from this request");
     expect(prompt).toContain("Generated user-facing metadata must follow User locale");
     expect(prompt).toContain("use English for en-US and Simplified Chinese for zh-CN");

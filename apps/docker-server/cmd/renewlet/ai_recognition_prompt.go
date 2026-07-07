@@ -114,7 +114,8 @@ func buildAIRecognitionRepairUserPrompt(originalUserPrompt string, previousObjec
 		"- The previous JSON object is structurally valid but some describable subscriptions have missing or unusable notes.",
 		"- Regenerate the entire JSON object with the same output contract, field rules, and all subscriptions.",
 		"- Do not use a hardcoded service table, brand mapping, icon database, region list, operating system list, or local fallback knowledge.",
-		"- For the subscription names below, notes.value must be a concise service/site description unless the service purpose is truly unknowable.",
+		"- For the subscription names below, notes.value must be a concise neutral service/site description for the user's long-term notes field unless the service purpose is truly unknowable.",
+		"- Do not write AI/model process, uncertainty, confirmation/import advice, repeated billing facts, marketing claims, or generic subscription-service wording in notes.",
 	}
 	for _, name := range missingNoteNames {
 		lines = append(lines, "  - "+name)

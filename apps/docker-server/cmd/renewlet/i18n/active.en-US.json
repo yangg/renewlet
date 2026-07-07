@@ -12,7 +12,7 @@
   "aiRecognition.baseUrlRequired": "AI Base URL is required",
   "aiRecognition.failed": "AI recognition failed. Check the input and model configuration.",
   "aiRecognition.fallbackNote.labelSeparator": ", ",
-  "aiRecognition.fallbackNote.labels": "{name} is a subscription service related to {labels}.",
+  "aiRecognition.fallbackNote.labels": "{name} is an online service for {labels} use cases.",
   "aiRecognition.fallbackNote.website": "{name} is an online service associated with {domain}.",
   "aiRecognition.imageTypeInvalid": "Invalid image type. PNG, JPG, or WebP is required.",
   "aiRecognition.inputRequired": "Paste text or upload an image first.",

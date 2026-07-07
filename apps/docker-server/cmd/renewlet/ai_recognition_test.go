@@ -168,7 +168,7 @@ func TestGoAIRecognitionRunnerRepairsMissingNotes(t *testing.T) {
 		)),
 		aiGeneratedResponseForTest(aiGeneratedDraftForTest(
 			"HostDZire CloudVPS",
-			aiGeneratedNotesField{Value: stringRef("HostDZire CloudVPS 是提供 VPS 和云主机相关产品或服务的订阅服务。"), Source: "suggested"},
+			aiGeneratedNotesField{Value: stringRef("HostDZire CloudVPS 是面向 VPS 和云主机场景的主机服务。"), Source: "suggested"},
 			[]string{"VPS", "云主机"},
 		)),
 	})
@@ -186,7 +186,7 @@ func TestGoAIRecognitionRunnerRepairsMissingNotes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.Subscriptions[0].Notes == nil || response.Subscriptions[0].Notes.Value != "HostDZire CloudVPS 是提供 VPS 和云主机相关产品或服务的订阅服务。" {
+	if response.Subscriptions[0].Notes == nil || response.Subscriptions[0].Notes.Value != "HostDZire CloudVPS 是面向 VPS 和云主机场景的主机服务。" {
 		t.Fatalf("repair notes not preserved: %#v", response.Subscriptions[0].Notes)
 	}
 	if !strings.Contains(response.Diagnostics.Prompt.User.Value, "Repair task:") {
@@ -215,7 +215,7 @@ func TestGoAIRecognitionRunnerFallsBackWhenRepairStillMissesNotes(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.Subscriptions[0].Notes == nil || response.Subscriptions[0].Notes.Value != "HostDZire CloudVPS 是提供 VPS、云主机相关产品或服务的订阅服务。" {
+	if response.Subscriptions[0].Notes == nil || response.Subscriptions[0].Notes.Value != "HostDZire CloudVPS 是面向VPS、云主机场景的在线服务。" {
 		t.Fatalf("fallback notes not generated from dynamic fields: %#v", response.Subscriptions[0].Notes)
 	}
 	if slices.Contains(response.Subscriptions[0].Warnings, "AI_WARNING_NOTES_MISSING") {
@@ -226,7 +226,7 @@ func TestGoAIRecognitionRunnerFallsBackWhenRepairStillMissesNotes(t *testing.T) 
 func TestGoAIRecognitionRunnerRecoversRawJSONWhenStructuredObjectRejected(t *testing.T) {
 	raw := aiGeneratedResponseForTest(aiGeneratedDraftForTest(
 		"LocVPS",
-		aiGeneratedNotesField{Value: stringRef("LocVPS 是提供 VPS 和云主机相关产品或服务的订阅服务。"), Source: "suggested"},
+		aiGeneratedNotesField{Value: stringRef("LocVPS 是面向 VPS 和云主机场景的主机服务。"), Source: "suggested"},
 		[]string{"VPS", "云主机"},
 	))
 	raw.Subscriptions[0].Website = &aiGeneratedSuggestedTextField{Value: nil, Source: "suggested"}
@@ -268,7 +268,7 @@ func TestGoAIRecognitionRunnerStreamsProgressPartialAndFinal(t *testing.T) {
 	restore := stubAIRecognitionStreamGeneration(t, []aiGeneratedRecognizeResponse{
 		aiGeneratedResponseForTest(aiGeneratedDraftForTest(
 			"HostDZire CloudVPS",
-			aiGeneratedNotesField{Value: stringRef("HostDZire CloudVPS 是提供 VPS 和云主机相关产品或服务的订阅服务。"), Source: "suggested"},
+			aiGeneratedNotesField{Value: stringRef("HostDZire CloudVPS 是面向 VPS 和云主机场景的主机服务。"), Source: "suggested"},
 			[]string{"VPS", "云主机"},
 		)),
 	})
@@ -307,7 +307,7 @@ func TestGoAIRecognitionRunnerStreamsProgressPartialAndFinal(t *testing.T) {
 func TestGoAIRecognitionRunnerStreamsRecoveredRawJSONFinal(t *testing.T) {
 	raw := aiGeneratedResponseForTest(aiGeneratedDraftForTest(
 		"LocVPS",
-		aiGeneratedNotesField{Value: stringRef("LocVPS 是提供 VPS 和云主机相关产品或服务的订阅服务。"), Source: "suggested"},
+		aiGeneratedNotesField{Value: stringRef("LocVPS 是面向 VPS 和云主机场景的主机服务。"), Source: "suggested"},
 		[]string{"VPS", "云主机"},
 	))
 	raw.Subscriptions[0].Website = &aiGeneratedSuggestedTextField{Value: nil, Source: "suggested"}
@@ -563,7 +563,7 @@ func TestAIRecognitionPromptUsesSharedJSONContract(t *testing.T) {
 		"output null and add a warning code",
 		"Never invent price, currency, billing cycle, dates, status, payment method, or reminder fields",
 		"Do generate useful service and website metadata",
-		"Examples show output shape and decision patterns only",
+		"Examples show output shape, language style, and decision patterns only",
 		"do not copy example natural-language output when it conflicts with User locale",
 	} {
 		if !strings.Contains(systemPrompt, want) {
@@ -589,6 +589,12 @@ func TestAIRecognitionPromptUsesSharedJSONContract(t *testing.T) {
 		`never output {"value": null, "source": "suggested"}`,
 		"notes must always be an object",
 		"notes.value must be non-null for describable services",
+		"user's long-term notes field",
+		"18-60 Chinese characters",
+		"10-24 words",
+		"Put uncertainty in warnings instead",
+		"subscription service related to",
+		"相关产品或服务的订阅服务",
 		"dynamic evidence from this request",
 		"Generated user-facing metadata must follow User locale",
 		"use English for en-US and Simplified Chinese for zh-CN",
@@ -598,6 +604,8 @@ func TestAIRecognitionPromptUsesSharedJSONContract(t *testing.T) {
 		"Do not use one-off order attributes as tags",
 		"Example Cloud Backup",
 		"Team Docs Workspace",
+		"YouTube Premium",
+		"GitHub Copilot Pro",
 		`"price": 12`,
 		`"currency": "USD"`,
 		`"billingCycle": "annual"`,
@@ -667,6 +675,9 @@ func TestAIRecognitionGeneratedSchemaRequiresCompleteDraftFields(t *testing.T) {
 	}
 	if !slices.Contains(notesSchema.Properties["source"].Enum, "none") {
 		t.Fatalf("generated notes source should include none, got %#v", notesSchema.Properties["source"].Enum)
+	}
+	if !strings.Contains(notesSchema.Description, "Put uncertainty in warnings, not notes") || !strings.Contains(notesSchema.Properties["value"].Description, "Long-term notes field content") {
+		t.Fatalf("generated notes schema should describe long-term notes and warning boundary, got %#v", notesSchema)
 	}
 	websiteValueType, _ := json.Marshal(schema.Properties["subscriptions"].Items.Properties["website"].Properties["value"].Type)
 	if !strings.Contains(string(websiteValueType), "null") {

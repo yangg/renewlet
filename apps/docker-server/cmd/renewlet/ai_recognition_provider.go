@@ -350,11 +350,11 @@ var aiRecognitionGeneratedSchema = json.RawMessage(`{
           },
           "notes": {
             "type": "object",
-            "description": "Required service/site description decision object. Use value=null and source=none only when the service purpose is truly unknowable from input, domain, service name, category, tags, or high-confidence public knowledge.",
+            "description": "Required service/site description decision object. Use source=input only for descriptions present in the input/image, source=suggested for high-confidence public knowledge or dynamic fields, and value=null with source=none only when the service purpose is truly unknowable. Put uncertainty in warnings, not notes.",
             "properties": {
               "value": {
                 "type": ["string", "null"],
-                "description": "Concise neutral service/site description. Must be non-null for describable services; not a category, import advice, confirmation reminder, or AI process note."
+                "description": "Long-term notes field content. Use one concise neutral service/site description: zh-CN one sentence about 18-60 Chinese characters, en-US one sentence about 10-24 words. Must be non-null for describable services; never include AI/model process, uncertainty, confirmation/import advice, renewal reminders, repeated billing facts, marketing claims, or generic subscription-service wording."
               },
               "source": { "type": "string", "enum": ["input", "suggested", "none"] }
             },
